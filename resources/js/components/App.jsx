@@ -35,6 +35,8 @@ import ProfileEdit from './pages/ProfileEdit';
 // Import des pages d'ajout/gestion
 import AddSound from './pages/AddSound';
 import AddEvent from './pages/AddEvent';
+import EditSound from './pages/EditSound';
+import EditEvent from './pages/EditEvent';
 import Cart from './pages/Cart';
 import TicketPurchase from './pages/TicketPurchase';
 import Favorites from './pages/Favorites';
@@ -42,23 +44,23 @@ import Favorites from './pages/Favorites';
 function App() {
     return (
         <div className="d-flex flex-column min-vh-100">
-            <Header />
+                        <Header />
             <main className="flex-grow-1">
-                <PageTransition>
-                    <Routes>
+                        <PageTransition>
+                                <Routes>
                         {/* Pages publiques */}
-                        <Route path="/" element={<Home />} />
+                                    <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/contact" element={<Contact />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
 
                         {/* Pages de contenu publiques */}
-                        <Route path="/catalog" element={<Catalog />} />
-                        <Route path="/artists" element={<Artists />} />
-                        <Route path="/artist/:id" element={<ArtistProfile />} />
-                        <Route path="/events" element={<Events />} />
-                        <Route path="/event/:id" element={<EventDetails />} />
+                                    <Route path="/catalog" element={<Catalog />} />
+                                    <Route path="/artists" element={<Artists />} />
+                                    <Route path="/artist/:id" element={<ArtistProfile />} />
+                                    <Route path="/events" element={<Events />} />
+                                    <Route path="/event/:id" element={<EventDetails />} />
                         <Route path="/categories" element={<Categories />} />
                         <Route path="/sound/:id" element={<SoundDetails />} />
 
@@ -112,15 +114,27 @@ function App() {
                             </ProtectedRoute>
                         } />
 
+                        <Route path="/edit-sound/:id" element={
+                            <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                <EditSound />
+                            </ProtectedRoute>
+                        } />
+
+                        <Route path="/edit-event/:id" element={
+                            <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                <EditEvent />
+                            </ProtectedRoute>
+                        } />
+
                         {/* Redirection par défaut */}
                         <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
+                                </Routes>
                 </PageTransition>
-            </main>
-            <Footer />
+                            </main>
+                        <Footer />
 
             {/* Bouton flottant disponible sur toutes les pages */}
-            <FloatingActionButton />
+                        <FloatingActionButton />
         </div>
     );
 }

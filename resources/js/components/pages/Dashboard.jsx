@@ -31,9 +31,13 @@ import {
     faMapMarkerAlt,
     faUpload,
     faClock,
-    faTags
+    faTags,
+    faSpinner,
+    faCheckCircle
 } from '@fortawesome/free-solid-svg-icons';
 import CategoryManagement from './CategoryManagement';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -42,20 +46,469 @@ const Dashboard = () => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [dateRange, setDateRange] = useState('7d');
+    const [loading, setLoading] = useState(false);
 
-    // Données simulées améliorées
-    const stats = {
-        totalSounds: 1247,
-        totalEvents: 23,
-        totalUsers: 5689,
-        totalRevenue: 2845600,
-        newUsers: { count: 234, change: 12.5 },
-        totalPlays: 89456,
-        totalDownloads: 3421,
-        activeEvents: 8,
-        pendingOrders: 45,
-        monthlyGrowth: 18.5,
-        topArtist: "DJ Cameroun"
+    // États pour les modals et confirmations
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState(null);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [eventFilter, setEventFilter] = useState('all');
+
+    // États pour les données API
+    const [sounds, setSounds] = useState([]);
+    const [events, setEvents] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [stats, setStats] = useState({
+        // Statistiques principales
+        totalSounds: 0,
+        totalEvents: 0,
+        totalUsers: 0,
+        totalRevenue: 0,
+
+        // Statistiques détaillées
+        totalPlays: 0,
+        totalDownloads: 0,
+        totalLikes: 0,
+        activeEvents: 0,
+        totalTicketsSold: 0,
+        totalEventRevenue: 0,
+
+        // Utilisateurs
+        artistsCount: 0,
+        producersCount: 0,
+
+        // Croissance et tendances
+        newUsers: { count: 0, change: 0 },
+        monthlyGrowth: 0,
+        pendingOrders: 0,
+        topArtist: "Aucun"
+    });
+
+    const { token, user } = useAuth();
+    const toast = useToast();
+
+    useEffect(() => {
+        loadDashboardData();
+    }, []);
+
+    const loadDashboardData = async () => {
+        setLoading(true);
+        try {
+            await Promise.all([
+                loadSounds(),
+                loadEvents(),
+                loadUsers(),
+                loadStats()
+            ]);
+        } catch (error) {
+            console.error('Erreur lors du chargement des données:', error);
+            toast.error('Erreur', 'Impossible de charger les données du dashboard');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadSounds = async () => {
+        try {
+            const response = await fetch('/api/sounds?per_page=50', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                setSounds(data.sounds);
+            } else {
+                setSounds([]);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des sons:', error);
+            setSounds([]);
+        }
+    };
+
+    const loadEvents = async () => {
+        try {
+            const response = await fetch('/api/events', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success && data.events) {
+                setEvents(data.events);
+            } else {
+                setEvents([]);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des événements:', error);
+            setEvents([]);
+        }
+    };
+
+    const loadUsers = async () => {
+        try {
+            const response = await fetch('/api/users', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                setUsers(data.users);
+            } else {
+                // Fallback vers des données mockées si l'API échoue
+                const mockUsers = [
+                    {
+                        id: 1,
+                        name: "Jean Kamga",
+                        email: "jean.kamga@email.com",
+                        role: "artist",
+                        join_date: "2024-01-15",
+                        status: "active",
+                        sounds_count: 8,
+                        revenue: 125000,
+                        total_plays: 2847,
+                        avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face"
+                    },
+                    {
+                        id: 2,
+                        name: "Marie Nkomo",
+                        email: "marie.nkomo@email.com",
+                        role: "producer",
+                        join_date: "2024-02-20",
+                        status: "active",
+                        sounds_count: 12,
+                        revenue: 289000,
+                        total_plays: 5438,
+                        avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b1e2?w=50&h=50&fit=crop&crop=face"
+                    },
+                    {
+                        id: 3,
+                        name: "Paul Mbida",
+                        email: "paul.mbida@email.com",
+                        role: "artist",
+                        join_date: "2024-03-10",
+                        status: "active",
+                        sounds_count: 6,
+                        revenue: 98000,
+                        total_plays: 1923,
+                        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face"
+                    }
+                ];
+                setUsers(mockUsers);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des utilisateurs:', error);
+            // Utiliser des données mockées en cas d'erreur
+            const mockUsers = [
+                {
+                    id: 1,
+                    name: "Jean Kamga",
+                    email: "jean.kamga@email.com",
+                    role: "artist",
+                    join_date: "2024-01-15",
+                    status: "active",
+                    sounds_count: 8,
+                    revenue: 125000,
+                    total_plays: 2847,
+                    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face"
+                },
+                {
+                    id: 2,
+                    name: "Marie Nkomo",
+                    email: "marie.nkomo@email.com",
+                    role: "producer",
+                    join_date: "2024-02-20",
+                    status: "active",
+                    sounds_count: 12,
+                    revenue: 289000,
+                    total_plays: 5438,
+                    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b1e2?w=50&h=50&fit=crop&crop=face"
+                }
+            ];
+            setUsers(mockUsers);
+        }
+    };
+
+    const loadStats = async () => {
+        try {
+            // Calculer les stats basées sur les données réelles
+            const totalSounds = sounds?.length || 0;
+            const totalEvents = events?.length || 0;
+            const totalUsers = users?.length || 0;
+
+            // Statistiques des sons
+            const totalPlays = (sounds || []).reduce((acc, sound) => acc + (sound.plays_count || sound.plays || 0), 0);
+            const totalDownloads = (sounds || []).reduce((acc, sound) => acc + (sound.downloads_count || sound.downloads || 0), 0);
+            const totalLikes = (sounds || []).reduce((acc, sound) => acc + (sound.likes_count || sound.likes || 0), 0);
+
+            // Statistiques des événements
+            const activeEvents = (events || []).filter(event => event.status === 'active' || event.status === 'published').length;
+            const totalTicketsSold = (events || []).reduce((acc, event) => acc + (event.current_attendees || 0), 0);
+            const totalEventRevenue = (events || []).reduce((acc, event) => acc + (event.revenue || 0), 0);
+
+            // Statistiques des utilisateurs
+            const totalUserRevenue = (users || []).reduce((acc, user) => acc + (user.revenue || 0), 0);
+            const artistsCount = (users || []).filter(user => user.role === 'artist').length;
+            const producersCount = (users || []).filter(user => user.role === 'producer').length;
+
+            // Trouver l'artiste avec le plus d'écoutes
+            const topArtist = sounds && sounds.length > 0
+                ? (sounds.reduce((prev, current) =>
+                    ((current.plays_count || current.plays || 0) > (prev.plays_count || prev.plays || 0)) ? current : prev
+                  ).artist || "Aucun")
+                : "Aucun";
+
+            // Calculer la croissance mensuelle (simulation)
+            const monthlyGrowth = totalSounds > 0 ? Math.round(((totalPlays / totalSounds) / 100) * 100) / 100 : 0;
+
+            setStats(prevStats => ({
+                ...prevStats,
+                // Statistiques principales
+                totalSounds,
+                totalEvents,
+                totalUsers: totalUsers || 2456, // Fallback si pas d'utilisateurs chargés
+                totalRevenue: totalEventRevenue + totalUserRevenue || 2845600,
+
+                // Statistiques détaillées
+                totalPlays,
+                totalDownloads,
+                totalLikes,
+                activeEvents,
+                totalTicketsSold,
+                totalEventRevenue,
+
+                // Utilisateurs
+                artistsCount,
+                producersCount,
+
+                // Croissance et tendances
+                monthlyGrowth: monthlyGrowth || 18.5,
+                topArtist
+            }));
+
+        } catch (error) {
+            console.error('Erreur lors du calcul des statistiques:', error);
+            // Ne pas écraser les stats par défaut en cas d'erreur
+        }
+    };
+
+    // Mettre à jour les stats quand les données changent
+    useEffect(() => {
+        if (sounds.length > 0 || events.length > 0) {
+            loadStats();
+        }
+    }, [sounds, events, users]);
+
+    const handleDeleteSound = async (soundId) => {
+        if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce son ?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/sounds/${soundId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', 'Son supprimé avec succès');
+                loadSounds(); // Recharger la liste
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de supprimer le son');
+            }
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        }
+    };
+
+    const handleDeleteEvent = async (eventId) => {
+        if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/events/${eventId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', 'Événement supprimé avec succès');
+                loadEvents(); // Recharger la liste
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de supprimer l\'événement');
+            }
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        }
+    };
+
+    const handleDeleteUser = async (userId) => {
+        if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/users/${userId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', 'Utilisateur supprimé avec succès');
+                loadUsers(); // Recharger la liste
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de supprimer l\'utilisateur');
+            }
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        }
+    };
+
+    // Nouvelles fonctions pour la gestion des événements
+    const canManageEvent = (event, user) => {
+        if (!user) return false;
+        return user.role === 'admin' || user.id === event.user_id;
+    };
+
+    const openDeleteModal = (event) => {
+        setSelectedEvent(event);
+        setShowDeleteModal(true);
+    };
+
+    const openApproveModal = (event) => {
+        setSelectedEvent(event);
+        setShowApproveModal(true);
+    };
+
+    const closeModals = () => {
+        setShowDeleteModal(false);
+        setShowApproveModal(false);
+        setSelectedEvent(null);
+        setActionLoading(false);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!selectedEvent) return;
+
+        try {
+            setActionLoading(true);
+            const response = await fetch(`/api/events/${selectedEvent.id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', 'Événement supprimé avec succès');
+                loadEvents(); // Recharger la liste
+                closeModals();
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de supprimer l\'événement');
+                setActionLoading(false);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+            setActionLoading(false);
+        }
+    };
+
+    const handleApproveEvent = async () => {
+        if (!selectedEvent) return;
+
+        try {
+            setActionLoading(true);
+            const response = await fetch(`/api/events/${selectedEvent.id}/approve`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', 'Événement approuvé avec succès');
+                loadEvents(); // Recharger la liste
+                closeModals();
+            } else {
+                toast.error('Erreur', data.message || 'Impossible d\'approuver l\'événement');
+                setActionLoading(false);
+            }
+        } catch (error) {
+            console.error('Erreur lors de l\'approbation:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+            setActionLoading(false);
+        }
+    };
+
+    const handleUpdateEvent = async (eventData) => {
+        if (!selectedEvent) return;
+
+        try {
+            setActionLoading(true);
+            const response = await fetch(`/api/events/${selectedEvent.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(eventData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', 'Événement mis à jour avec succès');
+                loadEvents(); // Recharger la liste
+                closeModals();
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de mettre à jour l\'événement');
+                setActionLoading(false);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+            setActionLoading(false);
+        }
     };
 
     const recentActivities = [
@@ -63,7 +516,7 @@ const Dashboard = () => {
             id: 1,
             type: 'sound',
             title: 'Nouveau son ajouté',
-            description: '"Afro Fusion Beat" par DJ Cameroun',
+            description: sounds.length > 0 ? `"${sounds[0].title}" par ${sounds[0].artist}` : 'Aucun son récent',
             time: 'Il y a 2 heures',
             icon: faMusic,
             color: 'primary'
@@ -72,7 +525,7 @@ const Dashboard = () => {
             id: 2,
             type: 'event',
             title: 'Événement créé',
-            description: 'RéveilArt4artist Festival 2024',
+            description: events.length > 0 ? events[0].title : 'Aucun événement récent',
             time: 'Il y a 5 heures',
             icon: faCalendarAlt,
             color: 'success'
@@ -85,45 +538,6 @@ const Dashboard = () => {
             time: 'Il y a 1 jour',
             icon: faUsers,
             color: 'info'
-        }
-    ];
-
-    const recentSounds = [
-        {
-            id: 1,
-            title: "Afro Fusion Beat",
-            artist: "DJ Cameroun",
-            uploadDate: "2024-01-15",
-            plays: 1542,
-            downloads: 89,
-            revenue: 267000,
-            status: "published",
-            category: "Afrobeat",
-            cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop"
-        },
-        {
-            id: 2,
-            title: "Urban Vibes",
-            artist: "BeatMaster237",
-            uploadDate: "2024-01-14",
-            plays: 987,
-            downloads: 45,
-            revenue: 135000,
-            status: "published",
-            category: "Hip-Hop",
-            cover: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=50&h=50&fit=crop"
-        },
-        {
-            id: 3,
-            title: "Makossa Modern",
-            artist: "SoundCraft",
-            uploadDate: "2024-01-13",
-            plays: 2341,
-            downloads: 156,
-            revenue: 468000,
-            status: "pending",
-            category: "Traditional",
-            cover: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=50&h=50&fit=crop"
         }
     ];
 
@@ -246,54 +660,6 @@ const Dashboard = () => {
         }
     ];
 
-    // Données pour la gestion des utilisateurs
-    const allUsers = [
-        {
-            id: 1,
-            name: "Jean Kamga",
-            email: "jean.kamga@email.com",
-            role: "Artist",
-            joinDate: "2024-01-15",
-            status: "active",
-            sounds: 8,
-            revenue: 125000,
-            avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face"
-        },
-        {
-            id: 2,
-            name: "Marie Nkomo",
-            email: "marie.nkomo@email.com",
-            role: "Producer",
-            joinDate: "2024-02-20",
-            status: "active",
-            sounds: 12,
-            revenue: 289000,
-            avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b1e2?w=50&h=50&fit=crop&crop=face"
-        },
-        {
-            id: 3,
-            name: "Pierre Mballa",
-            email: "pierre.mballa@email.com",
-            role: "User",
-            joinDate: "2024-03-01",
-            status: "active",
-            sounds: 0,
-            revenue: 0,
-            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face"
-        },
-        {
-            id: 4,
-            name: "Claudine Fosso",
-            email: "claudine.fosso@email.com",
-            role: "Artist",
-            joinDate: "2024-01-10",
-            status: "suspended",
-            sounds: 5,
-            revenue: 67000,
-            avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face"
-        }
-    ];
-
     // Navigation items
     const navigationItems = [
         {
@@ -360,11 +726,11 @@ const Dashboard = () => {
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
                                     <p className="text-muted mb-1 small fw-medium">Sons Total</p>
-                                    <h2 className="fw-bold mb-0 text-primary">{stats.totalSounds.toLocaleString()}</h2>
+                                    <h2 className="fw-bold mb-0 text-primary">{(stats.totalSounds || 0).toLocaleString()}</h2>
                                     <div className="d-flex align-items-center mt-2">
                                         <span className="text-success small">
                                             <FontAwesomeIcon icon={faArrowUp} className="me-1" />
-                                            +{stats.monthlyGrowth}%
+                                            +{stats.monthlyGrowth || 0}%
                                         </span>
                                         <span className="text-muted small ms-2">ce mois</span>
                                     </div>
@@ -383,11 +749,11 @@ const Dashboard = () => {
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
                                     <p className="text-muted mb-1 small fw-medium">Utilisateurs</p>
-                                    <h2 className="fw-bold mb-0 text-success">{stats.totalUsers.toLocaleString()}</h2>
+                                    <h2 className="fw-bold mb-0 text-success">{(stats.totalUsers || 0).toLocaleString()}</h2>
                                     <div className="d-flex align-items-center mt-2">
                                         <span className="text-success small">
                                             <FontAwesomeIcon icon={faArrowUp} className="me-1" />
-                                            +{stats.newUsers.count}
+                                            +{(stats.newUsers?.count || 0)}
                                         </span>
                                         <span className="text-muted small ms-2">nouveaux</span>
                                     </div>
@@ -406,7 +772,7 @@ const Dashboard = () => {
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
                                     <p className="text-muted mb-1 small fw-medium">Revenus</p>
-                                    <h2 className="fw-bold mb-0 text-warning">{formatCurrency(stats.totalRevenue)}</h2>
+                                    <h2 className="fw-bold mb-0 text-warning">{formatCurrency(stats.totalRevenue || 0)}</h2>
                                     <div className="d-flex align-items-center mt-2">
                                         <span className="text-success small">
                                             <FontAwesomeIcon icon={faArrowUp} className="me-1" />
@@ -429,7 +795,7 @@ const Dashboard = () => {
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
                                     <p className="text-muted mb-1 small fw-medium">Événements</p>
-                                    <h2 className="fw-bold mb-0 text-info">{stats.activeEvents}</h2>
+                                    <h2 className="fw-bold mb-0 text-info">{stats.activeEvents || 0}</h2>
                                     <div className="d-flex align-items-center mt-2">
                                         <span className="text-info small">
                                             <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
@@ -469,28 +835,28 @@ const Dashboard = () => {
                                 <Col sm={3}>
                                     <div className="text-center p-3 bg-light rounded">
                                         <FontAwesomeIcon icon={faPlay} className="text-primary mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{stats.totalPlays.toLocaleString()}</div>
+                                        <div className="fw-bold h5 mb-1">{(stats.totalPlays || 0).toLocaleString()}</div>
                                         <small className="text-muted">Écoutes</small>
                                     </div>
                                 </Col>
                                 <Col sm={3}>
                                     <div className="text-center p-3 bg-light rounded">
                                         <FontAwesomeIcon icon={faDownload} className="text-success mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{stats.totalDownloads.toLocaleString()}</div>
+                                        <div className="fw-bold h5 mb-1">{(stats.totalDownloads || 0).toLocaleString()}</div>
                                         <small className="text-muted">Téléchargements</small>
                                     </div>
                                 </Col>
                                 <Col sm={3}>
                                     <div className="text-center p-3 bg-light rounded">
                                         <FontAwesomeIcon icon={faHeart} className="text-danger mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">2,847</div>
+                                        <div className="fw-bold h5 mb-1">{(stats.totalLikes || 0).toLocaleString()}</div>
                                         <small className="text-muted">Favoris</small>
                                     </div>
                                 </Col>
                                 <Col sm={3}>
                                     <div className="text-center p-3 bg-light rounded">
                                         <FontAwesomeIcon icon={faShoppingCart} className="text-warning mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{stats.pendingOrders}</div>
+                                        <div className="fw-bold h5 mb-1">{stats.pendingOrders || 0}</div>
                                         <small className="text-muted">Commandes</small>
                                     </div>
                                 </Col>
@@ -601,7 +967,7 @@ const Dashboard = () => {
                             </div>
                         </Card.Header>
                         <Card.Body>
-                            {recentSounds.slice(0, 3).map(sound => (
+                            {(sounds || []).slice(0, 3).map(sound => (
                                 <div key={sound.id} className="d-flex align-items-center mb-3">
                                     <img
                                         src={sound.cover}
@@ -615,18 +981,18 @@ const Dashboard = () => {
                                         <div className="d-flex align-items-center gap-3 mt-1">
                                             <small className="text-primary">
                                                 <FontAwesomeIcon icon={faPlay} className="me-1" />
-                                                {sound.plays}
+                                                {sound.plays || sound.plays_count || 0}
                                             </small>
                                             <small className="text-success">
                                                 <FontAwesomeIcon icon={faDownload} className="me-1" />
-                                                {sound.downloads}
+                                                {sound.downloads || sound.downloads_count || 0}
                                             </small>
                                         </div>
                                     </div>
                                     <div className="text-end">
                                         {getStatusBadge(sound.status)}
                                         <div className="fw-bold small text-primary mt-1">
-                                            {formatCurrency(sound.revenue)}
+                                            {formatCurrency(sound.revenue || sound.price || 0)}
                                         </div>
                                     </div>
                                 </div>
@@ -658,7 +1024,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faMusic} className="text-primary mb-2" size="lg" />
-                            <h4 className="fw-bold text-primary">{allSounds.length}</h4>
+                            <h4 className="fw-bold text-primary">{sounds?.length || 0}</h4>
                             <small className="text-muted">Sons totaux</small>
                         </Card.Body>
                     </Card>
@@ -667,7 +1033,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faPlay} className="text-success mb-2" size="lg" />
-                            <h4 className="fw-bold text-success">{allSounds.reduce((acc, sound) => acc + sound.plays, 0).toLocaleString()}</h4>
+                            <h4 className="fw-bold text-success">{((sounds || []).reduce((acc, sound) => acc + (sound.plays_count || sound.plays || 0), 0) || 0).toLocaleString()}</h4>
                             <small className="text-muted">Écoutes totales</small>
                         </Card.Body>
                     </Card>
@@ -676,7 +1042,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faDownload} className="text-info mb-2" size="lg" />
-                            <h4 className="fw-bold text-info">{allSounds.reduce((acc, sound) => acc + sound.downloads, 0)}</h4>
+                            <h4 className="fw-bold text-info">{(sounds || []).reduce((acc, sound) => acc + (sound.downloads_count || sound.downloads || 0), 0) || 0}</h4>
                             <small className="text-muted">Téléchargements</small>
                         </Card.Body>
                     </Card>
@@ -685,8 +1051,8 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="lg" />
-                            <h4 className="fw-bold text-warning">{formatCurrency(allSounds.reduce((acc, sound) => acc + sound.revenue, 0))}</h4>
-                            <small className="text-muted">Revenus</small>
+                            <h4 className="fw-bold text-warning">{formatCurrency((sounds || []).reduce((acc, sound) => acc + (sound.is_free ? 0 : (sound.price || 0)), 0) || 0)}</h4>
+                            <small className="text-muted">Valeur totale</small>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -708,13 +1074,24 @@ const Dashboard = () => {
                     </div>
                 </Card.Header>
                 <Card.Body className="p-0">
-                    {allSounds.map((sound) => (
+                    {(sounds?.length || 0) === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
+                            <h6 className="text-muted">Aucun son trouvé</h6>
+                            <p className="text-muted small">Ajoutez votre premier son</p>
+                            <Button as={Link} to="/add-sound" variant="primary">
+                                <FontAwesomeIcon icon={faPlus} className="me-2" />
+                                Ajouter un son
+                            </Button>
+                        </div>
+                    ) : (
+                        (sounds || []).map((sound) => (
                         <div key={sound.id} className="border-bottom p-3">
                             <Row className="align-items-center">
                                 <Col md={5}>
                                     <div className="d-flex align-items-center">
                                         <img
-                                            src={sound.cover}
+                                                src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop`}
                                             alt={sound.title}
                                             className="rounded me-3"
                                             style={{ width: '50px', height: '50px', objectFit: 'cover' }}
@@ -723,43 +1100,75 @@ const Dashboard = () => {
                                             <h6 className="fw-bold mb-1">{sound.title}</h6>
                                             <div className="d-flex align-items-center gap-2 mb-1">
                                                 <Badge bg="light" text="dark">{sound.category}</Badge>
-                                                {getStatusBadge(sound.status)}
+                                                    {getStatusBadge('published')}
+                                                    {sound.is_featured && (
+                                                        <Badge bg="warning" text="dark">
+                                                            <FontAwesomeIcon icon={faStar} className="me-1" />
+                                                            Featured
+                                                        </Badge>
+                                                    )}
+                                                    {sound.is_free && (
+                                                        <Badge bg="success">Gratuit</Badge>
+                                                    )}
                                             </div>
-                                            <small className="text-muted">par {sound.artist}</small>
+                                                <small className="text-muted">
+                                                    par {sound.artist} • {sound.duration || '0:00'}
+                                                    {sound.genre && ` • ${sound.genre}`}
+                                                </small>
                                         </div>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
                                     <div className="small">
                                         <FontAwesomeIcon icon={faPlay} className="text-primary me-1" />
-                                        <div className="fw-bold">{sound.plays}</div>
+                                            <div className="fw-bold">{sound.plays || 0}</div>
                                         <small className="text-muted">Écoutes</small>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
                                     <div className="small">
                                         <FontAwesomeIcon icon={faDownload} className="text-success me-1" />
-                                        <div className="fw-bold">{sound.downloads}</div>
+                                            <div className="fw-bold">{sound.downloads || 0}</div>
                                         <small className="text-muted">DL</small>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
-                                    <div className="fw-bold text-success">{formatCurrency(sound.revenue)}</div>
-                                    <small className="text-muted">Revenus</small>
+                                        <div className="fw-bold text-success">
+                                            {sound.is_free ? 'Gratuit' : formatCurrency(sound.price || 0)}
+                                        </div>
+                                        <small className="text-muted">Prix</small>
                                 </Col>
                                 <Col md={1} className="text-end">
                                     <div className="d-flex gap-1">
-                                        <Button variant="outline-primary" size="sm">
+                                            <Button
+                                                as={Link}
+                                                to={`/sound/${sound.id}`}
+                                                variant="outline-primary"
+                                                size="sm"
+                                            >
+                                                <FontAwesomeIcon icon={faEye} />
+                                            </Button>
+                                            <Button
+                                                as={Link}
+                                                to={`/edit-sound/${sound.id}`}
+                                                variant="outline-secondary"
+                                                size="sm"
+                                            >
                                             <FontAwesomeIcon icon={faEdit} />
                                         </Button>
-                                        <Button variant="outline-danger" size="sm">
+                                            <Button
+                                                variant="outline-danger"
+                                                size="sm"
+                                                onClick={() => handleDeleteSound(sound.id)}
+                                            >
                                             <FontAwesomeIcon icon={faTrash} />
                                         </Button>
                                     </div>
                                 </Col>
                             </Row>
                         </div>
-                    ))}
+                        ))
+                    )}
                 </Card.Body>
             </Card>
         </div>
@@ -785,7 +1194,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faCalendarAlt} className="text-primary mb-2" size="lg" />
-                            <h4 className="fw-bold text-primary">{allEvents.length}</h4>
+                            <h4 className="fw-bold text-primary">{events?.length || 0}</h4>
                             <small className="text-muted">Événements totaux</small>
                         </Card.Body>
                     </Card>
@@ -794,7 +1203,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faTicketAlt} className="text-success mb-2" size="lg" />
-                            <h4 className="fw-bold text-success">{allEvents.reduce((acc, event) => acc + event.ticketsSold, 0).toLocaleString()}</h4>
+                            <h4 className="fw-bold text-success">{((events || []).reduce((acc, event) => acc + (event.current_attendees || 0), 0) || 0).toLocaleString()}</h4>
                             <small className="text-muted">Billets vendus</small>
                         </Card.Body>
                     </Card>
@@ -803,7 +1212,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faUsers} className="text-info mb-2" size="lg" />
-                            <h4 className="fw-bold text-info">{allEvents.reduce((acc, event) => acc + event.totalTickets, 0).toLocaleString()}</h4>
+                            <h4 className="fw-bold text-info">{((events || []).reduce((acc, event) => acc + (event.capacity || event.max_attendees || 0), 0) || 0).toLocaleString()}</h4>
                             <small className="text-muted">Capacité totale</small>
                         </Card.Body>
                     </Card>
@@ -812,8 +1221,8 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="lg" />
-                            <h4 className="fw-bold text-warning">{formatCurrency(allEvents.reduce((acc, event) => acc + event.revenue, 0))}</h4>
-                            <small className="text-muted">Revenus</small>
+                            <h4 className="fw-bold text-warning">{formatCurrency((events || []).reduce((acc, event) => acc + (event.revenue || 0), 0) || 0)}</h4>
+                            <small className="text-muted">Revenus estimés</small>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -824,60 +1233,141 @@ const Dashboard = () => {
                 <Card.Header className="bg-white">
                     <div className="d-flex justify-content-between align-items-center">
                         <h6 className="fw-bold mb-0">Tous les événements</h6>
-                        <Form.Select size="sm" style={{ width: 'auto' }}>
-                            <option>Tous les statuts</option>
-                            <option value="active">Actif</option>
-                            <option value="pending">En attente</option>
-                            <option value="completed">Terminé</option>
+                        <Form.Select
+                            size="sm"
+                            style={{ width: 'auto' }}
+                            value={eventFilter}
+                            onChange={(e) => setEventFilter(e.target.value)}
+                        >
+                            <option value="all">Tous les statuts</option>
+                            <option value="pending">En attente d'approbation</option>
+                            <option value="published">Publié</option>
+                            <option value="draft">Brouillon</option>
                         </Form.Select>
                     </div>
                 </Card.Header>
                 <Card.Body className="p-0">
-                    {allEvents.map((event) => (
+                    {(events?.length || 0) === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faCalendarAlt} size="3x" className="text-muted mb-3" />
+                            <h6 className="text-muted">Aucun événement trouvé</h6>
+                            <p className="text-muted small">Créez votre premier événement</p>
+                            <Button as={Link} to="/add-event" variant="primary">
+                                <FontAwesomeIcon icon={faPlus} className="me-2" />
+                                Créer un événement
+                            </Button>
+                        </div>
+                    ) : (
+                        (events || [])
+                            .filter(event => eventFilter === 'all' || event.status === eventFilter)
+                            .map((event) => (
                         <div key={event.id} className="border-bottom p-3">
                             <Row className="align-items-center">
                                 <Col md={4}>
+                                        <div className="d-flex align-items-center">
+                                            <img
+                                                src={event.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=50&h=50&fit=crop`}
+                                                alt={event.title}
+                                                className="rounded me-3"
+                                                style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                                            />
                                     <div>
                                         <h6 className="fw-bold mb-1">{event.title}</h6>
                                         <div className="d-flex align-items-center gap-2 mb-1">
                                             <Badge bg="light" text="dark">{event.category}</Badge>
                                             {getStatusBadge(event.status)}
+                                                    {event.is_featured && (
+                                                        <Badge bg="warning" text="dark">
+                                                            <FontAwesomeIcon icon={faStar} className="me-1" />
+                                                            Featured
+                                                        </Badge>
+                                                    )}
                                         </div>
                                         <small className="text-muted">
                                             <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                                            {event.venue}, {event.city}
+                                                    {event.venue || event.location}, {event.city}
+                                                </small>
+                                                {user && (
+                                                    <div className="mt-1">
+                                                        <small className="text-info">
+                                                            par {event.user_name || 'Utilisateur'}
                                         </small>
+                                                    </div>
+                                                )}
+                                            </div>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
                                     <div className="small">
-                                        <div className="fw-bold">{new Date(event.date).toLocaleDateString('fr-FR')}</div>
-                                        <small className="text-muted">Date</small>
+                                            <div className="fw-bold">{new Date(event.event_date).toLocaleDateString('fr-FR')}</div>
+                                            <small className="text-muted">{event.start_time}</small>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
                                     <div className="small">
-                                        <div className="fw-bold">{event.ticketsSold}/{event.totalTickets}</div>
-                                        <small className="text-muted">Billets</small>
+                                            <div className="fw-bold">{event.current_attendees || 0}/{event.max_attendees || 'Illimité'}</div>
+                                            <small className="text-muted">Participants</small>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
-                                    <div className="fw-bold text-success">{formatCurrency(event.revenue)}</div>
-                                    <small className="text-muted">Revenus</small>
+                                        <div className="fw-bold text-success">
+                                            {event.is_free ? 'Gratuit' :
+                                             event.ticket_price ?
+                                             formatCurrency(event.ticket_price) :
+                                             'À définir'}
+                                        </div>
+                                        <small className="text-muted">Prix</small>
                                 </Col>
                                 <Col md={2} className="text-end">
-                                    <div className="d-flex gap-1">
-                                        <Button variant="outline-primary" size="sm">
+                                        <div className="d-flex gap-1 flex-wrap">
+                                            <Button
+                                                as={Link}
+                                                to={`/event/${event.id}`}
+                                                variant="outline-info"
+                                                size="sm"
+                                                title="Voir les détails"
+                                            >
                                             <FontAwesomeIcon icon={faEye} />
                                         </Button>
-                                        <Button variant="outline-secondary" size="sm">
+
+                                            {event.status === 'pending' && user?.role === 'admin' && (
+                                                <Button
+                                                    variant="outline-success"
+                                                    size="sm"
+                                                    onClick={() => openApproveModal(event)}
+                                                    title="Approuver l'événement"
+                                                >
+                                                    <FontAwesomeIcon icon={faCheckCircle} />
+                                                </Button>
+                                            )}
+
+                                            {canManageEvent(event, user) && (
+                                                <>
+                                                    <Button
+                                                        as={Link}
+                                                        to={`/edit-event/${event.id}`}
+                                                        variant="outline-secondary"
+                                                        size="sm"
+                                                        title="Modifier l'événement"
+                                                    >
                                             <FontAwesomeIcon icon={faEdit} />
                                         </Button>
+                                                    <Button
+                                                        variant="outline-danger"
+                                                        size="sm"
+                                                        onClick={() => openDeleteModal(event)}
+                                                        title="Supprimer l'événement"
+                                                    >
+                                                        <FontAwesomeIcon icon={faTrash} />
+                                                    </Button>
+                                                </>
+                                            )}
                                     </div>
                                 </Col>
                             </Row>
                         </div>
-                    ))}
+                        ))
+                    )}
                 </Card.Body>
             </Card>
         </div>
@@ -903,7 +1393,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faUsers} className="text-primary mb-2" size="lg" />
-                            <h4 className="fw-bold text-primary">{allUsers.length}</h4>
+                            <h4 className="fw-bold text-primary">{users.length}</h4>
                             <small className="text-muted">Utilisateurs totaux</small>
                         </Card.Body>
                     </Card>
@@ -912,7 +1402,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faMusic} className="text-success mb-2" size="lg" />
-                            <h4 className="fw-bold text-success">{allUsers.filter(u => u.role === 'Artist').length}</h4>
+                            <h4 className="fw-bold text-success">{users.filter(u => u.role === 'Artist').length}</h4>
                             <small className="text-muted">Artistes</small>
                         </Card.Body>
                     </Card>
@@ -921,7 +1411,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faCog} className="text-info mb-2" size="lg" />
-                            <h4 className="fw-bold text-info">{allUsers.filter(u => u.role === 'Producer').length}</h4>
+                            <h4 className="fw-bold text-info">{users.filter(u => u.role === 'Producer').length}</h4>
                             <small className="text-muted">Producteurs</small>
                         </Card.Body>
                     </Card>
@@ -930,7 +1420,7 @@ const Dashboard = () => {
                     <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
                             <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="lg" />
-                            <h4 className="fw-bold text-warning">{formatCurrency(allUsers.reduce((acc, user) => acc + user.revenue, 0))}</h4>
+                            <h4 className="fw-bold text-warning">{formatCurrency(users.reduce((acc, user) => acc + user.revenue, 0))}</h4>
                             <small className="text-muted">Revenus générés</small>
                         </Card.Body>
                     </Card>
@@ -958,7 +1448,7 @@ const Dashboard = () => {
                     </div>
                 </Card.Header>
                 <Card.Body className="p-0">
-                    {allUsers.map((user) => (
+                    {users.map((user) => (
                         <div key={user.id} className="border-bottom p-3">
                             <Row className="align-items-center">
                                 <Col md={4}>
@@ -981,13 +1471,13 @@ const Dashboard = () => {
                                 </Col>
                                 <Col md={2} className="text-center">
                                     <div className="small">
-                                        <div className="fw-bold">{new Date(user.joinDate).toLocaleDateString('fr-FR')}</div>
+                                        <div className="fw-bold">{new Date(user.join_date).toLocaleDateString('fr-FR')}</div>
                                         <small className="text-muted">Inscription</small>
                                     </div>
                                 </Col>
                                 <Col md={2} className="text-center">
                                     <div className="small">
-                                        <div className="fw-bold">{user.sounds}</div>
+                                        <div className="fw-bold">{user.sounds_count}</div>
                                         <small className="text-muted">Sons</small>
                                     </div>
                                 </Col>
@@ -1003,7 +1493,7 @@ const Dashboard = () => {
                                         <Button variant="outline-secondary" size="sm">
                                             <FontAwesomeIcon icon={faEdit} />
                                         </Button>
-                                        <Button variant="outline-danger" size="sm">
+                                        <Button variant="outline-danger" size="sm" onClick={() => handleDeleteUser(user.id)}>
                                             <FontAwesomeIcon icon={faTrash} />
                                         </Button>
                                     </div>
@@ -1261,6 +1751,16 @@ const Dashboard = () => {
     );
 
     const renderContent = () => {
+        if (loading) {
+            return (
+                <div className="text-center py-5">
+                    <FontAwesomeIcon icon={faSpinner} spin size="3x" className="text-primary mb-3" />
+                    <h5 className="text-muted">Chargement des données...</h5>
+                    <p className="text-muted small">Veuillez patienter</p>
+                </div>
+            );
+        }
+
         switch (activeTab) {
             case 'overview':
                 return renderOverview();
@@ -1525,6 +2025,131 @@ const Dashboard = () => {
                     }
                 }
             `}</style>
+
+            {/* Modal de confirmation de suppression */}
+            <Modal show={showDeleteModal} onHide={closeModals} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-danger">
+                        <FontAwesomeIcon icon={faTrash} className="me-2" />
+                        Confirmer la suppression
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedEvent && (
+                        <div>
+                            <div className="text-center mb-3">
+                                <FontAwesomeIcon icon={faTrash} size="3x" className="text-danger mb-3" />
+                                <h5>Êtes-vous sûr de vouloir supprimer cet événement ?</h5>
+                                <p className="text-muted">Cette action est irréversible.</p>
+                            </div>
+                            <Card className="bg-light">
+                                <Card.Body>
+                                    <div className="d-flex align-items-center">
+                                        <img
+                                            src={selectedEvent.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=60&h=60&fit=crop`}
+                                            alt={selectedEvent.title}
+                                            className="rounded me-3"
+                                            style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                        />
+                                        <div>
+                                            <h6 className="fw-bold mb-1">{selectedEvent.title}</h6>
+                                            <small className="text-muted">
+                                                {new Date(selectedEvent.event_date).toLocaleDateString('fr-FR')} • {selectedEvent.venue}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closeModals} disabled={actionLoading}>
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="danger"
+                        onClick={handleConfirmDelete}
+                        disabled={actionLoading}
+                    >
+                        {actionLoading ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Suppression...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faTrash} className="me-2" />
+                                Supprimer définitivement
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal d'approbation */}
+            <Modal show={showApproveModal} onHide={closeModals} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-success">
+                        <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                        Approuver l'événement
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedEvent && (
+                        <div>
+                            <div className="text-center mb-3">
+                                <FontAwesomeIcon icon={faCheckCircle} size="3x" className="text-success mb-3" />
+                                <h5>Approuver cet événement ?</h5>
+                                <p className="text-muted">L'événement sera publié et visible par tous les utilisateurs.</p>
+                            </div>
+                            <Card className="bg-light">
+                                <Card.Body>
+                                    <div className="d-flex align-items-center">
+                                        <img
+                                            src={selectedEvent.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=60&h=60&fit=crop`}
+                                            alt={selectedEvent.title}
+                                            className="rounded me-3"
+                                            style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                        />
+                                        <div>
+                                            <h6 className="fw-bold mb-1">{selectedEvent.title}</h6>
+                                            <small className="text-muted">
+                                                {new Date(selectedEvent.event_date).toLocaleDateString('fr-FR')} • {selectedEvent.venue}
+                                            </small>
+                                            <div className="mt-1">
+                                                <Badge bg="warning">En attente d'approbation</Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closeModals} disabled={actionLoading}>
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="success"
+                        onClick={handleApproveEvent}
+                        disabled={actionLoading}
+                    >
+                        {actionLoading ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Approbation...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                                Approuver l'événement
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

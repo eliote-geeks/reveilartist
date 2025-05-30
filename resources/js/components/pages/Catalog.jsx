@@ -258,11 +258,11 @@ const Catalog = () => {
                         <Col lg={4} md={6}>
                             <Form.Group>
                                 <Form.Label className="small fw-medium text-muted">Rechercher</Form.Label>
-                                <InputGroup>
-                                    <Form.Control
-                                        type="text"
+                            <InputGroup>
+                                <Form.Control
+                                    type="text"
                                         placeholder="Titre, artiste, genre..."
-                                        value={searchTerm}
+                                    value={searchTerm}
                                         onChange={handleSearchChange}
                                         style={{ borderRadius: '8px 0 0 8px' }}
                                     />
@@ -271,9 +271,9 @@ const Catalog = () => {
                                         style={{ borderRadius: '0 8px 8px 0' }}
                                         disabled={loading}
                                     >
-                                        <FontAwesomeIcon icon={faSearch} />
+                                    <FontAwesomeIcon icon={faSearch} />
                                     </Button>
-                                </InputGroup>
+                            </InputGroup>
                             </Form.Group>
                         </Col>
 
@@ -281,8 +281,8 @@ const Catalog = () => {
                         <Col lg={2} md={3} sm={6}>
                             <Form.Group>
                                 <Form.Label className="small fw-medium text-muted">Catégorie</Form.Label>
-                                <Form.Select
-                                    value={selectedCategory}
+                            <Form.Select
+                                value={selectedCategory}
                                     onChange={(e) => handleCategoryChange(e.target.value)}
                                     style={{ borderRadius: '8px' }}
                                 >
@@ -290,8 +290,8 @@ const Catalog = () => {
                                         <option key={category.value} value={category.value}>
                                             {category.label}
                                         </option>
-                                    ))}
-                                </Form.Select>
+                                ))}
+                            </Form.Select>
                             </Form.Group>
                         </Col>
 
@@ -299,17 +299,17 @@ const Catalog = () => {
                         <Col lg={2} md={3} sm={6}>
                             <Form.Group>
                                 <Form.Label className="small fw-medium text-muted">Prix</Form.Label>
-                                <Form.Select
-                                    value={selectedPrice}
+                            <Form.Select
+                                value={selectedPrice}
                                     onChange={(e) => handlePriceChange(e.target.value)}
                                     style={{ borderRadius: '8px' }}
-                                >
-                                    {priceRanges.map(range => (
+                            >
+                                {priceRanges.map(range => (
                                         <option key={range.value} value={range.value}>
                                             {range.label}
                                         </option>
-                                    ))}
-                                </Form.Select>
+                                ))}
+                            </Form.Select>
                             </Form.Group>
                         </Col>
 
@@ -317,36 +317,36 @@ const Catalog = () => {
                         <Col lg={2} md={6} sm={6}>
                             <Form.Group>
                                 <Form.Label className="small fw-medium text-muted">Trier par</Form.Label>
-                                <Form.Select
-                                    value={sortBy}
+                            <Form.Select
+                                value={sortBy}
                                     onChange={(e) => handleSortChange(e.target.value)}
                                     style={{ borderRadius: '8px' }}
-                                >
-                                    {sortOptions.map(option => (
+                            >
+                                {sortOptions.map(option => (
                                         <option key={option.value} value={option.value}>
                                             {option.label}
                                         </option>
-                                    ))}
-                                </Form.Select>
+                                ))}
+                            </Form.Select>
                             </Form.Group>
                         </Col>
 
                         {/* Actualiser */}
                         <Col lg={2} md={6} sm={6}>
-                            <Button
+                                <Button
                                 variant="outline-secondary"
                                 className="w-100"
                                 onClick={handleRefresh}
                                 disabled={loading}
-                                style={{ borderRadius: '8px' }}
-                            >
+                                    style={{ borderRadius: '8px' }}
+                                >
                                 <FontAwesomeIcon
                                     icon={faRefresh}
                                     spin={loading}
                                     className="me-2"
                                 />
                                 Actualiser
-                            </Button>
+                                </Button>
                         </Col>
                     </Row>
                 </Container>
@@ -426,27 +426,27 @@ const Catalog = () => {
                         </div>
                     ) : (
                         <>
-                            <Row className="g-4">
-                                {filteredSounds.map((sound) => (
-                                    <Col
-                                        key={sound.id}
-                                        lg={viewMode === 'grid' ? 3 : 12}
-                                        md={viewMode === 'grid' ? 4 : 12}
-                                        sm={viewMode === 'grid' ? 6 : 12}
-                                    >
-                                        <SoundCard
+                        <Row className="g-4">
+                            {filteredSounds.map((sound) => (
+                                <Col
+                                    key={sound.id}
+                                    lg={viewMode === 'grid' ? 3 : 12}
+                                    md={viewMode === 'grid' ? 4 : 12}
+                                    sm={viewMode === 'grid' ? 6 : 12}
+                                >
+                                    <SoundCard
                                             sound={{
                                                 ...sound,
                                                 isLiked: likedSounds.has(sound.id)
                                             }}
-                                            onLike={handleLike}
-                                            onAddToCart={handleAddToCart}
-                                            isCompact={viewMode === 'list'}
-                                            showPreview={true}
-                                        />
-                                    </Col>
-                                ))}
-                            </Row>
+                                        onLike={handleLike}
+                                        onAddToCart={handleAddToCart}
+                                        isCompact={viewMode === 'list'}
+                                        showPreview={true}
+                                    />
+                                </Col>
+                            ))}
+                        </Row>
 
                             {/* Pagination */}
                             {pagination.has_more && (

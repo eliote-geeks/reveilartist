@@ -155,4 +155,92 @@ class User extends Authenticatable
         $initials = strtoupper(substr($this->name, 0, 1));
         return "https://ui-avatars.com/api/?name=" . urlencode($this->name) . "&color=7F9CF5&background=EBF4FF&size=200";
     }
+
+    /**
+     * Sons créés par l'utilisateur
+     */
+    public function sounds()
+    {
+        return $this->hasMany(Sound::class);
+    }
+
+    /**
+     * Événements créés par l'utilisateur
+     */
+    public function events()
+    {
+        return $this->hasMany(Event::class);
+    }
+
+    /**
+     * Utilisateurs que cet utilisateur suit
+     */
+    public function following()
+    {
+        return $this->belongsToMany(User::class, 'user_follows', 'follower_id', 'followed_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Utilisateurs qui suivent cet utilisateur
+     */
+    public function followers()
+    {
+        return $this->belongsToMany(User::class, 'user_follows', 'followed_id', 'follower_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Vérifier si cet utilisateur suit un autre utilisateur
+     */
+    public function isFollowing($userId)
+    {
+        return $this->following()->where('followed_id', $userId)->exists();
+    }
+
+    /**
+     * Suivre un utilisateur
+     */
+    public function follow($userId)
+    {
+        if (!$this->isFollowing($userId) && $this->id !== $userId) {
+            $this->following()->attach($userId);
+        }
+    }
+
+    /**
+     * Ne plus suivre un utilisateur
+     */
+    public function unfollow($userId)
+    {
+        $this->following()->detach($userId);
+    }
+
+    /**
+     * Obtenir le nombre total d'écoutes de tous les sons de l'utilisateur
+     */
+    public function getTotalPlaysAttribute()
+    {
+        return $this->sounds()->sum('plays_count');
+    }
+
+    /**
+     * Obtenir le nombre total de likes de tous les sons de l'utilisateur
+     */
+    public function getTotalLikesAttribute()
+    {
+        return $this->sounds()->sum('likes_count');
+    }
+
+    /**
+     * Obtenir le genre musical principal de l'utilisateur
+     */
+    public function getPrimaryGenreAttribute()
+    {
+        return $this->sounds()
+                    ->selectRaw('genre, COUNT(*) as count')
+                    ->groupBy('genre')
+                    ->orderByDesc('count')
+                    ->value('genre') ?? 'Non défini';
+    }
 }

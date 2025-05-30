@@ -104,8 +104,12 @@ class SoundController extends Controller
                     'category_id' => $sound->category_id,
                     'likes' => $sound->likes_count,
                     'plays' => $sound->plays_count,
+                    'downloads' => $sound->downloads_count,
                     'duration' => $sound->formatted_duration,
+                    'duration_seconds' => $sound->duration,
                     'genre' => $sound->genre,
+                    'bpm' => $sound->bpm,
+                    'key' => $sound->key,
                     'file_url' => $sound->file_url,
                     'preview_url' => route('api.sounds.preview', $sound->id), // URL pour preview
                     'is_featured' => $sound->is_featured,

@@ -19,14 +19,19 @@ import {
     faShoppingCart,
     faEye,
     faTh,
-    faList
+    faList,
+    faEuroSign
 } from '@fortawesome/free-solid-svg-icons';
 import LoadingScreen from '../common/LoadingScreen';
 import { AnimatedElement } from '../common/PageTransition';
 import FloatingActionButton from '../common/FloatingActionButton';
+import { useCart } from '../../context/CartContext';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 const Events = () => {
     const [loading, setLoading] = useState(true);
+    const [events, setEvents] = useState([]);
     const [filteredEvents, setFilteredEvents] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
@@ -34,100 +39,76 @@ const Events = () => {
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState(null);
     const [ticketQuantities, setTicketQuantities] = useState({});
-    const [viewMode, setViewMode] = useState('grid'); // 'grid' ou 'list'
+    const [viewMode, setViewMode] = useState('grid');
+    const [categories, setCategories] = useState(['Tous']);
+    const [cities, setCities] = useState(['Toutes']);
 
-    // Données mockées d'événements camerounais corrigées
-    const events = [
-        {
-            id: 1,
-            title: "RéveilArt Festival 2024",
-            artist: "Multi-artistes",
-            date: "2024-06-15",
-            time: "18:00",
-            location: "Palais des Sports Yaoundé",
-            city: "Yaoundé",
-            image: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=250&fit=crop",
-            description: "Le plus grand festival de musique urbaine du Cameroun",
-            category: "Festival",
-            tickets: [
-                { type: "Standard", price: 15000, available: 500 },
-                { type: "VIP", price: 35000, available: 100 },
-                { type: "Premium", price: 55000, available: 50 }
-            ],
-            featured: true
-        },
-        {
-            id: 2,
-            title: "Hip-Hop Night Douala",
-            artist: "BeatMaster237, UrbanFlow",
-            date: "2024-05-20",
-            time: "20:00",
-            location: "Centre Culturel Français",
-            city: "Douala",
-            image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop",
-            description: "Une soirée dédiée au Hip-Hop camerounais",
-            category: "Concert",
-            tickets: [
-                { type: "Entrée", price: 8000, available: 200 },
-                { type: "VIP", price: 20000, available: 50 }
-            ],
-            featured: false
-        },
-        {
-            id: 3,
-            title: "Makossa Revival",
-            artist: "Heritage Sound",
-            date: "2024-07-10",
-            time: "19:30",
-            location: "Stade Ahmadou Ahidjo",
-            city: "Yaoundé",
-            image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=250&fit=crop",
-            description: "Célébration de la musique traditionnelle camerounaise",
-            category: "Festival",
-            tickets: [
-                { type: "Tribune", price: 12000, available: 1000 },
-                { type: "Pelouse", price: 5000, available: 2000 }
-            ],
-            featured: true
-        },
-        {
-            id: 4,
-            title: "Electronic Vibes",
-            artist: "DJ TechCamer",
-            date: "2024-06-30",
-            time: "22:00",
-            location: "Club Paradise",
-            city: "Douala",
-            image: "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=250&fit=crop",
-            description: "Soirée électro avec les meilleurs DJs du pays",
-            category: "Soirée",
-            tickets: [
-                { type: "Entrée", price: 10000, available: 300 }
-            ],
-            featured: false
-        }
-    ];
-
-    const categories = ['Tous', 'Festival', 'Concert', 'Soirée', 'Showcase'];
-    const cities = ['Toutes', 'Yaoundé', 'Douala', 'Bafoussam', 'Garoua'];
+    const { addToCart } = useCart();
+    const toast = useToast();
+    const { token } = useAuth();
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setLoading(false);
-            setFilteredEvents(events);
-        }, 1500);
-
-        return () => clearTimeout(timer);
+        loadEvents();
     }, []);
 
     useEffect(() => {
+        filterEvents();
+    }, [events, searchQuery, selectedCategory, selectedCity]);
+
+    const loadEvents = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch('/api/events');
+            const data = await response.json();
+
+            if (data.success) {
+                // Adapter simplement les données des événements pour les URLs d'images et JSON
+                const adaptedEvents = data.events.map(event => ({
+                    ...event,
+                    // S'assurer que les URLs d'images sont correctes
+                    poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
+                    // Décoder les artistes et sponsors depuis JSON si ils existent
+                    artists_array: event.artists ? (
+                        typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
+                    ) : [],
+                    sponsors_array: event.sponsors ? (
+                        typeof event.sponsors === 'string' ? JSON.parse(event.sponsors) : event.sponsors
+                    ) : [],
+                    // Calculer le nombre de places restantes
+                    remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
+                }));
+
+                setEvents(adaptedEvents);
+
+                // Extraire les catégories et villes uniques
+                const uniqueCategories = ['Tous', ...new Set(adaptedEvents.map(event => event.category))];
+                const uniqueCities = ['Toutes', ...new Set(adaptedEvents.map(event => event.city))];
+
+                setCategories(uniqueCategories);
+                setCities(uniqueCities);
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de charger les événements');
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des événements:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filterEvents = () => {
         let filtered = events;
 
         if (searchQuery) {
             filtered = filtered.filter(event =>
                 event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                event.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                event.location.toLowerCase().includes(searchQuery.toLowerCase())
+                event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (event.artists_array && event.artists_array.some(artist =>
+                    artist.toLowerCase().includes(searchQuery.toLowerCase())
+                )) ||
+                event.venue.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                event.city.toLowerCase().includes(searchQuery.toLowerCase())
             );
         }
 
@@ -139,8 +120,14 @@ const Events = () => {
             filtered = filtered.filter(event => event.city === selectedCity);
         }
 
+        // Filtrer pour n'afficher que les événements publiés et à venir
+        filtered = filtered.filter(event =>
+            event.status === 'published' &&
+            new Date(event.event_date) >= new Date().setHours(0, 0, 0, 0)
+        );
+
         setFilteredEvents(filtered);
-    }, [searchQuery, selectedCategory, selectedCity]);
+    };
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -159,8 +146,14 @@ const Events = () => {
         }).format(amount);
     };
 
-    const getLowestPrice = (tickets) => {
-        return Math.min(...tickets.map(ticket => ticket.price));
+    const getLowestPrice = (event) => {
+        if (event.is_free) return 0;
+        if (event.ticket_price) return event.ticket_price;
+        if (event.price_min) return event.price_min;
+        if (event.tickets && event.tickets.length > 0) {
+            return Math.min(...event.tickets.map(ticket => ticket.price));
+        }
+        return 0;
     };
 
     const handleTicketQuantityChange = (eventId, ticketType, change) => {
@@ -182,6 +175,44 @@ const Events = () => {
     const closeTicketModal = () => {
         setShowTicketModal(false);
         setSelectedEvent(null);
+        setTicketQuantities({});
+    };
+
+    const handleAddToCart = () => {
+        if (!token) {
+            toast.warning('Connexion requise', 'Vous devez être connecté pour acheter des billets');
+            return;
+        }
+
+        if (!selectedEvent) return;
+
+        // Pour les événements payants, ajouter un billet standard
+        if (!selectedEvent.is_free && selectedEvent.ticket_price) {
+            const cartItem = {
+                id: selectedEvent.id,
+                type: 'event',
+                title: selectedEvent.title,
+                artist: selectedEvent.artists_array?.[0] || 'Event',
+                event_date: selectedEvent.event_date,
+                venue: selectedEvent.venue,
+                city: selectedEvent.city,
+                ticket_type: 'Standard',
+                ticket_price: selectedEvent.ticket_price,
+                price: selectedEvent.ticket_price,
+                quantity: 1,
+                poster: selectedEvent.poster_image_url,
+                max_attendees: selectedEvent.max_attendees
+            };
+
+            addToCart(cartItem);
+
+            toast.cart(
+                'Billet ajouté au panier',
+                `Billet pour "${selectedEvent.title}" ajouté au panier`
+            );
+        }
+
+        closeTicketModal();
     };
 
     if (loading) {
@@ -197,96 +228,121 @@ const Events = () => {
                 <div className="position-relative">
                     <Card.Img
                         variant="top"
-                        src={event.image}
-                        alt={event.title}
+                        src={event.poster_image_url || event.featured_image || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=250&fit=crop`}
                         className="event-image"
                         style={{ height: '200px', objectFit: 'cover' }}
                     />
+
+                    {/* Badges */}
+                    <div className="position-absolute top-0 start-0 m-3">
+                        <Badge bg="primary" className="mb-2">
+                            {event.category}
+                        </Badge>
+                        {event.is_featured && (
+                            <Badge bg="warning" text="dark">
+                                <FontAwesomeIcon icon={faStar} className="me-1" />
+                                Featured
+                            </Badge>
+                        )}
+                    </div>
+
+                    {event.is_free && (
+                        <div className="position-absolute top-0 end-0 m-3">
+                            <Badge bg="success">
+                                Gratuit
+                            </Badge>
+                        </div>
+                    )}
+
+                    {/* Overlay au hover */}
                     <div className="event-overlay">
-                        <div className="event-overlay-content">
+                        <div className="event-overlay-content text-center">
                             <Button
+                                as={Link}
+                                to={`/event/${event.id}`}
                                 variant="light"
-                                size="sm"
-                                className="me-2"
-                                onClick={() => openTicketModal(event)}
+                                className="mb-2 me-2"
                             >
-                                <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
-                                Billets
+                                <FontAwesomeIcon icon={faEye} className="me-2" />
+                                Voir détails
                             </Button>
-                            <Button variant="outline-light" size="sm" className="me-2">
-                                <FontAwesomeIcon icon={faHeart} />
+                            {!event.is_free && (
+                                <Button
+                                    variant="primary"
+                                    onClick={() => openTicketModal(event)}
+                                >
+                                    <FontAwesomeIcon icon={faTicketAlt} className="me-2" />
+                                    Billets
                             </Button>
-                            <Button variant="outline-light" size="sm">
-                                <FontAwesomeIcon icon={faShare} />
-                            </Button>
+                            )}
                         </div>
                     </div>
-                    {event.featured && (
-                        <Badge bg="warning" className="position-absolute top-0 start-0 m-2">
-                            <FontAwesomeIcon icon={faStar} className="me-1" />
-                            Featured
-                        </Badge>
-                    )}
-                    <Badge bg="primary" className="position-absolute top-0 end-0 m-2">
-                        {event.category}
-                    </Badge>
                 </div>
 
-                <Card.Body className="d-flex flex-column">
-                    <div className="mb-2">
-                        <Card.Title className="h5 fw-bold mb-1">{event.title}</Card.Title>
-                        <Card.Text className="text-muted small mb-2">
-                            <FontAwesomeIcon icon={faMusic} className="me-1" />
-                            {event.artist}
-                        </Card.Text>
+                <Card.Body>
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                        <h5 className="card-title fw-bold mb-0">
+                            <Link
+                                to={`/event/${event.id}`}
+                                className="text-decoration-none text-dark"
+                            >
+                                {event.title}
+                            </Link>
+                        </h5>
+                        <Button variant="outline-danger" size="sm">
+                            <FontAwesomeIcon icon={faHeart} />
+                        </Button>
                     </div>
 
-                    <div className="event-details mb-3">
-                        <div className="d-flex align-items-center mb-2">
+                    <p className="text-muted small mb-2">
+                        {event.artists_array && event.artists_array.length > 0 &&
+                            `par ${event.artists_array.slice(0, 2).join(', ')}${event.artists_array.length > 2 ? '...' : ''}`
+                        }
+                    </p>
+
+                    <div className="mb-3">
+                        <div className="d-flex align-items-center mb-1">
                             <FontAwesomeIcon icon={faCalendarAlt} className="text-primary me-2" />
-                            <span className="small fw-medium">{formatDate(event.date)}</span>
+                            <small>{formatDate(event.event_date)}</small>
                         </div>
-                        <div className="d-flex align-items-center mb-2">
-                            <FontAwesomeIcon icon={faClock} className="text-secondary me-2" />
-                            <span className="small">{event.time}</span>
+                        <div className="d-flex align-items-center mb-1">
+                            <FontAwesomeIcon icon={faClock} className="text-primary me-2" />
+                            <small>{event.start_time}</small>
                         </div>
                         <div className="d-flex align-items-center">
-                            <FontAwesomeIcon icon={faMapMarkerAlt} className="text-success me-2" />
-                            <span className="small">{event.location}</span>
+                            <FontAwesomeIcon icon={faMapMarkerAlt} className="text-primary me-2" />
+                            <small>{event.venue}, {event.city}</small>
                         </div>
                     </div>
 
-                    <Card.Text className="text-muted small mb-3 flex-grow-1">
-                        {event.description}
-                    </Card.Text>
-
-                    <div className="mt-auto">
                         <div className="d-flex justify-content-between align-items-center">
                             <div>
-                                <span className="text-muted small">À partir de</span>
-                                <div className="fw-bold text-primary">
-                                    {formatCurrency(getLowestPrice(event.tickets))}
+                            {event.is_free ? (
+                                <span className="fw-bold text-success">Gratuit</span>
+                            ) : (
+                                <span className="fw-bold text-primary">
+                                    À partir de {formatCurrency(getLowestPrice(event))}
+                                </span>
+                            )}
                                 </div>
-                            </div>
-                            <div className="d-flex gap-2">
+                        <div className="d-flex gap-1">
                                 <Button
+                                as={Link}
+                                to={`/event/${event.id}`}
                                     variant="outline-primary"
                                     size="sm"
-                                    as={Link}
-                                    to={`/events/${event.id}`}
                                 >
-                                    <FontAwesomeIcon icon={faEye} className="me-1" />
-                                    Détails
+                                <FontAwesomeIcon icon={faEye} />
                                 </Button>
+                            {!event.is_free && (
                                 <Button
                                     variant="primary"
                                     size="sm"
                                     onClick={() => openTicketModal(event)}
                                 >
-                                    <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
-                                    Billets
+                                    <FontAwesomeIcon icon={faTicketAlt} />
                                 </Button>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </Card.Body>
@@ -297,102 +353,144 @@ const Events = () => {
     const EventListItem = ({ event, index }) => (
         <AnimatedElement animation="slideInUp" delay={100 + (index * 50)}>
             <Card className="event-list-item border-0 shadow-sm mb-3">
-                <Card.Body className="p-3">
-                    <Row className="align-items-center">
+                <Row className="g-0">
                         <Col md={3}>
-                            <div className="position-relative">
                                 <img
-                                    src={event.image}
+                            src={event.poster_image_url || event.featured_image || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=300&h=200&fit=crop`}
+                            className="img-fluid rounded-start"
+                            style={{ height: '150px', width: '100%', objectFit: 'cover' }}
                                     alt={event.title}
-                                    className="img-fluid rounded"
-                                    style={{ height: '80px', width: '120px', objectFit: 'cover' }}
-                                />
-                                {event.featured && (
-                                    <Badge bg="warning" className="position-absolute top-0 start-0 m-1 small">
+                        />
+                    </Col>
+                    <Col md={9}>
+                        <Card.Body>
+                            <Row className="h-100">
+                                <Col md={8}>
+                                    <div className="d-flex align-items-center mb-2">
+                                        <Badge bg="primary" className="me-2">{event.category}</Badge>
+                                        {event.is_featured && (
+                                            <Badge bg="warning" text="dark">
+                                                <FontAwesomeIcon icon={faStar} className="me-1" />
                                         Featured
                                     </Badge>
                                 )}
+                                        {event.is_free && (
+                                            <Badge bg="success" className="ms-2">Gratuit</Badge>
+                                        )}
+                            </div>
+
+                                    <h5 className="fw-bold mb-2">
+                                        <Link
+                                            to={`/event/${event.id}`}
+                                            className="text-decoration-none text-dark"
+                                        >
+                                            {event.title}
+                                        </Link>
+                                    </h5>
+
+                                    {event.artists_array && event.artists_array.length > 0 && (
+                                        <p className="text-muted mb-2">
+                                            par {event.artists_array.slice(0, 2).join(', ')}
+                                            {event.artists_array.length > 2 ? '...' : ''}
+                                        </p>
+                                    )}
+
+                                    <p className="text-muted small mb-2">{event.description}</p>
+
+                                    <div className="event-details">
+                                        <div className="d-flex align-items-center mb-1">
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="text-primary me-2" />
+                                            <span>{formatDate(event.event_date)} à {event.start_time}</span>
+                                        </div>
+                                        <div className="d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="text-primary me-2" />
+                                            <span>{event.venue}, {event.city}</span>
+                                        </div>
                             </div>
                         </Col>
-                        <Col md={6}>
-                            <h5 className="fw-bold mb-1">{event.title}</h5>
-                            <p className="text-muted mb-1 small">
-                                <FontAwesomeIcon icon={faMusic} className="me-1" />
-                                {event.artist}
-                            </p>
-                            <div className="d-flex flex-wrap gap-3 small text-muted">
-                                <span>
-                                    <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
-                                    {formatDate(event.date)}
-                                </span>
-                                <span>
-                                    <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                                    {event.location}
-                                </span>
-                            </div>
-                        </Col>
-                        <Col md={3} className="text-end">
-                            <div className="mb-2">
-                                <span className="text-muted small">À partir de</span>
-                                <div className="fw-bold text-primary">
-                                    {formatCurrency(getLowestPrice(event.tickets))}
+                                <Col md={4} className="d-flex flex-column justify-content-between">
+                                    <div className="text-end">
+                                        {event.is_free ? (
+                                            <div className="fw-bold text-success fs-5">Gratuit</div>
+                                        ) : (
+                                            <div className="fw-bold text-primary fs-5">
+                                                À partir de {formatCurrency(getLowestPrice(event))}
                                 </div>
+                                        )}
                             </div>
-                            <div className="d-flex gap-1 justify-content-end">
+
+                                    <div className="d-flex gap-2 justify-content-end">
+                                        <Button
+                                            variant="outline-danger"
+                                            size="sm"
+                                        >
+                                            <FontAwesomeIcon icon={faHeart} />
+                                        </Button>
                                 <Button
+                                            as={Link}
+                                            to={`/event/${event.id}`}
                                     variant="outline-primary"
                                     size="sm"
-                                    as={Link}
-                                    to={`/events/${event.id}`}
                                 >
-                                    <FontAwesomeIcon icon={faEye} />
+                                            <FontAwesomeIcon icon={faEye} className="me-1" />
+                                            Détails
                                 </Button>
+                                        {!event.is_free && (
                                 <Button
                                     variant="primary"
                                     size="sm"
                                     onClick={() => openTicketModal(event)}
                                 >
-                                    <FontAwesomeIcon icon={faTicketAlt} />
+                                                <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
+                                                Billets
                                 </Button>
+                                        )}
                             </div>
                         </Col>
                     </Row>
                 </Card.Body>
+                    </Col>
+                </Row>
             </Card>
         </AnimatedElement>
     );
 
     return (
-        <div className="min-vh-100 bg-light" style={{ paddingTop: '80px' }}>
-            {/* Header de la page */}
-            <div className="bg-white shadow-sm border-bottom">
+        <div className="min-vh-100 bg-light" style={{ paddingTop: '70px' }}>
+            {/* Hero Section */}
+            <div className="hero-gradient text-white">
                 <Container>
-                    <div className="py-4">
+                    <div className="py-5">
                         <Row className="align-items-center">
-                            <Col md={8}>
+                            <Col lg={8}>
                                 <AnimatedElement animation="slideInLeft" delay={100}>
-                                    <h1 className="fw-bold mb-2">Événements</h1>
-                                    <p className="text-muted mb-0">
-                                        Découvrez les concerts et festivals à venir au Cameroun
+                                    <h1 className="display-4 fw-bold mb-3">
+                                        Événements Musicaux
+                                    </h1>
+                                    <p className="lead mb-4">
+                                        Découvrez les meilleurs événements musicaux du Cameroun.
+                                        Concerts, festivals, showcases et plus encore !
                                     </p>
+                                    <div className="d-flex gap-3 flex-wrap">
+                                        <div className="d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
+                                            <span>{filteredEvents.length} événements disponibles</span>
+                                        </div>
+                                        <div className="d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-2" />
+                                            <span>Partout au Cameroun</span>
+                                        </div>
+                                    </div>
                                 </AnimatedElement>
                             </Col>
-                            <Col md={4} className="text-md-end">
+                            <Col lg={4}>
                                 <AnimatedElement animation="slideInRight" delay={200}>
-                                    <Button
-                                        as={Link}
-                                        to="/add-event"
-                                        variant="primary"
-                                        className="me-2"
-                                    >
-                                        <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                        Créer un événement
-                                    </Button>
-                                    <div className="btn-group" role="group">
+                                    <div className="text-end">
                                         <Button
                                             variant={viewMode === 'grid' ? 'primary' : 'outline-primary'}
                                             size="sm"
                                             onClick={() => setViewMode('grid')}
+                                            className="me-2"
                                         >
                                             <FontAwesomeIcon icon={faTh} />
                                         </Button>
@@ -511,72 +609,66 @@ const Events = () => {
                                 <div className="d-flex gap-3 small text-muted">
                                     <span>
                                         <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
-                                        {formatDate(selectedEvent.date)}
+                                        {formatDate(selectedEvent.event_date)}
                                     </span>
                                     <span>
                                         <FontAwesomeIcon icon={faClock} className="me-1" />
-                                        {selectedEvent.time}
+                                        {selectedEvent.start_time}
                                     </span>
                                     <span>
                                         <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                                        {selectedEvent.location}
+                                        {selectedEvent.venue}
                                     </span>
                                 </div>
                             </div>
 
-                            <h6 className="fw-bold mb-3">Types de billets disponibles</h6>
-                            {selectedEvent.tickets.map((ticket, index) => (
-                                <div key={index} className="border rounded p-3 mb-3">
+                            <h6 className="fw-bold mb-3">Billet disponible</h6>
+                            {!selectedEvent.is_free && selectedEvent.ticket_price ? (
+                                <div className="border rounded p-3 mb-3">
                                     <Row className="align-items-center">
                                         <Col md={6}>
-                                            <h6 className="fw-bold mb-1">{ticket.type}</h6>
+                                            <h6 className="fw-bold mb-1">Billet Standard</h6>
                                             <div className="text-primary fw-bold fs-5">
-                                                {formatCurrency(ticket.price)}
+                                                {formatCurrency(selectedEvent.ticket_price)}
                                             </div>
-                                            <small className="text-muted">
-                                                {ticket.available} places disponibles
+                                            <small className="text-muted d-block">
+                                                {selectedEvent.remaining_spots > 0 ?
+                                                    `${selectedEvent.remaining_spots} places disponibles` :
+                                                    'Places limitées'
+                                                }
+                                            </small>
+                                            <small className="text-info d-block mt-1">
+                                                Accès général à l'événement
                                             </small>
                                         </Col>
                                         <Col md={6} className="text-end">
-                                            <div className="d-flex align-items-center justify-content-end">
-                                                <Button
-                                                    variant="outline-secondary"
-                                                    size="sm"
-                                                    onClick={() => handleTicketQuantityChange(selectedEvent.id, ticket.type, -1)}
-                                                    disabled={!(ticketQuantities[`${selectedEvent.id}_${ticket.type}`] > 0)}
-                                                    className="rounded-circle"
-                                                    style={{ width: '32px', height: '32px' }}
-                                                >
-                                                    <FontAwesomeIcon icon={faMinus} style={{ fontSize: '10px' }} />
-                                                </Button>
-                                                <span className="mx-3 fw-bold" style={{ minWidth: '20px' }}>
-                                                    {ticketQuantities[`${selectedEvent.id}_${ticket.type}`] || 0}
-                                                </span>
-                                                <Button
-                                                    variant="outline-primary"
-                                                    size="sm"
-                                                    onClick={() => handleTicketQuantityChange(selectedEvent.id, ticket.type, 1)}
-                                                    disabled={ticketQuantities[`${selectedEvent.id}_${ticket.type}`] >= ticket.available}
-                                                    className="rounded-circle"
-                                                    style={{ width: '32px', height: '32px' }}
-                                                >
-                                                    <FontAwesomeIcon icon={faPlus} style={{ fontSize: '10px' }} />
-                                                </Button>
-                                            </div>
+                                            <Button
+                                                variant="primary"
+                                                onClick={handleAddToCart}
+                                                disabled={selectedEvent.remaining_spots <= 0}
+                                            >
+                                                <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
+                                                Ajouter au panier
+                                            </Button>
                                         </Col>
                                     </Row>
                                 </div>
-                            ))}
+                            ) : (
+                                <div className="text-center py-3">
+                                    <p className="text-muted">
+                                        {selectedEvent.is_free ?
+                                            "Cet événement est gratuit" :
+                                            "Billets non disponibles pour le moment"
+                                        }
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </Modal.Body>
                 <Modal.Footer>
                     <Button variant="secondary" onClick={closeTicketModal}>
                         Fermer
-                    </Button>
-                    <Button variant="primary">
-                        <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
-                        Ajouter au panier
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -649,7 +741,7 @@ const Events = () => {
                     }
 
                     .event-list-item:hover {
-                        transform: none;
+                        transform: translateX(2px);
                     }
                 }
             `}</style>

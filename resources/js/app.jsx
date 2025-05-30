@@ -10,13 +10,13 @@ import { ToastProvider } from './context/ToastContext';
 const AppWrapper = () => {
     return (
         <BrowserRouter>
-            <AuthProvider>
+        <AuthProvider>
                 <CartProvider>
                     <ToastProvider>
                         <App />
                     </ToastProvider>
                 </CartProvider>
-            </AuthProvider>
+        </AuthProvider>
         </BrowserRouter>
     );
 };

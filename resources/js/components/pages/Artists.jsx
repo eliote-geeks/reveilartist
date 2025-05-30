@@ -1,162 +1,173 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Form, InputGroup } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Button, Badge, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser, faMusic, faHeart, faSearch, faFilter, faUsers, faPlay } from '@fortawesome/free-solid-svg-icons';
+import {
+    faUser, faMusic, faHeart, faSearch, faFilter, faUsers, faPlay,
+    faMapMarkerAlt, faCheckCircle, faStar, faCalendarAlt, faPlus,
+    faSpinner, faUserPlus, faUserCheck, faHeadphones, faEye, faDownload
+} from '@fortawesome/free-solid-svg-icons';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Artists = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterGenre, setFilterGenre] = useState('all');
+    const [filterRole, setFilterRole] = useState('all');
+    const [filterCity, setFilterCity] = useState('');
+    const [filterGenre, setFilterGenre] = useState('');
+    const [artists, setArtists] = useState([]);
+    const [filters, setFilters] = useState({ cities: [], genres: [] });
+    const [loading, setLoading] = useState(true);
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [followingArtists, setFollowingArtists] = useState(new Set());
+    const [actionLoading, setActionLoading] = useState(new Set());
 
-    const artists = [
-        {
-            id: 1,
-            name: "UrbanSonic",
-            bio: "Producteur camerounais spécialisé dans les beats urbains",
-            genre: "Hip-Hop",
-            followers: 1240,
-            totalSounds: 87,
-            verified: true,
-            location: "Douala, Cameroun",
-            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=face",
-            coverImage: "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=200&fit=crop&crop=center",
-            topTracks: [
-                {
-                    id: 1,
-                    title: "Metro Vibes",
-                    plays: 12400,
-                    cover: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=50&h=50&fit=crop&crop=center"
-                },
-                {
-                    id: 2,
-                    title: "City Flow",
-                    plays: 8900,
-                    cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop&crop=center"
+    const { token, user } = useAuth();
+    const toast = useToast();
+
+    useEffect(() => {
+        loadArtists();
+    }, [currentPage, filterRole, filterCity, filterGenre, searchTerm]);
+
+    const loadArtists = async () => {
+        try {
+            setLoading(true);
+            const params = new URLSearchParams({
+                page: currentPage,
+                per_page: 12,
+                ...(filterRole !== 'all' && { role: filterRole }),
+                ...(filterCity && { city: filterCity }),
+                ...(filterGenre && { genre: filterGenre }),
+                ...(searchTerm && { search: searchTerm })
+            });
+
+            const response = await fetch(`/api/artists?${params}`, {
+                headers: {
+                    ...(token && { 'Authorization': `Bearer ${token}` }),
+                    'Content-Type': 'application/json'
                 }
-            ]
-        },
-        {
-            id: 2,
-            name: "CamerSounds",
-            bio: "Artiste multi-genres, créateur d'ambiances authentiques",
-            genre: "Afrobeat",
-            followers: 2180,
-            totalSounds: 134,
-            verified: true,
-            location: "Yaoundé, Cameroun",
-            avatar: "https://images.unsplash.com/photo-1542727313-4f3e99aa2568?w=120&h=120&fit=crop&crop=face",
-            coverImage: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=200&fit=crop&crop=center",
-            topTracks: [
-                {
-                    id: 3,
-                    title: "Afro Dreams",
-                    plays: 15600,
-                    cover: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=50&h=50&fit=crop&crop=center"
-                },
-                {
-                    id: 4,
-                    title: "Cameroon Soul",
-                    plays: 11200,
-                    cover: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=50&h=50&fit=crop&crop=center"
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                setArtists(data.artists.data);
+                setPagination(data.artists);
+                setFilters(data.filters);
+
+                // Marquer les artistes suivis depuis l'API
+                if (user && token) {
+                    const followedIds = new Set();
+                    data.artists.data.forEach(artist => {
+                        if (artist.is_following) {
+                            followedIds.add(artist.id);
+                        }
+                    });
+                    setFollowingArtists(followedIds);
                 }
-            ]
-        },
-        {
-            id: 3,
-            name: "NightLife237",
-            bio: "DJ producteur spécialisé en électro et house music",
-            genre: "Électro",
-            followers: 890,
-            totalSounds: 56,
-            verified: false,
-            location: "Douala, Cameroun",
-            avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&h=120&fit=crop&crop=face",
-            coverImage: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=200&fit=crop&crop=center",
-            topTracks: [
-                {
-                    id: 5,
-                    title: "Night Energy",
-                    plays: 7800,
-                    cover: "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=50&h=50&fit=crop&crop=center"
-                }
-            ]
-        },
-        {
-            id: 4,
-            name: "FlowMaster",
-            bio: "Rappeur et producteur, pioneer du drill camerounais",
-            genre: "Drill",
-            followers: 1650,
-            totalSounds: 73,
-            verified: true,
-            location: "Bafoussam, Cameroun",
-            avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=face",
-            coverImage: "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=200&fit=crop&crop=center",
-            topTracks: [
-                {
-                    id: 6,
-                    title: "Drill Session",
-                    plays: 9400,
-                    cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop&crop=center"
-                }
-            ]
-        },
-        {
-            id: 5,
-            name: "SoulRhythm",
-            bio: "Artiste R&B avec une touche moderne africaine",
-            genre: "R&B",
-            followers: 3240,
-            totalSounds: 98,
-            verified: true,
-            location: "Limbé, Cameroun",
-            avatar: "https://images.unsplash.com/photo-1494790108755-2616b9b5eb87?w=120&h=120&fit=crop&crop=face",
-            coverImage: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=200&fit=crop&crop=center",
-            topTracks: [
-                {
-                    id: 7,
-                    title: "Smooth Vibes",
-                    plays: 18700,
-                    cover: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=50&h=50&fit=crop&crop=center"
-                }
-            ]
-        },
-        {
-            id: 6,
-            name: "AmbientMaster",
-            bio: "Créateur d'atmosphères sonores et d'ambiances urbaines",
-            genre: "Ambiance",
-            followers: 760,
-            totalSounds: 145,
-            verified: false,
-            location: "Garoua, Cameroun",
-            avatar: "https://images.unsplash.com/photo-1519763089779-1d6e0df80b11?w=120&h=120&fit=crop&crop=face",
-            coverImage: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&h=200&fit=crop&crop=center",
-            topTracks: [
-                {
-                    id: 8,
-                    title: "City Atmosphere",
-                    plays: 5600,
-                    cover: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=50&h=50&fit=crop&crop=center"
-                }
-            ]
+            } else {
+                toast.error('Erreur', 'Impossible de charger les artistes');
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des artistes:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setLoading(false);
         }
-    ];
+    };
 
-    const genres = ['all', 'Hip-Hop', 'Afrobeat', 'Électro', 'Drill', 'R&B', 'Ambiance'];
+    const handleFollow = async (artistId) => {
+        if (!user || !token) {
+            toast.error('Connexion requise', 'Vous devez être connecté pour suivre un artiste');
+            return;
+        }
 
-    const filteredArtists = artists.filter(artist => {
-        const matchesSearch = artist.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             artist.bio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             artist.location.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesGenre = filterGenre === 'all' || artist.genre === filterGenre;
-        return matchesSearch && matchesGenre;
-    });
+        try {
+            setActionLoading(prev => new Set([...prev, artistId]));
+
+            const response = await fetch(`/api/artists/${artistId}/follow`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Mettre à jour les données de l'artiste dans la liste
+                setArtists(prev => prev.map(artist =>
+                    artist.id === artistId
+                        ? {
+                            ...artist,
+                            followers_count: data.followers_count,
+                            is_following: data.is_following
+                        }
+                        : artist
+                ));
+
+                // Mettre à jour le set des artistes suivis
+                setFollowingArtists(prev => {
+                    const newSet = new Set(prev);
+                    if (data.is_following) {
+                        newSet.add(artistId);
+                    } else {
+                        newSet.delete(artistId);
+                    }
+                    return newSet;
+                });
+
+                toast.success('Succès', data.message);
+            } else {
+                toast.error('Erreur', data.message);
+            }
+        } catch (error) {
+            console.error('Erreur lors du suivi:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setActionLoading(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(artistId);
+                return newSet;
+            });
+        }
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const getRoleDisplayName = (role) => {
+        const roles = {
+            'artist': 'Artiste',
+            'producer': 'Producteur'
+        };
+        return roles[role] || role;
+    };
+
+    const getRoleBadgeVariant = (role) => {
+        const variants = {
+            'artist': 'primary',
+            'producer': 'success'
+        };
+        return variants[role] || 'secondary';
+    };
+
+    const formatNumber = (num) => {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num?.toString() || '0';
+    };
 
     return (
         <div className="bg-light min-vh-100">
             {/* Hero Section */}
-            <section className="hero-gradient text-white py-4">
+            <section className="hero-gradient text-white py-5">
                 <Container>
                     <Row className="justify-content-center">
                         <Col lg={8} md={10} className="text-center">
@@ -186,9 +197,9 @@ const Artists = () => {
             <section className="py-4 bg-white border-bottom">
                 <Container>
                     <Row className="justify-content-center">
-                        <Col lg={8} md={10}>
+                        <Col lg={10}>
                             <Row className="g-3">
-                                <Col md={8}>
+                                <Col md={4}>
                                     <InputGroup>
                                         <InputGroup.Text className="bg-light border-0">
                                             <FontAwesomeIcon icon={faSearch} className="text-muted" />
@@ -198,22 +209,42 @@ const Artists = () => {
                                             placeholder="Rechercher un artiste..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="border-0 bg-light"
-                                            style={{ fontSize: '14px' }}
+                                            className="border-start-0 bg-light"
                                         />
                                     </InputGroup>
                                 </Col>
-                                <Col md={4}>
+                                <Col md={2}>
+                                    <Form.Select
+                                        value={filterRole}
+                                        onChange={(e) => setFilterRole(e.target.value)}
+                                        className="bg-light border-0"
+                                    >
+                                        <option value="all">Tous les rôles</option>
+                                        <option value="artist">Artistes</option>
+                                        <option value="producer">Producteurs</option>
+                                    </Form.Select>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Select
+                                        value={filterCity}
+                                        onChange={(e) => setFilterCity(e.target.value)}
+                                        className="bg-light border-0"
+                                    >
+                                        <option value="">Toutes les villes</option>
+                                        {filters.cities.map(city => (
+                                            <option key={city} value={city}>{city}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Col>
+                                <Col md={3}>
                                     <Form.Select
                                         value={filterGenre}
                                         onChange={(e) => setFilterGenre(e.target.value)}
-                                        className="border-0 bg-light"
-                                        style={{ fontSize: '14px' }}
+                                        className="bg-light border-0"
                                     >
-                                        {genres.map(genre => (
-                                            <option key={genre} value={genre}>
-                                                {genre === 'all' ? 'Tous les genres' : genre}
-                                            </option>
+                                        <option value="">Tous les genres</option>
+                                        {filters.genres.map(genre => (
+                                            <option key={genre} value={genre}>{genre}</option>
                                         ))}
                                     </Form.Select>
                                 </Col>
@@ -224,193 +255,383 @@ const Artists = () => {
             </section>
 
             {/* Artists Grid */}
-            <section className="py-4">
+            <section className="py-5">
                 <Container>
-                    <div className="mb-4">
-                        <h2 className="fw-bold text-dark mb-2">Artistes disponibles</h2>
-                        <p className="text-muted small mb-0">{filteredArtists.length} artistes trouvés</p>
-                    </div>
+                    {loading ? (
+                        <div className="text-center py-5">
+                            <Spinner animation="border" variant="primary" size="lg" className="mb-3" />
+                            <h5 className="text-muted">Chargement des artistes...</h5>
+                        </div>
+                    ) : artists.length === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faUsers} size="3x" className="text-muted mb-3" />
+                            <h5 className="text-muted">Aucun artiste trouvé</h5>
+                            <p className="text-muted">Essayez de modifier vos critères de recherche</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Header avec stats */}
+                            <div className="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 className="fw-bold mb-1">
+                                        {pagination?.total || 0} artiste{(pagination?.total || 0) > 1 ? 's' : ''} trouvé{(pagination?.total || 0) > 1 ? 's' : ''}
+                                    </h4>
+                                    <p className="text-muted mb-0">
+                                        Page {pagination?.current_page || 1} sur {pagination?.last_page || 1}
+                                    </p>
+                                </div>
+                            </div>
 
-                    <Row className="g-3">
-                        {filteredArtists.map(artist => (
-                            <Col key={artist.id} lg={4} md={6} className="mb-3">
-                                <Card
-                                    className="artist-card border-0 h-100"
-                                    style={{ borderRadius: '16px' }}
-                                >
-                                    {/* Cover Image */}
-                                    <div className="position-relative">
-                                        <div
-                                            className="artist-cover"
-                                            style={{
-                                                height: '140px',
-                                                backgroundImage: `url(${artist.coverImage})`,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
-                                                borderRadius: '16px 16px 0 0'
-                                            }}
-                                        >
+                            {/* Artists Cards */}
+                            <Row className="g-4">
+                                {artists.map((artist) => (
+                                    <Col lg={4} md={6} key={artist.id}>
+                                        <Card className="artist-card border-0 shadow-sm h-100" style={{ borderRadius: '20px !important', overflow: 'hidden' }}>
+                                            {/* Cover Image */}
                                             <div
-                                                className="position-absolute top-0 start-0 w-100 h-100"
+                                                className="artist-cover position-relative"
                                                 style={{
-                                                    background: 'linear-gradient(45deg, rgba(0,0,0,0.3), rgba(0,0,0,0.1))',
-                                                    borderRadius: '16px 16px 0 0'
+                                                    height: '120px',
+                                                    background: `linear-gradient(45deg, #667eea 0%, #764ba2 100%)`,
+                                                    borderTopLeftRadius: '20px',
+                                                    borderTopRightRadius: '20px'
                                                 }}
-                                            ></div>
-                                        </div>
+                                            >
+                                                <div className="position-absolute top-0 end-0 p-3">
+                                                    {artist.verified && (
+                                                        <Badge bg="warning" className="mb-2">
+                                                            <FontAwesomeIcon icon={faCheckCircle} className="me-1" />
+                                                            Vérifié
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                        {/* Avatar */}
-                                        <div className="position-absolute bottom-0 start-50 translate-middle-x">
-                                            <div className="position-relative">
-                                                <img
-                                                    src={artist.avatar}
-                                                    alt={artist.name}
-                                                    className="rounded-circle border border-white border-3"
-                                                    style={{ width: '80px', height: '80px', objectFit: 'cover' }}
-                                                />
-                                                {artist.verified && (
-                                                    <div
-                                                        className="position-absolute bottom-0 end-0 bg-success rounded-circle d-flex align-items-center justify-content-center"
-                                                        style={{ width: '24px', height: '24px' }}
-                                                    >
-                                                        <FontAwesomeIcon icon={faMusic} className="text-white" style={{ fontSize: '10px' }} />
+                                            <Card.Body className="pt-0 px-3 pb-3">
+                                                {/* Profile Picture */}
+                                                <div className="text-center" style={{ marginTop: '-40px' }}>
+                                                    <img
+                                                        src={artist.profile_photo_url || artist.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&color=7F9CF5&background=EBF4FF&size=80`}
+                                                        alt={artist.name}
+                                                        className="rounded-circle border border-white border-3"
+                                                        style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                                                    />
+                                                </div>
+
+                                                {/* Artist Info */}
+                                                <div className="text-center mt-3">
+                                                    <h5 className="fw-bold mb-1">{artist.name}</h5>
+                                                    <div className="d-flex justify-content-center gap-2 mb-2">
+                                                        <Badge bg={getRoleBadgeVariant(artist.role)} className="rounded-pill">
+                                                            {getRoleDisplayName(artist.role)}
+                                                        </Badge>
+                                                        {artist.genre && (
+                                                            <Badge bg="light" text="dark" className="rounded-pill">
+                                                                {artist.genre}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {artist.city && (
+                                                        <p className="text-muted small mb-2">
+                                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
+                                                            {artist.city}
+                                                        </p>
+                                                    )}
+                                                    {artist.bio && (
+                                                        <p className="text-muted small mb-3" style={{
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden'
+                                                        }}>
+                                                            {artist.bio}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {/* Stats */}
+                                                <Row className="text-center mb-3">
+                                                    <Col xs={6} md={6}>
+                                                        <div className="stat-box p-2 rounded-3 bg-light mb-2">
+                                                            <FontAwesomeIcon icon={faMusic} className="text-primary mb-1" />
+                                                            <div className="fw-bold text-primary">{artist.sounds_count || 0}</div>
+                                                            <small className="text-muted fw-medium">Sons</small>
+                                                        </div>
+                                                    </Col>
+                                                    <Col xs={6} md={6}>
+                                                        <div className="stat-box p-2 rounded-3 bg-light mb-2">
+                                                            <FontAwesomeIcon icon={faUsers} className="text-success mb-1" />
+                                                            <div className="fw-bold text-success">{formatNumber(artist.followers_count || 0)}</div>
+                                                            <small className="text-muted fw-medium">Followers</small>
+                                                        </div>
+                                                    </Col>
+                                                </Row>
+
+                                                {/* Statistiques secondaires */}
+                                                <div className="stats-row mb-3 p-2 rounded-3" style={{ background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1))' }}>
+                                                    <Row className="text-center">
+                                                        <Col xs={4}>
+                                                            <div className="small">
+                                                                <FontAwesomeIcon icon={faHeadphones} className="text-warning me-1" />
+                                                                <div className="fw-bold">{formatNumber(artist.total_plays || 0)}</div>
+                                                                <small className="text-muted">Écoutes</small>
+                                                            </div>
+                                                        </Col>
+                                                        <Col xs={4}>
+                                                            <div className="small">
+                                                                <FontAwesomeIcon icon={faHeart} className="text-danger me-1" />
+                                                                <div className="fw-bold">{formatNumber(artist.total_likes || 0)}</div>
+                                                                <small className="text-muted">J'aime</small>
+                                                            </div>
+                                                        </Col>
+                                                        <Col xs={4}>
+                                                            <div className="small">
+                                                                <FontAwesomeIcon icon={faCalendarAlt} className="text-info me-1" />
+                                                                <div className="fw-bold">{artist.events_count || 0}</div>
+                                                                <small className="text-muted">Events</small>
+                                                            </div>
+                                                        </Col>
+                                                    </Row>
+                                                </div>
+
+                                                {/* Top Tracks Preview */}
+                                                {artist.sounds && artist.sounds.length > 0 && (
+                                                    <div className="mb-3">
+                                                        <h6 className="fw-bold mb-2 small text-primary">
+                                                            <FontAwesomeIcon icon={faMusic} className="me-1" />
+                                                            Top sons :
+                                                        </h6>
+                                                        {artist.sounds.slice(0, 2).map((sound) => (
+                                                            <div key={sound.id} className="d-flex align-items-center mb-2 p-2 rounded-3 bg-light">
+                                                                <img
+                                                                    src={sound.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=30&h=30&fit=crop`}
+                                                                    alt={sound.title}
+                                                                    className="rounded me-2"
+                                                                    style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                                                                />
+                                                                <div className="flex-grow-1">
+                                                                    <div className="small fw-medium text-truncate">{sound.title}</div>
+                                                                    <div className="small text-muted">{sound.genre || 'Non défini'}</div>
+                                                                </div>
+                                                                <div className="text-end">
+                                                                    <small className="text-primary">
+                                                                        <FontAwesomeIcon icon={faPlay} className="me-1" />
+                                                                        {formatNumber(sound.plays_count || 0)}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 )}
-                                            </div>
-                                        </div>
 
-                                        {/* Genre Badge */}
-                                        <Badge
-                                            bg="primary"
-                                            className="position-absolute top-0 end-0 m-3"
-                                            style={{ borderRadius: '8px', fontSize: '11px' }}
-                                        >
-                                            {artist.genre}
-                                        </Badge>
-                                    </div>
-
-                                    <Card.Body className="p-3 pt-5 text-center">
-                                        <h5 className="fw-bold mb-1" style={{ fontSize: '16px' }}>{artist.name}</h5>
-                                        <p className="text-muted small mb-2">{artist.location}</p>
-                                        <p className="text-muted small mb-3" style={{ fontSize: '13px' }}>
-                                            {artist.bio}
-                                        </p>
-
-                                        {/* Stats */}
-                                        <Row className="g-2 mb-3">
-                                            <Col xs={6}>
-                                                <div className="text-center">
-                                                    <div className="fw-bold text-primary" style={{ fontSize: '14px' }}>
-                                                        {artist.followers.toLocaleString()}
-                                                    </div>
-                                                    <small className="text-muted" style={{ fontSize: '11px' }}>Followers</small>
+                                                {/* Badges de statut */}
+                                                <div className="d-flex justify-content-center gap-1 mb-3">
+                                                    {artist.verified && (
+                                                        <Badge bg="success" className="rounded-pill">
+                                                            <FontAwesomeIcon icon={faCheckCircle} className="me-1" />
+                                                            Vérifié
+                                                        </Badge>
+                                                    )}
+                                                    {artist.recent_activity && new Date(artist.recent_activity) > new Date(Date.now() - 7*24*60*60*1000) && (
+                                                        <Badge bg="primary" className="rounded-pill">
+                                                            Actif
+                                                        </Badge>
+                                                    )}
+                                                    {(artist.total_plays || 0) > 10000 && (
+                                                        <Badge bg="warning" className="rounded-pill">
+                                                            Populaire
+                                                        </Badge>
+                                                    )}
                                                 </div>
-                                            </Col>
-                                            <Col xs={6}>
-                                                <div className="text-center">
-                                                    <div className="fw-bold text-success" style={{ fontSize: '14px' }}>
-                                                        {artist.totalSounds}
-                                                    </div>
-                                                    <small className="text-muted" style={{ fontSize: '11px' }}>Sons</small>
-                                                </div>
-                                            </Col>
-                                        </Row>
 
-                                        {/* Top Tracks Preview */}
-                                        {artist.topTracks.length > 0 && (
-                                            <div className="mb-3">
-                                                <div className="text-start mb-2">
-                                                    <small className="fw-medium text-dark" style={{ fontSize: '12px' }}>
-                                                        Top sons :
-                                                    </small>
+                                                {/* Actions */}
+                                                <div className="d-grid gap-2">
+                                                    <Row className="g-2">
+                                                        <Col xs={8}>
+                                                            <Button
+                                                                variant={artist.is_following ? "outline-primary" : "primary"}
+                                                                size="sm"
+                                                                className="w-100"
+                                                                onClick={() => handleFollow(artist.id)}
+                                                                disabled={actionLoading.has(artist.id) || !user}
+                                                            >
+                                                                {actionLoading.has(artist.id) ? (
+                                                                    <FontAwesomeIcon icon={faSpinner} spin />
+                                                                ) : artist.is_following ? (
+                                                                    <>
+                                                                        <FontAwesomeIcon icon={faUserCheck} className="me-1" />
+                                                                        Suivi
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <FontAwesomeIcon icon={faUserPlus} className="me-1" />
+                                                                        Suivre
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                        </Col>
+                                                        <Col xs={4}>
+                                                            <Button
+                                                                as={Link}
+                                                                to={`/artist/${artist.id}`}
+                                                                variant="outline-secondary"
+                                                                size="sm"
+                                                                className="w-100"
+                                                            >
+                                                                <FontAwesomeIcon icon={faEye} />
+                                                            </Button>
+                                                        </Col>
+                                                    </Row>
                                                 </div>
-                                                {artist.topTracks.slice(0, 2).map(track => (
-                                                    <div key={track.id} className="d-flex align-items-center mb-2">
-                                                        <img
-                                                            src={track.cover}
-                                                            alt={track.title}
-                                                            className="rounded me-2"
-                                                            style={{ width: '30px', height: '30px', objectFit: 'cover' }}
-                                                        />
-                                                        <div className="flex-grow-1 text-start">
-                                                            <div className="fw-medium small" style={{ fontSize: '12px' }}>
-                                                                {track.title}
-                                                            </div>
-                                                            <div className="text-muted" style={{ fontSize: '10px' }}>
-                                                                {track.plays.toLocaleString()} écoutes
-                                                            </div>
-                                                        </div>
-                                                        <Button
-                                                            variant="outline-primary"
-                                                            size="sm"
-                                                            className="rounded-circle p-0"
-                                                            style={{ width: '26px', height: '26px' }}
+                                            </Card.Body>
+                                        </Card>
+                                    </Col>
+                                ))}
+                            </Row>
+
+                            {/* Pagination */}
+                            {pagination && pagination.last_page > 1 && (
+                                <div className="d-flex justify-content-center mt-5">
+                                    <nav>
+                                        <ul className="pagination">
+                                            {/* Previous */}
+                                            <li className={`page-item ${pagination.current_page === 1 ? 'disabled' : ''}`}>
+                                                <button
+                                                    className="page-link"
+                                                    onClick={() => handlePageChange(pagination.current_page - 1)}
+                                                    disabled={pagination.current_page === 1}
+                                                >
+                                                    Précédent
+                                                </button>
+                                            </li>
+
+                                            {/* Pages */}
+                                            {Array.from({ length: Math.min(5, pagination.last_page) }, (_, i) => {
+                                                const page = Math.max(1, Math.min(pagination.current_page - 2 + i, pagination.last_page - 4 + i));
+                                                return (
+                                                    <li key={page} className={`page-item ${pagination.current_page === page ? 'active' : ''}`}>
+                                                        <button
+                                                            className="page-link"
+                                                            onClick={() => handlePageChange(page)}
                                                         >
-                                                            <FontAwesomeIcon icon={faPlay} style={{ fontSize: '10px' }} />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                            {page}
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
 
-                                        {/* Actions */}
-                                        <div className="d-flex gap-2">
-                                            <Button
-                                                as={Link}
-                                                to={`/artists/${artist.id}`}
-                                                variant="primary"
-                                                size="sm"
-                                                className="flex-fill fw-medium"
-                                                style={{ borderRadius: '12px', fontSize: '13px' }}
-                                            >
-                                                Voir Profil
-                                            </Button>
-                                            <Button
-                                                variant="outline-primary"
-                                                size="sm"
-                                                className="px-2"
-                                                style={{ borderRadius: '12px' }}
-                                            >
-                                                <FontAwesomeIcon icon={faHeart} style={{ fontSize: '12px' }} />
-                                            </Button>
-                                        </div>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        ))}
-                    </Row>
+                                            {/* Next */}
+                                            <li className={`page-item ${pagination.current_page === pagination.last_page ? 'disabled' : ''}`}>
+                                                <button
+                                                    className="page-link"
+                                                    onClick={() => handlePageChange(pagination.current_page + 1)}
+                                                    disabled={pagination.current_page === pagination.last_page}
+                                                >
+                                                    Suivant
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </Container>
             </section>
 
-            {/* Stats Section */}
-            <section className="section-stats text-white py-4">
-                <Container>
-                    <Row className="text-center">
-                        <Col md={4} className="mb-3">
-                            <div className="pulse-animation">
-                                <div className="fs-2 fw-bold mb-1">{artists.length}</div>
-                                <p className="small mb-0 opacity-90">Artistes Talentueux</p>
-                            </div>
-                        </Col>
-                        <Col md={4} className="mb-3">
-                            <div className="pulse-animation" style={{ animationDelay: '0.5s' }}>
-                                <div className="fs-2 fw-bold mb-1">
-                                    {artists.filter(a => a.verified).length}
-                                </div>
-                                <p className="small mb-0 opacity-90">Artistes Vérifiés</p>
-                            </div>
-                        </Col>
-                        <Col md={4} className="mb-3">
-                            <div className="pulse-animation" style={{ animationDelay: '1s' }}>
-                                <div className="fs-2 fw-bold mb-1">
-                                    {artists.reduce((sum, artist) => sum + artist.totalSounds, 0)}
-                                </div>
-                                <p className="small mb-0 opacity-90">Sons Créés</p>
-                            </div>
-                        </Col>
-                    </Row>
-                </Container>
-            </section>
+            <style jsx>{`
+                .artist-card {
+                    transition: all 0.3s ease;
+                    border-radius: 20px !important;
+                    overflow: hidden;
+                }
+
+                .artist-card:hover {
+                    transform: translateY(-8px);
+                    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2) !important;
+                }
+
+                .artist-card .card-img-top {
+                    transition: all 0.3s ease;
+                }
+
+                .artist-card:hover .card-img-top {
+                    transform: scale(1.05);
+                }
+
+                .stat-box {
+                    transition: all 0.3s ease;
+                    border: 1px solid rgba(102, 126, 234, 0.1);
+                }
+
+                .stat-box:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+                    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1)) !important;
+                }
+
+                .stats-row {
+                    border: 1px solid rgba(102, 126, 234, 0.2);
+                }
+
+                .hero-gradient {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                }
+
+                .text-gradient-light {
+                    background: linear-gradient(45deg, #ffffff, #f8f9ff);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+
+                .slide-in {
+                    animation: slideInUp 0.6s ease-out;
+                }
+
+                .float-animation {
+                    animation: float 3s ease-in-out infinite;
+                }
+
+                @keyframes slideInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes float {
+                    0%, 100% {
+                        transform: translateY(0px);
+                    }
+                    50% {
+                        transform: translateY(-10px);
+                    }
+                }
+
+                .pagination .page-link {
+                    border: none;
+                    border-radius: 50px !important;
+                    margin: 0 5px;
+                    color: #667eea;
+                    transition: all 0.3s ease;
+                }
+
+                .pagination .page-link:hover {
+                    background-color: rgba(102, 126, 234, 0.1);
+                    color: #667eea;
+                    transform: translateY(-2px);
+                }
+
+                .pagination .page-item.active .page-link {
+                    background-color: #667eea;
+                    border-color: #667eea;
+                    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+                }
+            `}</style>
         </div>
     );
 };

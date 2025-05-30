@@ -383,25 +383,25 @@ const SoundDetails = () => {
                                 <Card.Body className="p-4">
                                     <div className="mb-3">
                                         <h1 className="fw-bold mb-2">{soundData.title}</h1>
-                                        <p className="text-muted mb-3">
+                                    <p className="text-muted mb-3">
                                             par <Link
                                                 to={`/artist/${soundData.artistId}`}
                                                 className="text-decoration-none fw-medium"
                                             >
-                                                {soundData.artist}
-                                            </Link>
-                                        </p>
+                                            {soundData.artist}
+                                        </Link>
+                                    </p>
 
                                         {/* Tags */}
                                         {soundData.tags && soundData.tags.length > 0 && (
-                                            <div className="mb-3">
-                                                {soundData.tags.map(tag => (
-                                                    <Badge key={tag} bg="light" text="dark" className="me-1 mb-1">
+                                    <div className="mb-3">
+                                        {soundData.tags.map(tag => (
+                                            <Badge key={tag} bg="light" text="dark" className="me-1 mb-1">
                                                         <FontAwesomeIcon icon={faTag} className="me-1" />
                                                         {tag}
-                                                    </Badge>
-                                                ))}
-                                            </div>
+                                            </Badge>
+                                        ))}
+                                    </div>
                                         )}
 
                                         {/* Stats améliorées */}
@@ -413,16 +413,16 @@ const SoundDetails = () => {
                                                         {soundData.likes?.toLocaleString() || 0}
                                                     </div>
                                                     <small className="text-muted">Likes</small>
-                                                </div>
+                                        </div>
                                             </Col>
                                             <Col xs={6} sm={3}>
                                                 <div className="text-center p-2 border rounded">
                                                     <div className="fw-bold text-primary fs-5">
                                                         <FontAwesomeIcon icon={faHeadphones} className="me-1" />
                                                         {soundData.plays?.toLocaleString() || 0}
-                                                    </div>
-                                                    <small className="text-muted">Écoutes</small>
-                                                </div>
+                                        </div>
+                                            <small className="text-muted">Écoutes</small>
+                                        </div>
                                             </Col>
                                             <Col xs={6} sm={3}>
                                                 <div className="text-center p-2 border rounded">
@@ -440,14 +440,14 @@ const SoundDetails = () => {
                                                         {((soundData.plays || 0) + (soundData.downloads || 0))?.toLocaleString()}
                                                     </div>
                                                     <small className="text-muted">Vues totales</small>
-                                                </div>
+                                    </div>
                                             </Col>
                                         </Row>
 
                                         {/* Actions */}
                                         <div className="d-flex flex-wrap gap-2 mb-3">
-                                            <Button
-                                                variant={isLiked ? "danger" : "outline-danger"}
+                                        <Button
+                                            variant={isLiked ? "danger" : "outline-danger"}
                                                 onClick={handleLike}
                                                 disabled={!token}
                                                 className="flex-fill"
@@ -458,20 +458,20 @@ const SoundDetails = () => {
                                                     style={{ color: isLiked ? '#fff' : '#dc3545' }}
                                                 />
                                                 {isLiked ? 'Aimé' : 'J\'aime'}
-                                            </Button>
+                                        </Button>
                                             <Button
                                                 variant="outline-secondary"
                                                 onClick={handleShare}
                                                 className="flex-fill"
                                             >
                                                 <FontAwesomeIcon icon={faShare} className="me-2" />
-                                                Partager
-                                            </Button>
-                                        </div>
+                                            Partager
+                                        </Button>
+                                    </div>
 
                                         {/* Prix et achat */}
                                         <div className="d-flex align-items-center justify-content-between bg-light p-3 rounded">
-                                            <div className="d-flex align-items-center">
+                                        <div className="d-flex align-items-center">
                                                 <FontAwesomeIcon icon={faEuroSign} className="text-warning me-2 fs-4" />
                                                 <span className="fw-bold fs-3 text-warning">
                                                     {soundData.is_free || soundData.price === 0
@@ -561,7 +561,7 @@ const SoundDetails = () => {
                             </h5>
                             <Row className="g-3">
                                 <Col md={6}>
-                                    <ListGroup variant="flush">
+                            <ListGroup variant="flush">
                                         <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
                                             <span className="d-flex align-items-center">
                                                 <FontAwesomeIcon icon={faClock} className="me-2 text-muted" />
@@ -595,7 +595,7 @@ const SoundDetails = () => {
                                             <span className="fw-medium">
                                                 {new Date(soundData.upload_date || soundData.created_at).toLocaleDateString('fr-FR')}
                                             </span>
-                                        </ListGroup.Item>
+                                </ListGroup.Item>
                                     </ListGroup>
                                 </Col>
                                 <Col md={6}>
@@ -607,7 +607,7 @@ const SoundDetails = () => {
                                                     Genre
                                                 </span>
                                                 <span className="fw-medium">{soundData.genre}</span>
-                                            </ListGroup.Item>
+                                </ListGroup.Item>
                                         )}
                                         {soundData.bpm && (
                                             <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
@@ -616,7 +616,7 @@ const SoundDetails = () => {
                                                     BPM
                                                 </span>
                                                 <span className="fw-medium">{soundData.bpm}</span>
-                                            </ListGroup.Item>
+                                </ListGroup.Item>
                                         )}
                                         {soundData.key && (
                                             <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
@@ -625,7 +625,7 @@ const SoundDetails = () => {
                                                     Tonalité
                                                 </span>
                                                 <span className="fw-medium">{soundData.key}</span>
-                                            </ListGroup.Item>
+                                </ListGroup.Item>
                                         )}
                                         <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
                                             <span className="d-flex align-items-center">
@@ -635,8 +635,8 @@ const SoundDetails = () => {
                                             <span className="fw-medium">
                                                 {soundData.license_type || 'Standard'}
                                             </span>
-                                        </ListGroup.Item>
-                                    </ListGroup>
+                                </ListGroup.Item>
+                            </ListGroup>
                                 </Col>
                             </Row>
 
@@ -703,7 +703,7 @@ const SoundDetails = () => {
                                     <div className="small text-success">
                                         <FontAwesomeIcon icon={faCheckCircle} className="me-1" />
                                         Artiste vérifié
-                                    </div>
+                                </div>
                                 </div>
                             </div>
                             <Button
@@ -744,17 +744,17 @@ const SoundDetails = () => {
                             {suggestedSounds.length > 0 ? (
                                 suggestedSounds.map(suggestedSound => (
                                     <div key={suggestedSound.id} className="d-flex align-items-center mb-3 p-2 border rounded hover-shadow">
-                                        <img
-                                            src={suggestedSound.cover}
-                                            alt={suggestedSound.title}
-                                            className="rounded me-3"
-                                            width="60"
-                                            height="40"
-                                            style={{ objectFit: 'cover' }}
-                                        />
-                                        <div className="flex-grow-1">
-                                            <div className="fw-bold small">{suggestedSound.title}</div>
-                                            <div className="text-muted small">par {suggestedSound.artist}</div>
+                                    <img
+                                        src={suggestedSound.cover}
+                                        alt={suggestedSound.title}
+                                        className="rounded me-3"
+                                        width="60"
+                                        height="40"
+                                        style={{ objectFit: 'cover' }}
+                                    />
+                                    <div className="flex-grow-1">
+                                        <div className="fw-bold small">{suggestedSound.title}</div>
+                                        <div className="text-muted small">par {suggestedSound.artist}</div>
                                             <div className="d-flex align-items-center justify-content-between">
                                                 <div className="text-warning small fw-medium">
                                                     {suggestedSound.is_free || suggestedSound.price === 0
@@ -767,7 +767,7 @@ const SoundDetails = () => {
                                                     {suggestedSound.downloads || 0}
                                                 </div>
                                             </div>
-                                        </div>
+                                    </div>
                                         <Button
                                             as={Link}
                                             to={`/sound/${suggestedSound.id}`}
@@ -775,9 +775,9 @@ const SoundDetails = () => {
                                             size="sm"
                                             className="ms-2"
                                         >
-                                            <FontAwesomeIcon icon={faPlay} />
-                                        </Button>
-                                    </div>
+                                        <FontAwesomeIcon icon={faPlay} />
+                                    </Button>
+                                </div>
                                 ))
                             ) : (
                                 <p className="text-muted small">Aucun son similaire trouvé</p>

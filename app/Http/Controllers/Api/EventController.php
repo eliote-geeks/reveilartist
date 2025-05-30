@@ -202,7 +202,7 @@ class EventController extends Controller
 
             // Vérifier que l'utilisateur peut modifier cet événement
             $user = auth('sanctum')->user();
-            if ($event->user_id !== $user->id && !$user->is_admin) {
+            if ($event->user_id !== $user->id && $user->role !== 'admin') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Non autorisé à modifier cet événement'
@@ -295,7 +295,7 @@ class EventController extends Controller
 
             // Vérifier que l'utilisateur peut supprimer cet événement
             $user = auth('sanctum')->user();
-            if ($event->user_id !== $user->id && !$user->is_admin) {
+            if ($event->user_id !== $user->id && $user->role !== 'admin') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Non autorisé à supprimer cet événement'
@@ -331,6 +331,60 @@ class EventController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression de l\'événement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Approuver un événement (admin uniquement)
+     */
+    public function approve($id)
+    {
+        try {
+            // Vérifier l'authentification
+            if (!auth('sanctum')->check()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Non authentifié'
+                ], 401);
+            }
+
+            $user = auth('sanctum')->user();
+
+            // Vérifier que l'utilisateur est admin
+            if ($user->role !== 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les administrateurs peuvent approuver des événements'
+                ], 403);
+            }
+
+            $event = Event::findOrFail($id);
+
+            // Vérifier que l'événement est en attente
+            if ($event->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet événement n\'est pas en attente d\'approbation'
+                ], 400);
+            }
+
+            // Approuver l'événement (changer seulement le statut)
+            $event->update([
+                'status' => 'published'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Événement approuvé avec succès',
+                'event' => $event->fresh() // Récupérer les données mises à jour
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'approbation de l\'événement',
                 'error' => $e->getMessage()
             ], 500);
         }

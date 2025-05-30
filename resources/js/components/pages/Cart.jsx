@@ -146,20 +146,20 @@ const Cart = () => {
                         <Row className="align-items-center">
                             <Col>
                                 <div className="d-flex align-items-center justify-content-between">
-                                    <div className="d-flex align-items-center">
-                                        <Button
-                                            as={Link}
-                                            to="/catalog"
-                                            variant="outline-secondary"
-                                            size="sm"
-                                            className="me-3"
-                                        >
-                                            <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
-                                            Continuer mes achats
-                                        </Button>
-                                        <div>
-                                            <h2 className="fw-bold mb-1">Mon Panier</h2>
-                                            <p className="text-muted mb-0 small">
+                                <div className="d-flex align-items-center">
+                                    <Button
+                                        as={Link}
+                                        to="/catalog"
+                                        variant="outline-secondary"
+                                        size="sm"
+                                        className="me-3"
+                                    >
+                                        <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
+                                        Continuer mes achats
+                                    </Button>
+                                    <div>
+                                        <h2 className="fw-bold mb-1">Mon Panier</h2>
+                                        <p className="text-muted mb-0 small">
                                                 {getTotalItems()} article{getTotalItems() > 1 ? 's' : ''} dans votre panier
                                                 {soundItems.length > 0 && (
                                                     <> • {soundItems.length} son{soundItems.length > 1 ? 's' : ''}</>
@@ -194,101 +194,101 @@ const Cart = () => {
                         {/* Sons */}
                         {soundItems.length > 0 && (
                             <Card className="border-0 shadow-sm mb-4">
-                                <Card.Header className="bg-white border-bottom-0">
-                                    <h5 className="fw-bold mb-0">
+                            <Card.Header className="bg-white border-bottom-0">
+                                <h5 className="fw-bold mb-0">
                                         <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
                                         Sons ({soundItems.length})
-                                    </h5>
-                                </Card.Header>
-                                <Card.Body className="p-0">
-                                    <div className="table-responsive">
-                                        <Table className="mb-0 align-middle">
-                                            <thead className="bg-light">
-                                                <tr>
-                                                    <th className="border-0 p-3">Son</th>
-                                                    <th className="border-0 p-3 text-center">Prix unitaire</th>
-                                                    <th className="border-0 p-3 text-center">Quantité</th>
-                                                    <th className="border-0 p-3 text-center">Total</th>
-                                                    <th className="border-0 p-3 text-center" width="50">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
+                                </h5>
+                            </Card.Header>
+                            <Card.Body className="p-0">
+                                <div className="table-responsive">
+                                    <Table className="mb-0 align-middle">
+                                        <thead className="bg-light">
+                                            <tr>
+                                                <th className="border-0 p-3">Son</th>
+                                                <th className="border-0 p-3 text-center">Prix unitaire</th>
+                                                <th className="border-0 p-3 text-center">Quantité</th>
+                                                <th className="border-0 p-3 text-center">Total</th>
+                                                <th className="border-0 p-3 text-center" width="50">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
                                                 {soundItems.map(item => (
                                                     <tr key={`sound-${item.id}`} className="border-bottom">
-                                                        <td className="p-3">
-                                                            <div className="d-flex align-items-center">
-                                                                <div className="position-relative me-3">
-                                                                    <img
-                                                                        src={item.cover}
-                                                                        alt={item.title}
-                                                                        className="rounded"
-                                                                        style={{ width: '60px', height: '60px', objectFit: 'cover' }}
-                                                                    />
-                                                                    <div className="position-absolute top-50 start-50 translate-middle">
-                                                                        <Button
+                                                    <td className="p-3">
+                                                        <div className="d-flex align-items-center">
+                                                            <div className="position-relative me-3">
+                                                                <img
+                                                                    src={item.cover}
+                                                                    alt={item.title}
+                                                                    className="rounded"
+                                                                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                                                />
+                                                                <div className="position-absolute top-50 start-50 translate-middle">
+                                                                    <Button
                                                                             as={Link}
                                                                             to={`/sound/${item.id}`}
-                                                                            variant="light"
-                                                                            size="sm"
-                                                                            className="rounded-circle p-1 shadow-sm"
-                                                                            style={{ width: '24px', height: '24px' }}
-                                                                        >
-                                                                            <FontAwesomeIcon icon={faPlay} className="text-primary" style={{ fontSize: '10px' }} />
-                                                                        </Button>
-                                                                    </div>
+                                                                        variant="light"
+                                                                        size="sm"
+                                                                        className="rounded-circle p-1 shadow-sm"
+                                                                        style={{ width: '24px', height: '24px' }}
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faPlay} className="text-primary" style={{ fontSize: '10px' }} />
+                                                                    </Button>
                                                                 </div>
-                                                                <div>
-                                                                    <h6 className="fw-bold mb-1">{item.title}</h6>
-                                                                    <p className="text-muted mb-1 small">par {item.artist}</p>
+                                                            </div>
+                                                            <div>
+                                                                <h6 className="fw-bold mb-1">{item.title}</h6>
+                                                                <p className="text-muted mb-1 small">par {item.artist}</p>
                                                                     <div className="d-flex gap-2">
-                                                                        <Badge bg="light" text="dark" className="small">
-                                                                            {item.duration}
-                                                                        </Badge>
+                                                                <Badge bg="light" text="dark" className="small">
+                                                                    {item.duration}
+                                                                </Badge>
                                                                         <Badge bg="secondary" className="small">
                                                                             {item.category}
                                                                         </Badge>
                                                                     </div>
-                                                                </div>
                                                             </div>
-                                                        </td>
-                                                        <td className="p-3 text-center">
-                                                            <span className="fw-bold">{formatCurrency(item.price)}</span>
-                                                        </td>
-                                                        <td className="p-3 text-center">
-                                                            <div className="d-flex align-items-center justify-content-center">
-                                                                <Button
-                                                                    variant="outline-secondary"
-                                                                    size="sm"
-                                                                    onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity - 1)}
-                                                                    disabled={item.quantity <= 1}
-                                                                    className="rounded-circle p-1"
-                                                                    style={{ width: '32px', height: '32px' }}
-                                                                >
-                                                                    <FontAwesomeIcon icon={faMinus} style={{ fontSize: '10px' }} />
-                                                                </Button>
-                                                                <span className="mx-3 fw-bold" style={{ minWidth: '20px' }}>
-                                                                    {item.quantity}
-                                                                </span>
-                                                                <Button
-                                                                    variant="outline-primary"
-                                                                    size="sm"
-                                                                    onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity + 1)}
-                                                                    className="rounded-circle p-1"
-                                                                    style={{ width: '32px', height: '32px' }}
-                                                                >
-                                                                    <FontAwesomeIcon icon={faPlus} style={{ fontSize: '10px' }} />
-                                                                </Button>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 text-center">
-                                                            <span className="fw-bold text-primary">
-                                                                {formatCurrency(item.price * item.quantity)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-3 text-center">
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <span className="fw-bold">{formatCurrency(item.price)}</span>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <div className="d-flex align-items-center justify-content-center">
                                                             <Button
-                                                                variant="outline-danger"
+                                                                variant="outline-secondary"
                                                                 size="sm"
+                                                                    onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity - 1)}
+                                                                disabled={item.quantity <= 1}
+                                                                className="rounded-circle p-1"
+                                                                style={{ width: '32px', height: '32px' }}
+                                                            >
+                                                                <FontAwesomeIcon icon={faMinus} style={{ fontSize: '10px' }} />
+                                                            </Button>
+                                                            <span className="mx-3 fw-bold" style={{ minWidth: '20px' }}>
+                                                                {item.quantity}
+                                                            </span>
+                                                            <Button
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                    onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity + 1)}
+                                                                className="rounded-circle p-1"
+                                                                style={{ width: '32px', height: '32px' }}
+                                                            >
+                                                                <FontAwesomeIcon icon={faPlus} style={{ fontSize: '10px' }} />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <span className="fw-bold text-primary">
+                                                            {formatCurrency(item.price * item.quantity)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <Button
+                                                            variant="outline-danger"
+                                                            size="sm"
                                                                 onClick={() => handleRemoveItem(item.id, item.type)}
                                                                 className="rounded-circle p-1"
                                                                 style={{ width: '32px', height: '32px' }}
@@ -390,19 +390,19 @@ const Cart = () => {
                                                                 variant="outline-danger"
                                                                 size="sm"
                                                                 onClick={() => handleRemoveItem(item.id, item.type)}
-                                                                className="rounded-circle p-1"
-                                                                style={{ width: '32px', height: '32px' }}
-                                                            >
-                                                                <FontAwesomeIcon icon={faTrash} style={{ fontSize: '10px' }} />
-                                                            </Button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </Table>
-                                    </div>
-                                </Card.Body>
-                            </Card>
+                                                            className="rounded-circle p-1"
+                                                            style={{ width: '32px', height: '32px' }}
+                                                        >
+                                                            <FontAwesomeIcon icon={faTrash} style={{ fontSize: '10px' }} />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            </Card.Body>
+                        </Card>
                         )}
 
                         {/* Code promo */}

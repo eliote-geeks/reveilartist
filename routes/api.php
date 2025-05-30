@@ -7,6 +7,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SoundController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\SoundController as ApiSoundController;
+use App\Http\Controllers\Api\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -72,6 +73,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/profile/photo', [AuthController::class, 'updateProfilePhoto']);
     Route::put('/change-password', [AuthController::class, 'changePassword']);
 
+    // Gestion des utilisateurs pour le dashboard
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index'])->name('api.users.index');
+        Route::get('/stats', [UserController::class, 'stats'])->name('api.users.stats');
+        Route::delete('/{id}', [UserController::class, 'destroy'])->name('api.users.destroy')->where('id', '[0-9]+');
+    });
+
     // Gestion des catégories (admin uniquement)
     Route::middleware('admin')->group(function () {
         Route::post('/categories', [CategoryController::class, 'store']);
@@ -92,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/events/{event}', [EventController::class, 'update']);
     Route::delete('/events/{event}', [EventController::class, 'destroy']);
     Route::post('/events/{event}/register', [EventController::class, 'register']);
+    Route::post('/events/{event}/approve', [EventController::class, 'approve']);
 });
 
 // Route pour vérifier le statut de l'API
@@ -117,4 +126,17 @@ Route::get('/test-storage', function () {
         'is_link' => is_link($publicPath),
         'php_os' => PHP_OS_FAMILY
     ]);
+});
+
+// Routes pour les artistes (publiques et protégées)
+Route::prefix('artists')->group(function () {
+    Route::get('/', [App\Http\Controllers\Api\ArtistController::class, 'index']);
+    Route::get('/popular', [App\Http\Controllers\Api\ArtistController::class, 'popular']);
+    Route::get('/recommended', [App\Http\Controllers\Api\ArtistController::class, 'recommended']);
+    Route::get('/{id}', [App\Http\Controllers\Api\ArtistController::class, 'show']);
+
+    // Routes protégées pour l'authentification
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/{id}/follow', [App\Http\Controllers\Api\ArtistController::class, 'toggleFollow']);
+    });
 });
