@@ -1,109 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Dropdown } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Dropdown, Spinner, Alert } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort, faRefresh } from '@fortawesome/free-solid-svg-icons';
 import SoundCard from '../common/SoundCard';
+import { useAuth } from '../../context/AuthContext';
 
 const Catalog = () => {
-    const [sounds] = useState([
-        {
-            id: 1,
-            title: "Beat Afro Moderne",
-            artist: "DJ Cameroun",
-            price: 2500,
-            cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop",
-            category: "Afrobeat",
-            likes: 45,
-            plays: 230
-        },
-        {
-            id: 2,
-            title: "Makossa Fusion",
-            artist: "UrbanSonic",
-            price: 3500,
-            cover: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&h=400&fit=crop",
-            category: "Traditionnel",
-            likes: 67,
-            plays: 450
-        },
-        {
-            id: 3,
-            title: "Coupé-Décalé Beat",
-            artist: "BeatMaker237",
-            price: 0,
-            cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&h=400&fit=crop",
-            category: "Coupé-Décalé",
-            likes: 89,
-            plays: 620
-        },
-        {
-            id: 4,
-            title: "Ndombolo Modern",
-            artist: "SoundCraft",
-            price: 2000,
-            cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop",
-            category: "Ndombolo",
-            likes: 34,
-            plays: 180
-        },
-        {
-            id: 5,
-            title: "Bikutsi Électro",
-            artist: "DJ Yaoundé",
-            price: 3000,
-            cover: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=400&fit=crop",
-            category: "Bikutsi",
-            likes: 78,
-            plays: 390
-        },
-        {
-            id: 6,
-            title: "Assiko Moderne",
-            artist: "ProducteurCM",
-            price: 1500,
-            cover: "https://images.unsplash.com/photo-1515169067868-5387ec047c51?w=400&h=400&fit=crop",
-            category: "Assiko",
-            likes: 56,
-            plays: 270
-        },
-        {
-            id: 7,
-            title: "Mangambeu Beats",
-            artist: "SoundMaster",
-            price: 4000,
-            cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop",
-            category: "Mangambeu",
-            likes: 92,
-            plays: 540
-        },
-        {
-            id: 8,
-            title: "Ambiance Douala",
-            artist: "CityBeats",
-            price: 0,
-            cover: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=400&fit=crop",
-            category: "Ambiant",
-            likes: 123,
-            plays: 780
-        }
-    ]);
-
-    const [filteredSounds, setFilteredSounds] = useState(sounds);
+    const { token } = useAuth();
+    const [sounds, setSounds] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [filteredSounds, setFilteredSounds] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedPrice, setSelectedPrice] = useState('all');
     const [sortBy, setSortBy] = useState('popular');
-    const [viewMode, setViewMode] = useState('grid'); // grid ou list
-
-    const categories = [
-        { value: 'all', label: 'Toutes les catégories' },
-        { value: 'Afrobeat', label: 'Afrobeat' },
-        { value: 'Traditionnel', label: 'Traditionnel' },
-        { value: 'Coupé-Décalé', label: 'Coupé-Décalé' },
-        { value: 'Ndombolo', label: 'Ndombolo' },
-        { value: 'Bikutsi', label: 'Bikutsi' },
-        { value: 'Assiko', label: 'Assiko' }
-    ];
+    const [viewMode, setViewMode] = useState('grid');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [likedSounds, setLikedSounds] = useState(new Set());
+    const [pagination, setPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        per_page: 12,
+        total: 0,
+        has_more: false
+    });
 
     const priceRanges = [
         { value: 'all', label: 'Tous les prix' },
@@ -121,57 +42,183 @@ const Catalog = () => {
         { value: 'likes', label: 'Plus aimés' }
     ];
 
-    // Fonction de filtrage et tri
+    // Charger les catégories
     useEffect(() => {
-        let filtered = sounds.filter(sound => {
-            const matchesSearch = sound.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                 sound.artist.toLowerCase().includes(searchTerm.toLowerCase());
+        loadCategories();
+    }, []);
 
-            const matchesCategory = selectedCategory === 'all' || sound.category === selectedCategory;
+    // Charger les sons
+    useEffect(() => {
+        loadSounds();
+    }, [selectedCategory, selectedPrice, sortBy, searchTerm]);
 
-            let matchesPrice = true;
-            if (selectedPrice === 'free') {
-                matchesPrice = sound.price === 0;
-            } else if (selectedPrice === '0-2000') {
-                matchesPrice = sound.price >= 0 && sound.price <= 2000;
-            } else if (selectedPrice === '2000-3000') {
-                matchesPrice = sound.price > 2000 && sound.price <= 3000;
-            } else if (selectedPrice === '3000+') {
-                matchesPrice = sound.price > 3000;
+    // Charger les statuts de likes
+    useEffect(() => {
+        if (token && sounds.length > 0) {
+            loadLikesStatus();
+        }
+    }, [token, sounds]);
+
+    const loadCategories = async () => {
+        try {
+            const response = await fetch('/api/categories');
+            const data = await response.json();
+
+            if (data.success) {
+                const categoriesWithAll = [
+                    { value: 'all', label: 'Toutes les catégories', name: 'Toutes les catégories' },
+                    ...data.categories.map(cat => ({
+                        value: cat.name,
+                        label: cat.name,
+                        name: cat.name,
+                        id: cat.id
+                    }))
+                ];
+                setCategories(categoriesWithAll);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des catégories:', error);
+        }
+    };
+
+    const loadSounds = async (page = 1) => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const params = new URLSearchParams({
+                page: page.toString(),
+                per_page: pagination.per_page.toString(),
+                sort: sortBy
+            });
+
+            if (selectedCategory !== 'all') {
+                params.append('category', selectedCategory);
+            }
+            if (selectedPrice !== 'all') {
+                params.append('price', selectedPrice);
+            }
+            if (searchTerm.trim()) {
+                params.append('search', searchTerm.trim());
             }
 
-            return matchesSearch && matchesCategory && matchesPrice;
-        });
+            const response = await fetch(`/api/sounds?${params}`);
+            const data = await response.json();
 
-        // Tri
-        filtered.sort((a, b) => {
-            switch (sortBy) {
-                case 'recent':
-                    return b.id - a.id; // Simuler par ID
-                case 'price-low':
-                    return a.price - b.price;
-                case 'price-high':
-                    return b.price - a.price;
-                case 'likes':
-                    return (b.likes || 0) - (a.likes || 0);
-                case 'popular':
-                default:
-                    return (b.plays || 0) - (a.plays || 0);
+            if (data.success) {
+                setSounds(data.sounds);
+                setFilteredSounds(data.sounds);
+                setPagination(data.pagination);
+            } else {
+                throw new Error(data.message || 'Erreur lors du chargement');
             }
-        });
+        } catch (error) {
+            console.error('Erreur lors du chargement des sons:', error);
+            setError('Erreur lors du chargement des sons. Veuillez réessayer.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        setFilteredSounds(filtered);
-    }, [searchTerm, selectedCategory, selectedPrice, sortBy, sounds]);
+    const loadLikesStatus = async () => {
+        if (!token) return;
 
-    // Gestion des actions
-    const handleLike = (soundId, isLiked) => {
-        console.log(`${isLiked ? 'Liked' : 'Unliked'} sound ${soundId}`);
-        // Ici, vous pourriez mettre à jour l'état ou faire un appel API
+        try {
+            const soundIds = sounds.map(sound => sound.id);
+
+            const response = await fetch('/api/sounds/likes/status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ sound_ids: soundIds })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setLikedSounds(new Set(data.likes));
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des likes:', error);
+        }
+    };
+
+    const handleLike = async (soundId) => {
+        if (!token) {
+            alert('Veuillez vous connecter pour liker des sons');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/sounds/${soundId}/like`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Mettre à jour les likes localement
+                const newLikedSounds = new Set(likedSounds);
+                if (data.is_liked) {
+                    newLikedSounds.add(soundId);
+                } else {
+                    newLikedSounds.delete(soundId);
+                }
+                setLikedSounds(newLikedSounds);
+
+                // Mettre à jour le compteur de likes dans la liste des sons
+                setSounds(prevSounds =>
+                    prevSounds.map(sound =>
+                        sound.id === soundId
+                            ? { ...sound, likes: data.likes_count }
+                            : sound
+                    )
+                );
+            } else {
+                alert(data.message || 'Erreur lors du like');
+            }
+        } catch (error) {
+            console.error('Erreur lors du like:', error);
+            alert('Erreur lors du like. Veuillez réessayer.');
+        }
     };
 
     const handleAddToCart = (sound) => {
-        console.log('Added to cart:', sound);
-        // Ici, vous ajouteriez le son au panier
+        // TODO: Implémenter l'ajout au panier
+        console.log('Ajout au panier:', sound);
+        alert(`"${sound.title}" ajouté au panier !`);
+    };
+
+    const handleRefresh = () => {
+        loadSounds(1);
+    };
+
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+    };
+
+    const handleCategoryChange = (category) => {
+        setSelectedCategory(category);
+    };
+
+    const handlePriceChange = (price) => {
+        setSelectedPrice(price);
+    };
+
+    const handleSortChange = (sort) => {
+        setSortBy(sort);
+    };
+
+    const loadMoreSounds = () => {
+        if (pagination.has_more) {
+            loadSounds(pagination.current_page + 1);
+        }
     };
 
     return (
@@ -209,95 +256,108 @@ const Catalog = () => {
                     <Row className="g-3 align-items-end">
                         {/* Recherche */}
                         <Col lg={4} md={6}>
-                            <Form.Label className="fw-medium small">Rechercher</Form.Label>
-                            <InputGroup>
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Titre ou artiste..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    style={{ borderRadius: '12px 0 0 12px' }}
-                                />
-                                <InputGroup.Text style={{ borderRadius: '0 12px 12px 0', background: 'var(--primary-orange)', border: 'none', color: 'white' }}>
-                                    <FontAwesomeIcon icon={faSearch} />
-                                </InputGroup.Text>
-                            </InputGroup>
+                            <Form.Group>
+                                <Form.Label className="small fw-medium text-muted">Rechercher</Form.Label>
+                                <InputGroup>
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Titre, artiste, genre..."
+                                        value={searchTerm}
+                                        onChange={handleSearchChange}
+                                        style={{ borderRadius: '8px 0 0 8px' }}
+                                    />
+                                    <Button
+                                        variant="primary"
+                                        style={{ borderRadius: '0 8px 8px 0' }}
+                                        disabled={loading}
+                                    >
+                                        <FontAwesomeIcon icon={faSearch} />
+                                    </Button>
+                                </InputGroup>
+                            </Form.Group>
                         </Col>
 
                         {/* Catégorie */}
                         <Col lg={2} md={3} sm={6}>
-                            <Form.Label className="fw-medium small">Catégorie</Form.Label>
-                            <Form.Select
-                                value={selectedCategory}
-                                onChange={(e) => setSelectedCategory(e.target.value)}
-                                style={{ borderRadius: '12px' }}
-                            >
-                                {categories.map(cat => (
-                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                ))}
-                            </Form.Select>
+                            <Form.Group>
+                                <Form.Label className="small fw-medium text-muted">Catégorie</Form.Label>
+                                <Form.Select
+                                    value={selectedCategory}
+                                    onChange={(e) => handleCategoryChange(e.target.value)}
+                                    style={{ borderRadius: '8px' }}
+                                >
+                                    {categories.map(category => (
+                                        <option key={category.value} value={category.value}>
+                                            {category.label}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
                         </Col>
 
                         {/* Prix */}
                         <Col lg={2} md={3} sm={6}>
-                            <Form.Label className="fw-medium small">Prix</Form.Label>
-                            <Form.Select
-                                value={selectedPrice}
-                                onChange={(e) => setSelectedPrice(e.target.value)}
-                                style={{ borderRadius: '12px' }}
-                            >
-                                {priceRanges.map(range => (
-                                    <option key={range.value} value={range.value}>{range.label}</option>
-                                ))}
-                            </Form.Select>
+                            <Form.Group>
+                                <Form.Label className="small fw-medium text-muted">Prix</Form.Label>
+                                <Form.Select
+                                    value={selectedPrice}
+                                    onChange={(e) => handlePriceChange(e.target.value)}
+                                    style={{ borderRadius: '8px' }}
+                                >
+                                    {priceRanges.map(range => (
+                                        <option key={range.value} value={range.value}>
+                                            {range.label}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
                         </Col>
 
                         {/* Tri */}
                         <Col lg={2} md={6} sm={6}>
-                            <Form.Label className="fw-medium small">Trier par</Form.Label>
-                            <Form.Select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                style={{ borderRadius: '12px' }}
-                            >
-                                {sortOptions.map(option => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                            </Form.Select>
+                            <Form.Group>
+                                <Form.Label className="small fw-medium text-muted">Trier par</Form.Label>
+                                <Form.Select
+                                    value={sortBy}
+                                    onChange={(e) => handleSortChange(e.target.value)}
+                                    style={{ borderRadius: '8px' }}
+                                >
+                                    {sortOptions.map(option => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
                         </Col>
 
-                        {/* Mode d'affichage */}
+                        {/* Actualiser */}
                         <Col lg={2} md={6} sm={6}>
-                            <Form.Label className="fw-medium small">Affichage</Form.Label>
-                            <div className="d-flex gap-1">
-                                <Button
-                                    variant={viewMode === 'grid' ? 'warning' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => setViewMode('grid')}
-                                    style={{ borderRadius: '8px' }}
-                                >
-                                    Grille
-                                </Button>
-                                <Button
-                                    variant={viewMode === 'list' ? 'warning' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => setViewMode('list')}
-                                    style={{ borderRadius: '8px' }}
-                                >
-                                    Liste
-                                </Button>
-                            </div>
+                            <Button
+                                variant="outline-secondary"
+                                className="w-100"
+                                onClick={handleRefresh}
+                                disabled={loading}
+                                style={{ borderRadius: '8px' }}
+                            >
+                                <FontAwesomeIcon
+                                    icon={faRefresh}
+                                    spin={loading}
+                                    className="me-2"
+                                />
+                                Actualiser
+                            </Button>
                         </Col>
                     </Row>
                 </Container>
             </section>
 
-            {/* Résultats */}
+            {/* Liste des sons */}
             <section className="py-4">
                 <Container>
                     <div className="d-flex justify-content-between align-items-center mb-4">
                         <h3 className="fw-bold mb-0">
-                            Sons disponibles ({filteredSounds.length})
+                            Sons disponibles ({pagination.total})
                         </h3>
 
                         <div className="d-flex gap-2">
@@ -332,7 +392,26 @@ const Catalog = () => {
                         </div>
                     </div>
 
-                    {filteredSounds.length === 0 ? (
+                    {error && (
+                        <Alert variant="danger" className="mb-4">
+                            <FontAwesomeIcon icon={faMusic} className="me-2" />
+                            {error}
+                            <Button
+                                variant="link"
+                                className="p-0 ms-2"
+                                onClick={handleRefresh}
+                            >
+                                Réessayer
+                            </Button>
+                        </Alert>
+                    )}
+
+                    {loading && filteredSounds.length === 0 ? (
+                        <div className="text-center py-5">
+                            <Spinner animation="border" variant="primary" className="mb-3" />
+                            <h5 className="text-muted">Chargement des sons...</h5>
+                        </div>
+                    ) : filteredSounds.length === 0 && !loading ? (
                         <div className="text-center py-5">
                             <FontAwesomeIcon
                                 icon={faMusic}
@@ -341,26 +420,61 @@ const Catalog = () => {
                             />
                             <h5 className="text-muted">Aucun son trouvé</h5>
                             <p className="text-muted">Essayez de modifier vos critères de recherche</p>
+                            <Button variant="primary" onClick={handleRefresh}>
+                                Recharger le catalogue
+                            </Button>
                         </div>
                     ) : (
-                        <Row className="g-4">
-                            {filteredSounds.map((sound) => (
-                                <Col
-                                    key={sound.id}
-                                    lg={viewMode === 'grid' ? 3 : 12}
-                                    md={viewMode === 'grid' ? 4 : 12}
-                                    sm={viewMode === 'grid' ? 6 : 12}
-                                >
-                                    <SoundCard
-                                        sound={sound}
-                                        onLike={handleLike}
-                                        onAddToCart={handleAddToCart}
-                                        isCompact={viewMode === 'list'}
-                                        showPreview={true}
-                                    />
-                                </Col>
-                            ))}
-                        </Row>
+                        <>
+                            <Row className="g-4">
+                                {filteredSounds.map((sound) => (
+                                    <Col
+                                        key={sound.id}
+                                        lg={viewMode === 'grid' ? 3 : 12}
+                                        md={viewMode === 'grid' ? 4 : 12}
+                                        sm={viewMode === 'grid' ? 6 : 12}
+                                    >
+                                        <SoundCard
+                                            sound={{
+                                                ...sound,
+                                                isLiked: likedSounds.has(sound.id)
+                                            }}
+                                            onLike={handleLike}
+                                            onAddToCart={handleAddToCart}
+                                            isCompact={viewMode === 'list'}
+                                            showPreview={true}
+                                        />
+                                    </Col>
+                                ))}
+                            </Row>
+
+                            {/* Pagination */}
+                            {pagination.has_more && (
+                                <div className="text-center mt-5">
+                                    <Button
+                                        variant="primary"
+                                        size="lg"
+                                        onClick={loadMoreSounds}
+                                        disabled={loading}
+                                        style={{ borderRadius: '12px', padding: '12px 30px' }}
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Spinner animation="border" size="sm" className="me-2" />
+                                                Chargement...
+                                            </>
+                                        ) : (
+                                            <>
+                                                Charger plus de sons
+                                                <Badge bg="light" text="dark" className="ms-2">
+                                                    {pagination.current_page} / {pagination.last_page}
+                                                </Badge>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </Container>
             </section>

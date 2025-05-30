@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::table('sounds', function (Blueprint $table) {
             // Informations de licence
             $table->string('license_type')->default('royalty_free')->after('credits');
-            $table->string('copyright_owner')->after('license_type');
-            $table->string('composer')->after('copyright_owner');
+            $table->string('copyright_owner')->nullable()->after('license_type');
+            $table->string('composer')->nullable()->after('copyright_owner');
             $table->string('performer')->nullable()->after('composer');
             $table->string('producer')->nullable()->after('performer');
             $table->date('release_date')->nullable()->after('producer');

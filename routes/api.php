@@ -5,7 +5,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SoundController;
-use App\Http\Controllers\EventController;
+use App\Http\Controllers\Api\EventController;
+use App\Http\Controllers\Api\SoundController as ApiSoundController;
 
 /*
 |--------------------------------------------------------------------------
@@ -26,9 +27,31 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{category}', [CategoryController::class, 'show']);
 
-// Routes publiques pour les sons
-Route::get('/sounds', [SoundController::class, 'index']);
-Route::get('/sounds/{sound}', [SoundController::class, 'show']);
+// Routes publiques pour les sons - NOUVELLE API
+Route::prefix('sounds')->group(function () {
+    Route::get('/', [ApiSoundController::class, 'index'])->name('api.sounds.index');
+    Route::get('/popular', [ApiSoundController::class, 'popular'])->name('api.sounds.popular');
+    Route::get('/recent', [ApiSoundController::class, 'recent'])->name('api.sounds.recent');
+    Route::get('/search', [ApiSoundController::class, 'search'])->name('api.sounds.search');
+    Route::get('/{id}', [ApiSoundController::class, 'show'])->name('api.sounds.show')->where('id', '[0-9]+');
+    Route::get('/{id}/preview', [ApiSoundController::class, 'preview'])->name('api.sounds.preview')->where('id', '[0-9]+');
+
+    // Routes authentifiées pour les likes
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/{id}/like', [ApiSoundController::class, 'toggleLike'])->name('api.sounds.like')->where('id', '[0-9]+');
+        Route::post('/likes/status', [ApiSoundController::class, 'getLikesStatus'])->name('api.sounds.likes.status');
+
+        // Routes CRUD pour la gestion des sons
+        Route::post('/', [ApiSoundController::class, 'store'])->name('api.sounds.store');
+        Route::put('/{id}', [ApiSoundController::class, 'update'])->name('api.sounds.update')->where('id', '[0-9]+');
+        Route::delete('/{id}', [ApiSoundController::class, 'destroy'])->name('api.sounds.destroy')->where('id', '[0-9]+');
+        Route::get('/{id}/download', [ApiSoundController::class, 'download'])->name('api.sounds.download')->where('id', '[0-9]+');
+    });
+});
+
+// Routes publiques pour les sons - ANCIENNE API (maintenue pour compatibilité)
+Route::get('/sounds-legacy', [SoundController::class, 'index']);
+Route::get('/sounds-legacy/{sound}', [SoundController::class, 'show']);
 Route::get('/sounds/categories/list', [SoundController::class, 'getCategories']);
 
 // Routes publiques pour les événements
@@ -58,11 +81,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/categories/reorder', [CategoryController::class, 'reorder']);
     });
 
-    // Gestion des sons (utilisateurs authentifiés)
-    Route::post('/sounds', [SoundController::class, 'store']);
-    Route::put('/sounds/{sound}', [SoundController::class, 'update']);
-    Route::delete('/sounds/{sound}', [SoundController::class, 'destroy']);
-    Route::get('/sounds/{sound}/download', [SoundController::class, 'download']);
+    // Gestion des sons (utilisateurs authentifiés) - ANCIENNE API
+    Route::post('/sounds-legacy', [SoundController::class, 'store']);
+    Route::put('/sounds-legacy/{sound}', [SoundController::class, 'update']);
+    Route::delete('/sounds-legacy/{sound}', [SoundController::class, 'destroy']);
+    Route::get('/sounds-legacy/{sound}/download', [SoundController::class, 'download']);
 
     // Gestion des événements (utilisateurs authentifiés)
     Route::post('/events', [EventController::class, 'store']);

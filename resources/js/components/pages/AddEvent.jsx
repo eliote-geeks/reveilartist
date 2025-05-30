@@ -18,6 +18,7 @@ import {
     faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext';
+import ToastNotification from '../common/ToastNotification';
 import '../../../css/admin.css';
 
 const AddEvent = () => {
@@ -25,7 +26,14 @@ const AddEvent = () => {
     const { user, token } = useAuth();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
-    const [success, setSuccess] = useState('');
+
+    // Toast states
+    const [showToast, setShowToast] = useState(false);
+    const [toastConfig, setToastConfig] = useState({
+        title: '',
+        message: '',
+        variant: 'success'
+    });
 
     const [formData, setFormData] = useState({
         title: '',
@@ -74,6 +82,11 @@ const AddEvent = () => {
         'Yaoundé', 'Douala', 'Garoua', 'Bamenda', 'Bafoussam',
         'Ngaoundéré', 'Bertoua', 'Ebolowa', 'Kribi', 'Limbe'
     ];
+
+    const showToastNotification = (title, message, variant = 'success') => {
+        setToastConfig({ title, message, variant });
+        setShowToast(true);
+    };
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -235,7 +248,7 @@ const AddEvent = () => {
 
             console.log('Création du FormData pour événement...');
 
-            // Ajouter les données du formulaire
+            // Ajouter les données du formulaire (champs requis par le contrôleur)
             submitData.append('title', formData.title);
             submitData.append('description', formData.description);
             submitData.append('category', formData.category);
@@ -256,14 +269,14 @@ const AddEvent = () => {
             submitData.append('contact_email', formData.contact_email);
             if (formData.website_url) submitData.append('website_url', formData.website_url);
 
-            // Ajouter les artistes
+            // Ajouter les artistes (format array attendu par le contrôleur)
             if (formData.artists && formData.artists.length > 0) {
                 formData.artists.forEach((artist, index) => {
                     submitData.append(`artists[${index}]`, artist);
                 });
             }
 
-            // Ajouter les sponsors
+            // Ajouter les sponsors (format array attendu par le contrôleur)
             if (formData.sponsors && formData.sponsors.length > 0) {
                 formData.sponsors.forEach((sponsor, index) => {
                     submitData.append(`sponsors[${index}]`, sponsor);
@@ -306,25 +319,76 @@ const AddEvent = () => {
             console.log('Données de réponse:', data);
 
             if (response.ok) {
-                setSuccess('Événement créé avec succès ! Il sera disponible après validation.');
+                showToastNotification(
+                    'Événement créé avec succès !',
+                    'Il sera disponible après validation par notre équipe.',
+                    'success'
+                );
                 console.log('✅ Succès!');
 
-                // Rediriger après succès
-        setTimeout(() => {
-                    navigate('/dashboard');
-                }, 2000);
+                // Réinitialiser le formulaire
+                setFormData({
+                    title: '',
+                    description: '',
+                    category: '',
+                    venue: '',
+                    address: '',
+                    city: 'Yaoundé',
+                    country: 'Cameroun',
+                    event_date: '',
+                    start_time: '',
+                    end_time: '',
+                    poster_image: null,
+                    gallery_images: [],
+                    is_free: false,
+                    ticket_price: '',
+                    max_attendees: '',
+                    artists: [],
+                    sponsors: [],
+                    requirements: '',
+                    contact_phone: '',
+                    contact_email: '',
+                    website_url: '',
+                    social_links: {}
+                });
+                setImagePreview(null);
+                setGalleryPreviews([]);
+                setArtistsInput('');
+                setSponsorsInput('');
+                setErrors({});
+
+                // Rediriger après succès (optionnel)
+                setTimeout(() => {
+                    navigate('/events');
+                }, 3000);
             } else {
                 console.log('❌ Erreur serveur:', data);
                 if (data.errors) {
                     setErrors(data.errors);
+                    // Afficher la première erreur dans le toast
+                    const firstError = Object.values(data.errors)[0];
+                    const errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+                    showToastNotification(
+                        'Erreur de validation',
+                        errorMessage,
+                        'error'
+                    );
                 } else {
-                    setErrors({ general: data.message || 'Erreur lors de la création de l\'événement' });
+                    showToastNotification(
+                        'Erreur',
+                        data.message || 'Erreur lors de la création de l\'événement',
+                        'error'
+                    );
                 }
             }
 
         } catch (error) {
             console.error('❌ Erreur réseau:', error);
-            setErrors({ general: 'Erreur de connexion. Veuillez réessayer.' });
+            showToastNotification(
+                'Erreur de connexion',
+                'Impossible de contacter le serveur. Veuillez réessayer.',
+                'error'
+            );
         } finally {
             setLoading(false);
         }
@@ -364,17 +428,14 @@ const AddEvent = () => {
             </div>
 
             <Container className="py-4">
-                {success && (
-                    <Alert variant="success" className="mb-4">
-                        <FontAwesomeIcon icon={faSave} className="me-2" />
-                        {success}
-                    </Alert>
-                )}
-
-                {errors.general && (
-                    <Alert variant="danger" className="mb-4">
-                        {errors.general}
-                    </Alert>
+                {showToast && (
+                    <ToastNotification
+                        show={showToast}
+                        title={toastConfig.title}
+                        message={toastConfig.message}
+                        variant={toastConfig.variant}
+                        onClose={() => setShowToast(false)}
+                    />
                 )}
 
                 <Form onSubmit={handleSubmit}>

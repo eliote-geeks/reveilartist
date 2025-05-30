@@ -8,7 +8,8 @@ import {
     faEye,
     faPlay,
     faPause,
-    faHeadphones
+    faHeadphones,
+    faDownload
 } from '@fortawesome/free-solid-svg-icons';
 import AudioPlayer from './AudioPlayer';
 import SoundDetailsModal from './SoundDetailsModal';
@@ -24,9 +25,10 @@ const SoundCard = ({
     const [isLiked, setIsLiked] = useState(sound.isLiked || false);
 
     const handleLike = () => {
-        setIsLiked(!isLiked);
+        const newLikedState = !isLiked;
+        setIsLiked(newLikedState);
         if (onLike) {
-            onLike(sound.id, !isLiked);
+            onLike(sound.id, newLikedState);
         }
     };
 
@@ -57,8 +59,20 @@ const SoundCard = ({
                             <div className="flex-grow-1">
                                 <h6 className="mb-1 fw-bold" style={{ fontSize: '14px' }}>
                                     {sound.title}
+                                    {sound.is_featured && (
+                                        <Badge bg="warning" text="dark" className="ms-2" style={{ fontSize: '10px' }}>
+                                            ⭐ Populaire
+                                        </Badge>
+                                    )}
                                 </h6>
-                                <p className="text-muted mb-2 small">par {sound.artist}</p>
+                                <p className="text-muted mb-2 small">
+                                    par <Link
+                                        to={`/artist/${sound.artistId || 1}`}
+                                        className="text-decoration-none"
+                                    >
+                                        {sound.artist}
+                                    </Link>
+                                </p>
 
                                 {showPreview && (
                                     <AudioPlayer
@@ -67,15 +81,29 @@ const SoundCard = ({
                                         showDetails={false}
                                         onLike={handleLike}
                                         onViewMore={handleViewMore}
+                                        previewDuration={20}
+                                        showPreviewBadge={true}
                                     />
                                 )}
                             </div>
 
                             <div className="text-end">
                                 <div className="fw-bold text-warning mb-2">
-                                    {sound.price ? `${sound.price.toLocaleString()} FCFA` : 'Gratuit'}
+                                    {sound.is_free || sound.price === 0 ? 'Gratuit' : `${sound.price?.toLocaleString()} FCFA`}
                                 </div>
                                 <div className="d-flex gap-1">
+                                    <Button
+                                        variant={isLiked ? "danger" : "outline-danger"}
+                                        size="sm"
+                                        onClick={handleLike}
+                                        style={{ borderRadius: '6px', padding: '4px 8px' }}
+                                        title={isLiked ? "Retirer des favoris" : "Ajouter aux favoris"}
+                                    >
+                                        <FontAwesomeIcon
+                                            icon={faHeart}
+                                            style={{ fontSize: '12px' }}
+                                        />
+                                    </Button>
                                     <Button
                                         variant="outline-primary"
                                         size="sm"
@@ -85,15 +113,17 @@ const SoundCard = ({
                                     >
                                         <FontAwesomeIcon icon={faEye} style={{ fontSize: '12px' }} />
                                     </Button>
-                                    <Button
-                                        variant="warning"
-                                        size="sm"
-                                        onClick={handleAddToCart}
-                                        style={{ borderRadius: '6px', padding: '4px 8px' }}
-                                        title="Ajouter au panier"
-                                    >
-                                        <FontAwesomeIcon icon={faShoppingCart} style={{ fontSize: '12px' }} />
-                                    </Button>
+                                    {!sound.is_free && sound.price > 0 && (
+                                        <Button
+                                            variant="warning"
+                                            size="sm"
+                                            onClick={handleAddToCart}
+                                            style={{ borderRadius: '6px', padding: '4px 8px' }}
+                                            title="Ajouter au panier"
+                                        >
+                                            <FontAwesomeIcon icon={faShoppingCart} style={{ fontSize: '12px' }} />
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -106,14 +136,14 @@ const SoundCard = ({
                     sound={{
                         ...sound,
                         isLiked,
-                        tags: ['Afrobeat', 'Moderne', 'Dance'],
-                        description: `Un son ${sound.category?.toLowerCase() || 'musical'} captivant qui apporte de l'énergie et du rythme à vos créations. Parfait pour des projets créatifs, des vidéos ou des productions musicales.`,
-                        duration: '3:24',
-                        format: 'WAV 48kHz/24bit',
+                        tags: sound.tags || ['Afrobeat', 'Moderne', 'Dance'],
+                        description: sound.description || `Un son ${sound.category?.toLowerCase() || 'musical'} captivant qui apporte de l'énergie et du rythme à vos créations. Parfait pour des projets créatifs, des vidéos ou des productions musicales.`,
+                        duration: sound.duration || '3:24',
+                        format: 'MP3 320kbps',
                         fileSize: '12.5 MB',
-                        uploadDate: '2024-03-15',
-                        likes: Math.floor(Math.random() * 500) + 50,
-                        plays: Math.floor(Math.random() * 2000) + 100
+                        uploadDate: sound.created_at || '2024-03-15',
+                        likes: sound.likes || 0,
+                        plays: sound.plays || 0
                     }}
                     onLike={handleLike}
                     onAddToCart={onAddToCart}
@@ -150,6 +180,7 @@ const SoundCard = ({
                                 className="rounded-circle"
                                 style={{ width: '50px', height: '50px' }}
                                 onClick={handleViewMore}
+                                title="Écouter et voir plus"
                             >
                                 <FontAwesomeIcon icon={faPlay} />
                             </Button>
@@ -163,8 +194,11 @@ const SoundCard = ({
                                 {sound.category}
                             </Badge>
                         )}
-                        {sound.price === 0 && (
+                        {(sound.is_free || sound.price === 0) && (
                             <Badge bg="success">Gratuit</Badge>
+                        )}
+                        {sound.is_featured && (
+                            <Badge bg="warning" text="dark">⭐ Populaire</Badge>
                         )}
                     </div>
 
@@ -174,16 +208,17 @@ const SoundCard = ({
                         className="position-absolute top-0 start-0 m-2 p-1"
                         onClick={handleLike}
                         style={{
-                            background: 'rgba(255,255,255,0.9)',
+                            background: isLiked ? 'rgba(220, 53, 69, 0.9)' : 'rgba(255,255,255,0.9)',
                             borderRadius: '50%',
                             width: '35px',
                             height: '35px'
                         }}
+                        title={isLiked ? "Retirer des favoris" : "Ajouter aux favoris"}
                     >
                         <FontAwesomeIcon
                             icon={faHeart}
                             style={{
-                                color: isLiked ? '#dc3545' : '#6c757d',
+                                color: isLiked ? '#fff' : '#6c757d',
                                 fontSize: '14px'
                             }}
                         />
@@ -215,6 +250,8 @@ const SoundCard = ({
                                 showDetails={false}
                                 onLike={handleLike}
                                 onViewMore={handleViewMore}
+                                previewDuration={20}
+                                showPreviewBadge={false}
                             />
                         </div>
                     )}
@@ -223,18 +260,23 @@ const SoundCard = ({
                     <div className="d-flex justify-content-between align-items-center mb-3 small text-muted">
                         <span>
                             <FontAwesomeIcon icon={faHeart} className="me-1" />
-                            {sound.likes || Math.floor(Math.random() * 100)}
+                            {sound.likes || 0}
                         </span>
                         <span>
                             <FontAwesomeIcon icon={faHeadphones} className="me-1" />
-                            {sound.plays || Math.floor(Math.random() * 500)} écoutes
+                            {sound.plays || 0} écoutes
                         </span>
+                        {sound.duration && (
+                            <span>
+                                🕒 {sound.duration}
+                            </span>
+                        )}
                     </div>
 
                     {/* Prix et actions */}
                     <div className="d-flex justify-content-between align-items-center">
                         <span className="fw-bold text-warning">
-                            {sound.price ? `${sound.price.toLocaleString()} FCFA` : 'Gratuit'}
+                            {sound.is_free || sound.price === 0 ? 'Gratuit' : `${sound.price?.toLocaleString()} FCFA`}
                         </span>
                         <div className="d-flex gap-1">
                             <Button
@@ -246,15 +288,28 @@ const SoundCard = ({
                             >
                                 <FontAwesomeIcon icon={faEye} style={{ fontSize: '12px' }} />
                             </Button>
-                            <Button
-                                variant="warning"
-                                size="sm"
-                                onClick={handleAddToCart}
-                                style={{ borderRadius: '6px', padding: '4px 8px' }}
-                                title="Ajouter au panier"
-                            >
-                                <FontAwesomeIcon icon={faShoppingCart} style={{ fontSize: '12px' }} />
-                            </Button>
+                            {!sound.is_free && sound.price > 0 && (
+                                <Button
+                                    variant="warning"
+                                    size="sm"
+                                    onClick={handleAddToCart}
+                                    style={{ borderRadius: '6px', padding: '4px 8px' }}
+                                    title="Ajouter au panier"
+                                >
+                                    <FontAwesomeIcon icon={faShoppingCart} style={{ fontSize: '12px' }} />
+                                </Button>
+                            )}
+                            {sound.is_free || sound.price === 0 ? (
+                                <Button
+                                    variant="success"
+                                    size="sm"
+                                    onClick={() => alert('Téléchargement disponible après inscription')}
+                                    style={{ borderRadius: '6px', padding: '4px 8px' }}
+                                    title="Télécharger"
+                                >
+                                    <FontAwesomeIcon icon={faDownload} style={{ fontSize: '12px' }} />
+                                </Button>
+                            ) : null}
                         </div>
                     </div>
                 </Card.Body>
@@ -266,14 +321,14 @@ const SoundCard = ({
                 sound={{
                     ...sound,
                     isLiked,
-                    tags: ['Afrobeat', 'Moderne', 'Dance'],
-                    description: `Un son ${sound.category?.toLowerCase() || 'musical'} captivant qui apporte de l'énergie et du rythme à vos créations. Parfait pour des projets créatifs, des vidéos ou des productions musicales.`,
-                    duration: '3:24',
-                    format: 'WAV 48kHz/24bit',
+                    tags: sound.tags || ['Afrobeat', 'Moderne', 'Dance'],
+                    description: sound.description || `Un son ${sound.category?.toLowerCase() || 'musical'} captivant qui apporte de l'énergie et du rythme à vos créations. Parfait pour des projets créatifs, des vidéos ou des productions musicales.`,
+                    duration: sound.duration || '3:24',
+                    format: 'MP3 320kbps',
                     fileSize: '12.5 MB',
-                    uploadDate: '2024-03-15',
-                    likes: Math.floor(Math.random() * 500) + 50,
-                    plays: Math.floor(Math.random() * 2000) + 100
+                    uploadDate: sound.created_at || '2024-03-15',
+                    likes: sound.likes || 0,
+                    plays: sound.plays || 0
                 }}
                 onLike={handleLike}
                 onAddToCart={onAddToCart}
