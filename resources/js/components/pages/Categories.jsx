@@ -1,66 +1,114 @@
-import React from 'react';
-import { Container, Row, Col, Card, Badge } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Badge, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHeadphones, faPlay, faMusic } from '@fortawesome/free-solid-svg-icons';
+import {
+    faHeadphones,
+    faPlay,
+    faMusic,
+    faHeart,
+    faMicrophone,
+    faDrum,
+    faHeartbeat,
+    faHandsPraying,
+    faBolt,
+    faUsers,
+    faSmile,
+    faFire,
+    faCloud,
+    faLeaf
+} from '@fortawesome/free-solid-svg-icons';
+import axios from 'axios';
 
 const Categories = () => {
-    const categories = [
-        {
-            id: 1,
-            name: "Hip-Hop & Rap",
-            description: "Beats urbains et flows authentiques",
-            soundCount: 145,
-            color: "#ff6b35",
-            image: "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=250&fit=crop&crop=center",
-            trending: true
-        },
-        {
-            id: 2,
-            name: "Électro",
-            description: "Sonorités électroniques modernes",
-            soundCount: 98,
-            color: "#3b82f6",
-            image: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=250&fit=crop&crop=center",
-            trending: false
-        },
-        {
-            id: 3,
-            name: "Afrobeat",
-            description: "Rythmes africains contemporains",
-            soundCount: 78,
-            color: "#10b981",
-            image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop&crop=center",
-            trending: true
-        },
-        {
-            id: 4,
-            name: "Ambiance",
-            description: "Sons d'atmosphère et d'ambiance",
-            soundCount: 203,
-            color: "#8b5cf6",
-            image: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&h=250&fit=crop&crop=center",
-            trending: false
-        },
-        {
-            id: 5,
-            name: "Drill",
-            description: "Sons drill et trap hardcore",
-            soundCount: 67,
-            color: "#ec4899",
-            image: "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=250&fit=crop&crop=center",
-            trending: true
-        },
-        {
-            id: 6,
-            name: "R&B",
-            description: "Mélodies douces et sensuelles",
-            soundCount: 112,
-            color: "#f59e0b",
-            image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop&crop=center",
-            trending: false
-        }
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // Map des icônes FontAwesome
+    const iconMap = {
+        'faHeart': faHeart,
+        'faMicrophone': faMicrophone,
+        'faMusic': faMusic,
+        'faDrum': faDrum,
+        'faHeartbeat': faHeartbeat,
+        'faHandsPraying': faHandsPraying,
+        'faBolt': faBolt,
+        'faUsers': faUsers,
+        'faSmile': faSmile,
+        'faFire': faFire,
+        'faCloud': faCloud,
+        'faLeaf': faLeaf,
+    };
+
+    // Images par défaut pour les catégories
+    const defaultImages = [
+        "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=250&fit=crop&crop=center",
+        "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=250&fit=crop&crop=center",
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop&crop=center",
+        "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&h=250&fit=crop&crop=center",
+        "https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400&h=250&fit=crop&crop=center",
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop&crop=center"
     ];
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    const fetchCategories = async () => {
+        try {
+            setLoading(true);
+            const response = await axios.get('/api/categories?active=1');
+
+            if (response.data.success) {
+                // Ajouter des données d'affichage aux catégories
+                const categoriesWithDisplay = response.data.categories.map((category, index) => ({
+                    ...category,
+                    image: category.image_url || defaultImages[index % defaultImages.length],
+                    soundCount: Math.floor(Math.random() * 200) + 50, // Temporaire jusqu'à ce qu'on ait les vraies données
+                    trending: index % 3 === 0 // Quelques catégories en tendance
+                }));
+
+                setCategories(categoriesWithDisplay);
+            } else {
+                setError('Erreur lors du chargement des catégories');
+            }
+        } catch (err) {
+            console.error('Erreur lors du chargement des catégories:', err);
+            setError('Impossible de charger les catégories');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="bg-light min-vh-100 d-flex align-items-center justify-content-center">
+                <div className="text-center">
+                    <Spinner animation="border" variant="primary" className="mb-3" />
+                    <p className="text-muted">Chargement des catégories...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="bg-light min-vh-100 d-flex align-items-center justify-content-center">
+                <Container>
+                    <Row className="justify-content-center">
+                        <Col md={6}>
+                            <Alert variant="danger" className="text-center">
+                                <FontAwesomeIcon icon={faMusic} className="mb-2" size="2x" />
+                                <h5>Oops !</h5>
+                                <p>{error}</p>
+                            </Alert>
+                        </Col>
+                    </Row>
+                </Container>
+            </div>
+        );
+    }
 
     return (
         <div className="bg-light min-vh-100">
@@ -99,7 +147,7 @@ const Categories = () => {
                             <Col key={category.id} lg={4} md={6} className="mb-3">
                                 <Card
                                     as={Link}
-                                    to={`/catalog?category=${category.name}`}
+                                    to={`/catalog?category=${category.slug}`}
                                     className="category-card border-0 h-100 text-decoration-none"
                                     style={{ borderRadius: '16px' }}
                                 >
@@ -146,7 +194,7 @@ const Categories = () => {
                                                 style={{ width: '50px', height: '50px', opacity: 0, transition: 'all 0.2s ease' }}
                                             >
                                                 <FontAwesomeIcon
-                                                    icon={faPlay}
+                                                    icon={iconMap[category.icon] || faMusic}
                                                     style={{ color: category.color, fontSize: '18px' }}
                                                 />
                                             </div>
@@ -184,7 +232,10 @@ const Categories = () => {
                                                     color: category.color
                                                 }}
                                             >
-                                                <FontAwesomeIcon icon={faPlay} style={{ fontSize: '10px' }} />
+                                                <FontAwesomeIcon
+                                                    icon={iconMap[category.icon] || faMusic}
+                                                    style={{ fontSize: '10px' }}
+                                                />
                                             </div>
                                         </div>
                                     </Card.Body>
@@ -201,19 +252,23 @@ const Categories = () => {
                     <Row className="text-center">
                         <Col md={4} className="mb-3">
                             <div className="pulse-animation">
-                                <div className="fs-2 fw-bold mb-1">6</div>
+                                <div className="fs-2 fw-bold mb-1">{categories.length}</div>
                                 <p className="small mb-0 opacity-90">Catégories Musicales</p>
                             </div>
                         </Col>
                         <Col md={4} className="mb-3">
                             <div className="pulse-animation" style={{ animationDelay: '0.5s' }}>
-                                <div className="fs-2 fw-bold mb-1">803</div>
+                                <div className="fs-2 fw-bold mb-1">
+                                    {categories.reduce((total, cat) => total + cat.soundCount, 0)}
+                                </div>
                                 <p className="small mb-0 opacity-90">Sons Disponibles</p>
                             </div>
                         </Col>
                         <Col md={4} className="mb-3">
                             <div className="pulse-animation" style={{ animationDelay: '1s' }}>
-                                <div className="fs-2 fw-bold mb-1">3</div>
+                                <div className="fs-2 fw-bold mb-1">
+                                    {categories.filter(cat => cat.trending).length}
+                                </div>
                                 <p className="small mb-0 opacity-90">Tendances Actuelles</p>
                             </div>
                         </Col>

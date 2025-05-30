@@ -357,7 +357,7 @@ const Artists = () => {
                                         <div className="d-flex gap-2">
                                             <Button
                                                 as={Link}
-                                                to={`/artist/${artist.id}`}
+                                                to={`/artists/${artist.id}`}
                                                 variant="primary"
                                                 size="sm"
                                                 className="flex-fill fw-medium"

@@ -7,6 +7,7 @@ import PageTransition from './common/PageTransition';
 import FloatingActionButton from './common/FloatingActionButton';
 import Home from './pages/Home';
 import Catalog from './pages/Catalog';
+import Categories from './pages/Categories';
 import ArtistProfile from './pages/ArtistProfile';
 import Artists from './pages/Artists';
 import Contact from './pages/Contact';
@@ -43,6 +44,7 @@ const App = () => {
                                     {/* Pages principales */}
                                     <Route path="/" element={<Home />} />
                                     <Route path="/catalog" element={<Catalog />} />
+                                    <Route path="/categories" element={<Categories />} />
                                     <Route path="/sound/:id" element={<SoundDetails />} />
 
                                     {/* Artistes */}

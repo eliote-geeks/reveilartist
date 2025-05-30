@@ -3,17 +3,23 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../css/app.css';
 
+// Import du contexte d'authentification
+import { AuthProvider } from './context/AuthContext';
+
 // Import des composants layout
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import PageTransition from './components/common/PageTransition';
 import FloatingActionButton from './components/common/FloatingActionButton';
 
+// Import des composants d'authentification
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
 // Import des pages principales
 import Home from './components/pages/Home';
 import Dashboard from './components/pages/Dashboard';
-import Login from './components/pages/Login';
-import Register from './components/pages/Register';
 import Contact from './components/pages/Contact';
 import ForgotPassword from './components/pages/ForgotPassword';
 
@@ -36,56 +42,94 @@ import AddEvent from './components/pages/AddEvent';
 import Cart from './components/pages/Cart';
 import TicketPurchase from './components/pages/TicketPurchase';
 import Favorites from './components/pages/Favorites';
-import Settings from './components/pages/Settings';
 
 function App() {
     return (
-        <Router>
-            <div className="d-flex flex-column min-vh-100">
-                <Header />
-                <main className="flex-grow-1">
-                    <PageTransition>
-                        <Routes>
-                            {/* Pages principales */}
-                            <Route path="/" element={<Home />} />
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/login" element={<Login />} />
-                            <Route path="/register" element={<Register />} />
-                            <Route path="/contact" element={<Contact />} />
-                            <Route path="/forgot-password" element={<ForgotPassword />} />
+        <AuthProvider>
+            <Router>
+                <div className="d-flex flex-column min-vh-100">
+                    <Header />
+                    <main className="flex-grow-1">
+                        <PageTransition>
+                            <Routes>
+                                {/* Pages publiques */}
+                                <Route path="/" element={<Home />} />
+                                <Route path="/login" element={<Login />} />
+                                <Route path="/register" element={<Register />} />
+                                <Route path="/contact" element={<Contact />} />
+                                <Route path="/forgot-password" element={<ForgotPassword />} />
 
-                            {/* Pages de contenu */}
-                            <Route path="/catalog" element={<Catalog />} />
-                            <Route path="/artists" element={<Artists />} />
-                            <Route path="/artists/:id" element={<ArtistProfile />} />
-                            <Route path="/events" element={<Events />} />
-                            <Route path="/events/:id" element={<EventDetails />} />
-                            <Route path="/categories" element={<Categories />} />
+                                {/* Pages de contenu publiques */}
+                                <Route path="/catalog" element={<Catalog />} />
+                                <Route path="/artists" element={<Artists />} />
+                                <Route path="/artists/:id" element={<ArtistProfile />} />
+                                <Route path="/events" element={<Events />} />
+                                <Route path="/events/:id" element={<EventDetails />} />
+                                <Route path="/categories" element={<Categories />} />
+                                <Route path="/sounds/:id" element={<SoundDetails />} />
 
-                            {/* Pages de détails */}
-                            <Route path="/sounds/:id" element={<SoundDetails />} />
-                            <Route path="/profile" element={<Profile />} />
-                            <Route path="/profile/edit" element={<ProfileEdit />} />
+                                {/* Pages protégées - nécessitent une authentification */}
+                                <Route path="/dashboard" element={
+                                    <ProtectedRoute requiredRoles={['admin']}>
+                                        <Dashboard />
+                                    </ProtectedRoute>
+                                } />
 
-                            {/* Pages d'ajout/gestion */}
-                            <Route path="/add-sound" element={<AddSound />} />
-                            <Route path="/add-event" element={<AddEvent />} />
-                            <Route path="/cart" element={<Cart />} />
-                            <Route path="/ticket-purchase/:eventId" element={<TicketPurchase />} />
-                            <Route path="/favorites" element={<Favorites />} />
-                            <Route path="/settings" element={<Settings />} />
+                                <Route path="/profile" element={
+                                    <ProtectedRoute>
+                                        <Profile />
+                                    </ProtectedRoute>
+                                } />
 
-                            {/* Redirection par défaut */}
-                            <Route path="*" element={<Navigate to="/" replace />} />
-                        </Routes>
-                    </PageTransition>
-                </main>
-                <Footer />
+                                <Route path="/profile/edit" element={
+                                    <ProtectedRoute>
+                                        <ProfileEdit />
+                                    </ProtectedRoute>
+                                } />
 
-                {/* Bouton flottant disponible sur toutes les pages */}
-                <FloatingActionButton />
-            </div>
-        </Router>
+                                <Route path="/cart" element={
+                                    <ProtectedRoute>
+                                        <Cart />
+                                    </ProtectedRoute>
+                                } />
+
+                                <Route path="/favorites" element={
+                                    <ProtectedRoute>
+                                        <Favorites />
+                                    </ProtectedRoute>
+                                } />
+
+                                <Route path="/ticket-purchase/:eventId" element={
+                                    <ProtectedRoute>
+                                        <TicketPurchase />
+                                    </ProtectedRoute>
+                                } />
+
+                                {/* Pages protégées - artistes et producteurs uniquement */}
+                                <Route path="/add-sound" element={
+                                    <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                        <AddSound />
+                                    </ProtectedRoute>
+                                } />
+
+                                <Route path="/add-event" element={
+                                    <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                        <AddEvent />
+                                    </ProtectedRoute>
+                                } />
+
+                                {/* Redirection par défaut */}
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                        </PageTransition>
+                    </main>
+                    <Footer />
+
+                    {/* Bouton flottant disponible sur toutes les pages */}
+                    <FloatingActionButton />
+                </div>
+            </Router>
+        </AuthProvider>
     );
 }
 

@@ -29,6 +29,13 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'phone',
+        'bio',
+        'location',
+        'status',
+        'last_login_at',
+        'profile_photo_path',
     ];
 
     /**
@@ -62,6 +69,90 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Scope pour filtrer par rôle
+     */
+    public function scopeRole($query, $role)
+    {
+        return $query->where('role', $role);
+    }
+
+    /**
+     * Scope pour filtrer par statut
+     */
+    public function scopeStatus($query, $status)
+    {
+        return $query->where('status', $status);
+    }
+
+    /**
+     * Vérifier si l'utilisateur est un artiste
+     */
+    public function isArtist()
+    {
+        return $this->role === 'artist';
+    }
+
+    /**
+     * Vérifier si l'utilisateur est un producteur
+     */
+    public function isProducer()
+    {
+        return $this->role === 'producer';
+    }
+
+    /**
+     * Vérifier si l'utilisateur est actif
+     */
+    public function isActive()
+    {
+        return $this->status === 'active';
+    }
+
+    /**
+     * Obtenir le nom d'affichage du rôle
+     */
+    public function getRoleDisplayNameAttribute()
+    {
+        $roles = [
+            'user' => 'Utilisateur',
+            'artist' => 'Artiste',
+            'producer' => 'Producteur',
+            'admin' => 'Administrateur'
+        ];
+
+        return $roles[$this->role] ?? 'Utilisateur';
+    }
+
+    /**
+     * Obtenir le nom d'affichage du statut
+     */
+    public function getStatusDisplayNameAttribute()
+    {
+        $statuses = [
+            'active' => 'Actif',
+            'suspended' => 'Suspendu',
+            'pending' => 'En attente'
+        ];
+
+        return $statuses[$this->status] ?? 'Actif';
+    }
+
+    /**
+     * Obtenir l'URL de la photo de profil personnalisée
+     */
+    public function getProfilePhotoUrlAttribute()
+    {
+        if ($this->profile_photo_path) {
+            return asset('storage/' . $this->profile_photo_path);
+        }
+
+        // Générer une photo par défaut avec les initiales
+        $initials = strtoupper(substr($this->name, 0, 1));
+        return "https://ui-avatars.com/api/?name=" . urlencode($this->name) . "&color=7F9CF5&background=EBF4FF&size=200";
     }
 }

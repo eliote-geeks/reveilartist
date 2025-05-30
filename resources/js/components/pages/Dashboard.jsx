@@ -30,8 +30,10 @@ import {
     faHome,
     faMapMarkerAlt,
     faUpload,
-    faClock
+    faClock,
+    faTags
 } from '@fortawesome/free-solid-svg-icons';
+import CategoryManagement from './CategoryManagement';
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -331,6 +333,13 @@ const Dashboard = () => {
             icon: faChartLine,
             color: 'danger',
             description: 'Rapports détaillés'
+        },
+        {
+            id: 'categories',
+            label: 'Catégories',
+            icon: faTags,
+            color: 'secondary',
+            description: 'Gestion des catégories'
         },
         {
             id: 'settings',
@@ -1265,6 +1274,8 @@ const Dashboard = () => {
                 return renderAnalytics();
             case 'settings':
                 return renderSettings();
+            case 'categories':
+                return <CategoryManagement />;
             default:
                 return renderOverview();
         }
