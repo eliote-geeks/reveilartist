@@ -22,6 +22,7 @@
     "dependencies": {
         "@fortawesome/fontawesome-svg-core": "^6.7.2",
         "@fortawesome/free-brands-svg-icons": "^6.7.2",
+        "@fortawesome/free-regular-svg-icons": "^6.7.2",
         "@fortawesome/free-solid-svg-icons": "^6.7.2",
         "@fortawesome/react-fontawesome": "^0.2.2",
         "@types/react": "^19.1.6",
@@ -35,7 +36,13 @@
     "name": "reveilart",
     "version": "1.0.0",
     "description": "Plateforme de sons urbains du Cameroun",
-    "keywords": ["sons urbains", "musique", "cameroun", "audio", "marketplace"],
+    "keywords": [
+        "sons urbains",
+        "musique",
+        "cameroun",
+        "audio",
+        "marketplace"
+    ],
     "author": "L'équipe reveilart",
     "license": "MIT"
 }

@@ -9,6 +9,7 @@ import {
     faTachometerAlt, faUserCircle, faEdit
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 
 const Header = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -18,6 +19,8 @@ const Header = () => {
     const navigate = useNavigate();
 
     const { user, logout, isAuthenticated, loading, isArtist, isProducer, isAdmin } = useAuth();
+    const { getTotalItems } = useCart();
+    const cartItemsCount = getTotalItems();
 
     // Mettre à jour le timestamp de la photo quand l'utilisateur change
     useEffect(() => {
@@ -192,10 +195,26 @@ const Header = () => {
                                 <Nav.Link
                                     as={Link}
                                     to="/cart"
-                                    className={`nav-link-custom me-2 ${isActive('/cart') ? 'active' : ''}`}
+                                    className={`nav-link-custom me-2 ${isActive('/cart') ? 'active' : ''} position-relative`}
                                 >
                                     <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
                                     <span className="d-none d-xl-inline">Panier</span>
+                                    {cartItemsCount > 0 && (
+                                        <Badge
+                                            bg="danger"
+                                            pill
+                                            className="position-absolute translate-middle"
+                                            style={{
+                                                top: '8px',
+                                                left: '50%',
+                                                fontSize: '10px',
+                                                minWidth: '18px',
+                                                height: '18px'
+                                            }}
+                                        >
+                                            {cartItemsCount > 99 ? '99+' : cartItemsCount}
+                                        </Badge>
+                                    )}
                                 </Nav.Link>
 
                                 <Nav.Link
@@ -407,11 +426,27 @@ const Header = () => {
                                 <Nav.Link
                                     as={Link}
                                     to="/cart"
-                                    className={`mobile-nav-link ${isActive('/cart') ? 'active' : ''}`}
+                                    className={`mobile-nav-link ${isActive('/cart') ? 'active' : ''} position-relative`}
                                     onClick={closeMobileMenu}
                                 >
                                     <FontAwesomeIcon icon={faShoppingCart} />
                                     <span>Panier</span>
+                                    {cartItemsCount > 0 && (
+                                        <Badge
+                                            bg="danger"
+                                            pill
+                                            className="position-absolute"
+                                            style={{
+                                                top: '5px',
+                                                right: '10px',
+                                                fontSize: '10px',
+                                                minWidth: '16px',
+                                                height: '16px'
+                                            }}
+                                        >
+                                            {cartItemsCount > 99 ? '99+' : cartItemsCount}
+                                        </Badge>
+                                    )}
                                 </Nav.Link>
 
                                 <Nav.Link

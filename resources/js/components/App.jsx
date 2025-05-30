@@ -1,89 +1,128 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import '../../css/app.css';
+
+// Import des composants layout
 import Header from './layout/Header';
 import Footer from './layout/Footer';
 import PageTransition from './common/PageTransition';
 import FloatingActionButton from './common/FloatingActionButton';
+
+// Import des composants d'authentification
+import Login from './auth/Login';
+import Register from './auth/Register';
+import ProtectedRoute from './auth/ProtectedRoute';
+
+// Import des pages principales
 import Home from './pages/Home';
-import Catalog from './pages/Catalog';
-import Categories from './pages/Categories';
-import ArtistProfile from './pages/ArtistProfile';
-import Artists from './pages/Artists';
+import Dashboard from './pages/Dashboard';
 import Contact from './pages/Contact';
-import Profile from './pages/Profile';
-import ProfileEdit from './pages/ProfileEdit';
+import ForgotPassword from './pages/ForgotPassword';
+
+// Import des pages de contenu
+import Catalog from './pages/Catalog';
+import Artists from './pages/Artists';
+import ArtistProfile from './pages/ArtistProfile';
 import Events from './pages/Events';
 import EventDetails from './pages/EventDetails';
-import TicketPurchase from './pages/TicketPurchase';
-import Cart from './pages/Cart';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
+import Categories from './pages/Categories';
+
+// Import des pages de détails
 import SoundDetails from './pages/SoundDetails';
-import Dashboard from './pages/Dashboard';
+import Profile from './pages/Profile';
+import ProfileEdit from './pages/ProfileEdit';
+
+// Import des pages d'ajout/gestion
 import AddSound from './pages/AddSound';
 import AddEvent from './pages/AddEvent';
+import Cart from './pages/Cart';
+import TicketPurchase from './pages/TicketPurchase';
+import Favorites from './pages/Favorites';
 
-const App = () => {
+function App() {
     return (
-        <div className="App">
-            <Routes>
-                {/* Dashboard Admin (sans Header/Footer) */}
-                <Route path="/admin" element={<Dashboard />} />
-                <Route path="/admin/add-sound" element={<AddSound />} />
-                <Route path="/admin/add-event" element={<AddEvent />} />
+        <div className="d-flex flex-column min-vh-100">
+            <Header />
+            <main className="flex-grow-1">
+                <PageTransition>
+                    <Routes>
+                        {/* Pages publiques */}
+                        <Route path="/" element={<Home />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/contact" element={<Contact />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
 
-                {/* Pages avec Header/Footer */}
-                <Route path="/*" element={
-                    <>
-                        <Header />
-                        <PageTransition>
-                            <main>
-                                <Routes>
-                                    {/* Pages principales */}
-                                    <Route path="/" element={<Home />} />
-                                    <Route path="/catalog" element={<Catalog />} />
-                                    <Route path="/categories" element={<Categories />} />
-                                    <Route path="/sound/:id" element={<SoundDetails />} />
+                        {/* Pages de contenu publiques */}
+                        <Route path="/catalog" element={<Catalog />} />
+                        <Route path="/artists" element={<Artists />} />
+                        <Route path="/artist/:id" element={<ArtistProfile />} />
+                        <Route path="/events" element={<Events />} />
+                        <Route path="/event/:id" element={<EventDetails />} />
+                        <Route path="/categories" element={<Categories />} />
+                        <Route path="/sound/:id" element={<SoundDetails />} />
 
-                                    {/* Artistes */}
-                                    <Route path="/artists" element={<Artists />} />
-                                    <Route path="/artist/:id" element={<ArtistProfile />} />
+                        {/* Pages protégées - nécessitent une authentification */}
+                        <Route path="/dashboard" element={
+                            <ProtectedRoute requiredRoles={['admin']}>
+                                <Dashboard />
+                            </ProtectedRoute>
+                        } />
 
-                                    {/* Événements */}
-                                    <Route path="/events" element={<Events />} />
-                                    <Route path="/event/:id" element={<EventDetails />} />
-                                    <Route path="/ticket-purchase" element={<TicketPurchase />} />
+                        <Route path="/profile" element={
+                            <ProtectedRoute>
+                                <Profile />
+                            </ProtectedRoute>
+                        } />
 
-                                    {/* Ajout de contenu pour tous les utilisateurs */}
-                                    <Route path="/add-sound" element={<AddSound />} />
-                                    <Route path="/add-event" element={<AddEvent />} />
+                        <Route path="/profile/edit" element={
+                            <ProtectedRoute>
+                                <ProfileEdit />
+                            </ProtectedRoute>
+                        } />
 
-                                    {/* Panier */}
-                                    <Route path="/cart" element={<Cart />} />
+                        <Route path="/cart" element={
+                            <ProtectedRoute>
+                                <Cart />
+                            </ProtectedRoute>
+                        } />
 
-                                    {/* Profil utilisateur */}
-                                    <Route path="/profile" element={<Profile />} />
-                                    <Route path="/profile/edit" element={<ProfileEdit />} />
+                        <Route path="/favorites" element={
+                            <ProtectedRoute>
+                                <Favorites />
+                            </ProtectedRoute>
+                        } />
 
-                                    {/* Authentification */}
-                                    <Route path="/login" element={<Login />} />
-                                    <Route path="/register" element={<Register />} />
-                                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/ticket-purchase/:eventId" element={
+                            <ProtectedRoute>
+                                <TicketPurchase />
+                            </ProtectedRoute>
+                        } />
 
-                                    {/* Contact */}
-                                    <Route path="/contact" element={<Contact />} />
-                                </Routes>
-                            </main>
-                        </PageTransition>
-                        <Footer />
-                        <FloatingActionButton />
-                    </>
-                } />
-            </Routes>
+                        {/* Pages protégées - artistes et producteurs uniquement */}
+                        <Route path="/add-sound" element={
+                            <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                <AddSound />
+                            </ProtectedRoute>
+                        } />
+
+                        <Route path="/add-event" element={
+                            <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                <AddEvent />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Redirection par défaut */}
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                </PageTransition>
+            </main>
+            <Footer />
+
+            {/* Bouton flottant disponible sur toutes les pages */}
+            <FloatingActionButton />
         </div>
     );
-};
+}
 
 export default App;
