@@ -28,6 +28,9 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{category}', [CategoryController::class, 'show']);
 
+// Route pour les statistiques générales (accueil)
+Route::get('/stats', [ApiSoundController::class, 'getGlobalStats']);
+
 // Routes publiques pour les sons - NOUVELLE API
 Route::prefix('sounds')->group(function () {
     Route::get('/', [ApiSoundController::class, 'index'])->name('api.sounds.index');

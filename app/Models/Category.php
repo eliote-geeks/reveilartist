@@ -78,10 +78,10 @@ class Category extends Model
     /**
      * Relation vers les sons (si vous avez une table sounds)
      */
-    // public function sounds()
-    // {
-    //     return $this->hasMany(Sound::class);
-    // }
+    public function sounds()
+    {
+        return $this->hasMany(Sound::class);
+    }
 
     /**
      * Accesseur pour l'icône avec préfixe fa
@@ -94,8 +94,8 @@ class Category extends Model
     /**
      * Accesseur pour compter les sons dans cette catégorie
      */
-    // public function getSoundsCountAttribute()
-    // {
-    //     return $this->sounds()->count();
-    // }
+    public function getSoundsCountAttribute()
+    {
+        return $this->sounds()->where('status', 'published')->count();
+    }
 }

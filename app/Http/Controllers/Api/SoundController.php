@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
+use App\Models\Event;
 
 class SoundController extends Controller
 {
@@ -39,6 +41,9 @@ class SoundController extends Controller
                 switch ($request->price) {
                     case 'free':
                         $query->where('is_free', true);
+                        break;
+                    case 'premium':
+                        $query->where('is_free', false);
                         break;
                     case '0-2000':
                         $query->where('price', '>=', 0)->where('price', '<=', 2000);
@@ -487,6 +492,38 @@ class SoundController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la recherche',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les statistiques globales du site
+     */
+    public function getGlobalStats()
+    {
+        try {
+            $stats = [
+                'total_sounds' => Sound::where('status', 'published')->count(),
+                'total_artists' => User::whereIn('role', ['artist', 'producer'])->count(),
+                'total_events' => Event::where('status', 'active')->count(),
+                'total_users' => User::count(),
+                'total_plays' => Sound::sum('plays_count'),
+                'total_downloads' => Sound::sum('downloads_count'),
+                'total_likes' => Sound::sum('likes_count'),
+                'free_sounds' => Sound::where('status', 'published')->where('is_free', true)->count(),
+                'premium_sounds' => Sound::where('status', 'published')->where('is_free', false)->count(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'stats' => $stats
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des statistiques',
                 'error' => $e->getMessage()
             ], 500);
         }

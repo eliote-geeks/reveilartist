@@ -15,27 +15,53 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Category::query();
+        try {
+            $query = Category::query();
 
-        // Filtrer par statut si demandé
-        if ($request->has('active')) {
-            $query->where('is_active', $request->boolean('active'));
+            // Filtrer par statut si demandé
+            if ($request->has('active')) {
+                $query->where('is_active', $request->boolean('active'));
+            }
+
+            // Recherche par nom
+            if ($request->filled('search')) {
+                $query->where('name', 'like', '%' . $request->search . '%');
+            }
+
+            // Ajouter le comptage des sons si la relation existe
+            try {
+                $query->withCount(['sounds' => function($q) {
+                    $q->where('status', 'published');
+                }]);
+            } catch (\Exception $e) {
+                // Si la relation échoue, on continue sans le comptage
+                error_log('Erreur lors du comptage des sons: ' . $e->getMessage());
+            }
+
+            // Ordre par défaut
+            $query->ordered();
+
+            $categories = $query->get();
+
+            // Ajouter manuellement sounds_count à 0 si pas défini
+            $categories->each(function($category) {
+                if (!isset($category->sounds_count)) {
+                    $category->sounds_count = 0;
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'categories' => $categories
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des catégories',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // Recherche par nom
-        if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
-        }
-
-        // Ordre par défaut
-        $query->ordered();
-
-        $categories = $query->get();
-
-        return response()->json([
-            'success' => true,
-            'categories' => $categories
-        ]);
     }
 
     /**
