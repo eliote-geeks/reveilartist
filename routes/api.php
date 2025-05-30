@@ -4,6 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\SoundController;
+use App\Http\Controllers\EventController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,6 +25,15 @@ Route::post('/login', [AuthController::class, 'login']);
 // Routes publiques pour les catégories
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{category}', [CategoryController::class, 'show']);
+
+// Routes publiques pour les sons
+Route::get('/sounds', [SoundController::class, 'index']);
+Route::get('/sounds/{sound}', [SoundController::class, 'show']);
+Route::get('/sounds/categories/list', [SoundController::class, 'getCategories']);
+
+// Routes publiques pour les événements
+Route::get('/events', [EventController::class, 'index']);
+Route::get('/events/{event}', [EventController::class, 'show']);
 
 // Routes protégées par l'authentification
 Route::middleware('auth:sanctum')->group(function () {
@@ -46,6 +57,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/categories/{category}/toggle-status', [CategoryController::class, 'toggleStatus']);
         Route::post('/categories/reorder', [CategoryController::class, 'reorder']);
     });
+
+    // Gestion des sons (utilisateurs authentifiés)
+    Route::post('/sounds', [SoundController::class, 'store']);
+    Route::put('/sounds/{sound}', [SoundController::class, 'update']);
+    Route::delete('/sounds/{sound}', [SoundController::class, 'destroy']);
+    Route::get('/sounds/{sound}/download', [SoundController::class, 'download']);
+
+    // Gestion des événements (utilisateurs authentifiés)
+    Route::post('/events', [EventController::class, 'store']);
+    Route::put('/events/{event}', [EventController::class, 'update']);
+    Route::delete('/events/{event}', [EventController::class, 'destroy']);
+    Route::post('/events/{event}/register', [EventController::class, 'register']);
 });
 
 // Route pour vérifier le statut de l'API

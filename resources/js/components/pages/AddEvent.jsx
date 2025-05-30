@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert, Badge, Table } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Button, Alert, Badge } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -13,16 +13,16 @@ import {
     faSave,
     faEye,
     faTimes,
-    faPlus,
-    faEdit,
-    faTrash,
     faClock,
-    faMusic
+    faMusic,
+    faSpinner
 } from '@fortawesome/free-solid-svg-icons';
+import { useAuth } from '../../context/AuthContext';
 import '../../../css/admin.css';
 
 const AddEvent = () => {
     const navigate = useNavigate();
+    const { user, token } = useAuth();
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState('');
@@ -31,32 +31,44 @@ const AddEvent = () => {
         title: '',
         description: '',
         category: '',
-        date: '',
-        time: '',
         venue: '',
         address: '',
         city: 'Yaoundé',
-        capacity: '',
-        artists: '',
-        organizer: '',
-        phone: '',
-        email: '',
-        website: '',
-        eventImage: null,
-        isPublic: true,
-        allowRefunds: true
+        country: 'Cameroun',
+        event_date: '',
+        start_time: '',
+        end_time: '',
+        poster_image: null,
+        gallery_images: [],
+        is_free: false,
+        ticket_price: '',
+        max_attendees: '',
+        artists: [],
+        sponsors: [],
+        requirements: '',
+        contact_phone: '',
+        contact_email: '',
+        website_url: '',
+        social_links: {}
     });
 
-    const [ticketTypes, setTicketTypes] = useState([
-        { id: 1, name: 'Standard', price: '', quantity: '', description: '' }
-    ]);
-
     const [imagePreview, setImagePreview] = useState(null);
+    const [galleryPreviews, setGalleryPreviews] = useState([]);
+    const [artistsInput, setArtistsInput] = useState('');
+    const [sponsorsInput, setSponsorsInput] = useState('');
 
     const categories = [
-        'Concert', 'Festival', 'Showcase', 'Soirée', 'Battle',
-        'Workshop', 'Masterclass', 'Tribute', 'Launch Party'
+        'concert', 'festival', 'showcase', 'workshop', 'conference', 'party'
     ];
+
+    const categoryLabels = {
+        'concert': 'Concert',
+        'festival': 'Festival',
+        'showcase': 'Showcase',
+        'workshop': 'Atelier',
+        'conference': 'Conférence',
+        'party': 'Soirée'
+    };
 
     const cities = [
         'Yaoundé', 'Douala', 'Garoua', 'Bamenda', 'Bafoussam',
@@ -65,10 +77,29 @@ const AddEvent = () => {
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
+
+        if (name === 'artists') {
+            setArtistsInput(value);
+            // Convertir les artistes en tableau
+            const artistsArray = value.split(',').map(artist => artist.trim()).filter(artist => artist);
+            setFormData(prev => ({
+                ...prev,
+                artists: artistsArray
+            }));
+        } else if (name === 'sponsors') {
+            setSponsorsInput(value);
+            // Convertir les sponsors en tableau
+            const sponsorsArray = value.split(',').map(sponsor => sponsor.trim()).filter(sponsor => sponsor);
+            setFormData(prev => ({
+                ...prev,
+                sponsors: sponsorsArray
+            }));
+        } else {
         setFormData(prev => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
+        }
 
         // Clear error when user starts typing
         if (errors[name]) {
@@ -76,57 +107,80 @@ const AddEvent = () => {
         }
     };
 
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    const handleImageUpload = (e, type) => {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+
+        if (type === 'poster') {
+            const file = files[0];
 
         // Validate image file
-        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
         if (!validTypes.includes(file.type)) {
-            setErrors(prev => ({ ...prev, eventImage: 'Format d\'image non supporté. Utilisez JPG, PNG ou WebP.' }));
+                setErrors(prev => ({ ...prev, poster_image: 'Format d\'image non supporté. Utilisez JPG ou PNG.' }));
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) { // 5MB
-            setErrors(prev => ({ ...prev, eventImage: 'L\'image ne doit pas dépasser 5MB.' }));
+            if (file.size > 2 * 1024 * 1024) { // 2MB
+                setErrors(prev => ({ ...prev, poster_image: 'L\'image ne doit pas dépasser 2MB.' }));
             return;
         }
 
-        setFormData(prev => ({ ...prev, eventImage: file }));
+            setFormData(prev => ({ ...prev, poster_image: file }));
 
         // Create image preview
         const imageUrl = URL.createObjectURL(file);
         setImagePreview(imageUrl);
 
         // Clear error
-        setErrors(prev => ({ ...prev, eventImage: '' }));
+            setErrors(prev => ({ ...prev, poster_image: '' }));
+
+        } else if (type === 'gallery') {
+            // Validate gallery images
+            const validFiles = [];
+            const errorMessages = [];
+
+            files.forEach((file, index) => {
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+                if (!validTypes.includes(file.type)) {
+                    errorMessages.push(`Image ${index + 1}: Format non supporté`);
+                    return;
+                }
+
+                if (file.size > 2 * 1024 * 1024) {
+                    errorMessages.push(`Image ${index + 1}: Taille trop importante (max 2MB)`);
+                    return;
+                }
+
+                validFiles.push(file);
+            });
+
+            if (errorMessages.length > 0) {
+                setErrors(prev => ({ ...prev, gallery_images: errorMessages.join(', ') }));
+                return;
+            }
+
+            setFormData(prev => ({ ...prev, gallery_images: validFiles }));
+
+            // Create image previews
+            const previews = validFiles.map(file => URL.createObjectURL(file));
+            setGalleryPreviews(previews);
+
+            // Clear error
+            setErrors(prev => ({ ...prev, gallery_images: '' }));
+        }
     };
 
-    const removeImage = () => {
-        setFormData(prev => ({ ...prev, eventImage: null }));
+    const removeImage = (type, index = null) => {
+        if (type === 'poster') {
+            setFormData(prev => ({ ...prev, poster_image: null }));
         setImagePreview(null);
-    };
-
-    const addTicketType = () => {
-        const newId = Math.max(...ticketTypes.map(t => t.id)) + 1;
-        setTicketTypes(prev => [...prev, {
-            id: newId,
-            name: '',
-            price: '',
-            quantity: '',
-            description: ''
-        }]);
-    };
-
-    const updateTicketType = (id, field, value) => {
-        setTicketTypes(prev => prev.map(ticket =>
-            ticket.id === id ? { ...ticket, [field]: value } : ticket
-        ));
-    };
-
-    const removeTicketType = (id) => {
-        if (ticketTypes.length > 1) {
-            setTicketTypes(prev => prev.filter(ticket => ticket.id !== id));
+        } else if (type === 'gallery' && index !== null) {
+            setFormData(prev => ({
+                ...prev,
+                gallery_images: prev.gallery_images.filter((_, i) => i !== index)
+            }));
+            setGalleryPreviews(prev => prev.filter((_, i) => i !== index));
         }
     };
 
@@ -135,34 +189,26 @@ const AddEvent = () => {
 
         // Basic info validation
         if (!formData.title.trim()) newErrors.title = 'Le titre est requis';
+        if (!formData.description.trim()) newErrors.description = 'La description est requise';
         if (!formData.category) newErrors.category = 'La catégorie est requise';
-        if (!formData.date) newErrors.date = 'La date est requise';
-        if (!formData.time) newErrors.time = 'L\'heure est requise';
         if (!formData.venue.trim()) newErrors.venue = 'Le lieu est requis';
         if (!formData.address.trim()) newErrors.address = 'L\'adresse est requise';
-        if (!formData.capacity || formData.capacity <= 0) newErrors.capacity = 'La capacité doit être supérieure à 0';
-        if (!formData.organizer.trim()) newErrors.organizer = 'L\'organisateur est requis';
-        if (!formData.phone.trim()) newErrors.phone = 'Le téléphone est requis';
-        if (!formData.email.trim()) newErrors.email = 'L\'email est requis';
+        if (!formData.event_date) newErrors.event_date = 'La date est requise';
+        if (!formData.start_time) newErrors.start_time = 'L\'heure de début est requise';
 
         // Date validation
-        if (formData.date && new Date(formData.date) < new Date()) {
-            newErrors.date = 'La date ne peut pas être dans le passé';
+        if (formData.event_date && new Date(formData.event_date) < new Date()) {
+            newErrors.event_date = 'La date ne peut pas être dans le passé';
         }
 
-        // Ticket validation
-        const validTickets = ticketTypes.filter(ticket =>
-            ticket.name.trim() && ticket.price > 0 && ticket.quantity > 0
-        );
-        if (validTickets.length === 0) {
-            newErrors.tickets = 'Au moins un type de billet valide est requis';
+        // Price validation for paid events
+        if (!formData.is_free && (!formData.ticket_price || formData.ticket_price <= 0)) {
+            newErrors.ticket_price = 'Le prix du billet doit être supérieur à 0 pour un événement payant';
         }
 
-        // Check total ticket quantity doesn't exceed capacity
-        const totalTickets = validTickets.reduce((sum, ticket) => sum + parseInt(ticket.quantity || 0), 0);
-        if (totalTickets > parseInt(formData.capacity || 0)) {
-            newErrors.tickets = 'Le nombre total de billets ne peut pas dépasser la capacité du lieu';
-        }
+        // Contact validation
+        if (!formData.contact_phone.trim()) newErrors.contact_phone = 'Le téléphone de contact est requis';
+        if (!formData.contact_email.trim()) newErrors.contact_email = 'L\'email de contact est requis';
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -171,34 +217,128 @@ const AddEvent = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        console.log('=== DÉBUT SOUMISSION ÉVÉNEMENT ===');
+        console.log('FormData:', formData);
+        console.log('User:', user);
+        console.log('Token:', token);
+
         if (!validateForm()) {
+            console.log('Validation échouée, erreurs:', errors);
             return;
         }
 
         setLoading(true);
 
-        // Simulate API call
+        try {
+            // Créer FormData pour l'upload de fichiers
+            const submitData = new FormData();
+
+            console.log('Création du FormData pour événement...');
+
+            // Ajouter les données du formulaire
+            submitData.append('title', formData.title);
+            submitData.append('description', formData.description);
+            submitData.append('category', formData.category);
+            submitData.append('venue', formData.venue);
+            submitData.append('address', formData.address);
+            submitData.append('city', formData.city);
+            submitData.append('country', formData.country);
+            submitData.append('event_date', formData.event_date);
+            submitData.append('start_time', formData.start_time);
+            if (formData.end_time) submitData.append('end_time', formData.end_time);
+            submitData.append('is_free', formData.is_free ? '1' : '0');
+            if (!formData.is_free && formData.ticket_price) {
+                submitData.append('ticket_price', formData.ticket_price);
+            }
+            if (formData.max_attendees) submitData.append('max_attendees', formData.max_attendees);
+            if (formData.requirements) submitData.append('requirements', formData.requirements);
+            submitData.append('contact_phone', formData.contact_phone);
+            submitData.append('contact_email', formData.contact_email);
+            if (formData.website_url) submitData.append('website_url', formData.website_url);
+
+            // Ajouter les artistes
+            if (formData.artists && formData.artists.length > 0) {
+                formData.artists.forEach((artist, index) => {
+                    submitData.append(`artists[${index}]`, artist);
+                });
+            }
+
+            // Ajouter les sponsors
+            if (formData.sponsors && formData.sponsors.length > 0) {
+                formData.sponsors.forEach((sponsor, index) => {
+                    submitData.append(`sponsors[${index}]`, sponsor);
+                });
+            }
+
+            // Ajouter les fichiers
+            if (formData.poster_image) {
+                submitData.append('poster_image', formData.poster_image);
+                console.log('Affiche ajoutée:', formData.poster_image.name);
+            }
+
+            if (formData.gallery_images && formData.gallery_images.length > 0) {
+                formData.gallery_images.forEach((image, index) => {
+                    submitData.append(`gallery_images[${index}]`, image);
+                });
+                console.log('Images galerie ajoutées:', formData.gallery_images.length);
+            }
+
+            // Debug: Afficher toutes les données FormData
+            console.log('=== CONTENU FORMDATA ÉVÉNEMENT ===');
+            for (let pair of submitData.entries()) {
+                console.log(pair[0] + ': ' + pair[1]);
+            }
+
+            console.log('Envoi de la requête à /api/events...');
+
+            const response = await fetch('/api/events', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
+                body: submitData
+            });
+
+            console.log('Réponse reçue:', response.status, response.statusText);
+
+            const data = await response.json();
+            console.log('Données de réponse:', data);
+
+            if (response.ok) {
+                setSuccess('Événement créé avec succès ! Il sera disponible après validation.');
+                console.log('✅ Succès!');
+
+                // Rediriger après succès
         setTimeout(() => {
+                    navigate('/dashboard');
+                }, 2000);
+            } else {
+                console.log('❌ Erreur serveur:', data);
+                if (data.errors) {
+                    setErrors(data.errors);
+                } else {
+                    setErrors({ general: data.message || 'Erreur lors de la création de l\'événement' });
+                }
+            }
+
+        } catch (error) {
+            console.error('❌ Erreur réseau:', error);
+            setErrors({ general: 'Erreur de connexion. Veuillez réessayer.' });
+        } finally {
             setLoading(false);
-            setSuccess('Événement créé avec succès !');
-
-            // Redirect after success
-            setTimeout(() => {
-                navigate('/');
-            }, 2000);
-        }, 2000);
+        }
     };
 
-    const getTotalTickets = () => {
-        return ticketTypes.reduce((sum, ticket) => sum + parseInt(ticket.quantity || 0), 0);
-    };
-
-    const getLowestPrice = () => {
-        const prices = ticketTypes
-            .filter(ticket => ticket.price > 0)
-            .map(ticket => parseFloat(ticket.price));
-        return prices.length > 0 ? Math.min(...prices) : 0;
-    };
+    if (!user) {
+        return (
+            <Container className="py-5">
+                <Alert variant="warning">
+                    Vous devez être connecté pour créer un événement.
+                </Alert>
+            </Container>
+        );
+    }
 
     return (
         <div className="min-vh-100 bg-light" style={{ paddingTop: '80px' }}>
@@ -208,7 +348,7 @@ const AddEvent = () => {
                     <div className="d-flex align-items-center py-3">
                         <Button
                             as={Link}
-                            to="/"
+                            to="/dashboard"
                             variant="outline-secondary"
                             className="me-3"
                         >
@@ -228,6 +368,12 @@ const AddEvent = () => {
                     <Alert variant="success" className="mb-4">
                         <FontAwesomeIcon icon={faSave} className="me-2" />
                         {success}
+                    </Alert>
+                )}
+
+                {errors.general && (
+                    <Alert variant="danger" className="mb-4">
+                        {errors.general}
                     </Alert>
                 )}
 
@@ -272,7 +418,7 @@ const AddEvent = () => {
                                                 >
                                                     <option value="">Sélectionner</option>
                                                     {categories.map(cat => (
-                                                        <option key={cat} value={cat}>{cat}</option>
+                                                        <option key={cat} value={cat}>{categoryLabels[cat]}</option>
                                                     ))}
                                                 </Form.Select>
                                                 <Form.Control.Feedback type="invalid">
@@ -282,7 +428,7 @@ const AddEvent = () => {
                                         </Col>
                                         <Col>
                                             <Form.Group>
-                                                <Form.Label className="fw-medium">Description</Form.Label>
+                                                <Form.Label className="fw-medium">Description *</Form.Label>
                                                 <Form.Control
                                                     as="textarea"
                                                     rows={3}
@@ -290,7 +436,11 @@ const AddEvent = () => {
                                                     value={formData.description}
                                                     onChange={handleInputChange}
                                                     placeholder="Décrivez votre événement..."
+                                                    isInvalid={!!errors.description}
                                                 />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.description}
+                                                </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
                                         <Col md={6}>
@@ -298,30 +448,41 @@ const AddEvent = () => {
                                                 <Form.Label className="fw-medium">Date *</Form.Label>
                                                 <Form.Control
                                                     type="date"
-                                                    name="date"
-                                                    value={formData.date}
+                                                    name="event_date"
+                                                    value={formData.event_date}
                                                     onChange={handleInputChange}
                                                     min={new Date().toISOString().split('T')[0]}
-                                                    isInvalid={!!errors.date}
+                                                    isInvalid={!!errors.event_date}
                                                 />
                                                 <Form.Control.Feedback type="invalid">
-                                                    {errors.date}
+                                                    {errors.event_date}
                                                 </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
-                                        <Col md={6}>
+                                        <Col md={3}>
                                             <Form.Group>
-                                                <Form.Label className="fw-medium">Heure *</Form.Label>
+                                                <Form.Label className="fw-medium">Heure début *</Form.Label>
                                                 <Form.Control
                                                     type="time"
-                                                    name="time"
-                                                    value={formData.time}
+                                                    name="start_time"
+                                                    value={formData.start_time}
                                                     onChange={handleInputChange}
-                                                    isInvalid={!!errors.time}
+                                                    isInvalid={!!errors.start_time}
                                                 />
                                                 <Form.Control.Feedback type="invalid">
-                                                    {errors.time}
+                                                    {errors.start_time}
                                                 </Form.Control.Feedback>
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={3}>
+                                            <Form.Group>
+                                                <Form.Label className="fw-medium">Heure fin</Form.Label>
+                                                <Form.Control
+                                                    type="time"
+                                                    name="end_time"
+                                                    value={formData.end_time}
+                                                    onChange={handleInputChange}
+                                                />
                                             </Form.Group>
                                         </Col>
                                         <Col md={6}>
@@ -329,28 +490,26 @@ const AddEvent = () => {
                                                 <Form.Label className="fw-medium">Artistes participants</Form.Label>
                                                 <Form.Control
                                                     type="text"
-                                                    name="artists"
-                                                    value={formData.artists}
-                                                    onChange={handleInputChange}
-                                                    placeholder="Ex: DJ Cameroun, BeatMaster237..."
+                                                    value={artistsInput}
+                                                    onChange={(e) => handleInputChange({ target: { name: 'artists', value: e.target.value } })}
+                                                    placeholder="Ex: DJ Cameroun, BeatMaster237 (séparés par des virgules)"
                                                 />
+                                                <Form.Text className="text-muted">
+                                                    Séparez les noms par des virgules
+                                                </Form.Text>
                                             </Form.Group>
                                         </Col>
                                         <Col md={6}>
                                             <Form.Group>
-                                                <Form.Label className="fw-medium">Capacité maximale *</Form.Label>
+                                                <Form.Label className="fw-medium">Capacité maximale</Form.Label>
                                                 <Form.Control
                                                     type="number"
-                                                    name="capacity"
-                                                    value={formData.capacity}
+                                                    name="max_attendees"
+                                                    value={formData.max_attendees}
                                                     onChange={handleInputChange}
                                                     placeholder="Ex: 1000"
                                                     min="1"
-                                                    isInvalid={!!errors.capacity}
                                                 />
-                                                <Form.Control.Feedback type="invalid">
-                                                    {errors.capacity}
-                                                </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
                                     </Row>
@@ -385,7 +544,7 @@ const AddEvent = () => {
                                         </Col>
                                         <Col md={6}>
                                             <Form.Group>
-                                                <Form.Label className="fw-medium">Ville *</Form.Label>
+                                                <Form.Label className="fw-medium">Ville</Form.Label>
                                                 <Form.Select
                                                     name="city"
                                                     value={formData.city}
@@ -420,165 +579,91 @@ const AddEvent = () => {
                             {/* Gestion des billets */}
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white border-bottom-0">
-                                    <div className="d-flex justify-content-between align-items-center">
                                         <h5 className="fw-bold mb-0">
                                             <FontAwesomeIcon icon={faTicketAlt} className="me-2 text-warning" />
-                                            Types de billets
+                                        Billetterie
                                         </h5>
-                                        <Button variant="outline-primary" size="sm" onClick={addTicketType}>
-                                            <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                            Ajouter un type
-                                        </Button>
-                                    </div>
                                 </Card.Header>
                                 <Card.Body>
-                                    {errors.tickets && (
-                                        <Alert variant="danger" className="mb-3">
-                                            {errors.tickets}
-                                        </Alert>
-                                    )}
-
-                                    <div className="table-responsive">
-                                        <Table className="mb-0">
-                                            <thead className="bg-light">
-                                                <tr>
-                                                    <th>Nom du billet</th>
-                                                    <th>Prix (FCFA)</th>
-                                                    <th>Quantité</th>
-                                                    <th>Description</th>
-                                                    <th width="50">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {ticketTypes.map(ticket => (
-                                                    <tr key={ticket.id}>
-                                                        <td>
-                                                            <Form.Control
-                                                                type="text"
-                                                                value={ticket.name}
-                                                                onChange={(e) => updateTicketType(ticket.id, 'name', e.target.value)}
-                                                                placeholder="Ex: Standard"
-                                                                size="sm"
-                                                            />
-                                                        </td>
-                                                        <td>
+                                    <Row className="g-3">
+                                        <Col md={6}>
+                                            <Form.Group>
+                                                <Form.Check
+                                                    type="checkbox"
+                                                    name="is_free"
+                                                    checked={formData.is_free}
+                                                    onChange={handleInputChange}
+                                                    label="Événement gratuit"
+                                                    className="mb-3"
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        {!formData.is_free && (
+                                            <Col md={6}>
+                                                <Form.Group>
+                                                    <Form.Label className="fw-medium">Prix du billet (FCFA) *</Form.Label>
+                                                    <div className="input-group">
                                                             <Form.Control
                                                                 type="number"
-                                                                value={ticket.price}
-                                                                onChange={(e) => updateTicketType(ticket.id, 'price', e.target.value)}
+                                                            name="ticket_price"
+                                                            value={formData.ticket_price}
+                                                            onChange={handleInputChange}
                                                                 placeholder="0"
                                                                 min="0"
                                                                 step="500"
-                                                                size="sm"
-                                                            />
-                                                        </td>
-                                                        <td>
-                                                            <Form.Control
-                                                                type="number"
-                                                                value={ticket.quantity}
-                                                                onChange={(e) => updateTicketType(ticket.id, 'quantity', e.target.value)}
-                                                                placeholder="0"
-                                                                min="1"
-                                                                size="sm"
-                                                            />
-                                                        </td>
-                                                        <td>
-                                                            <Form.Control
-                                                                type="text"
-                                                                value={ticket.description}
-                                                                onChange={(e) => updateTicketType(ticket.id, 'description', e.target.value)}
-                                                                placeholder="Accès standard..."
-                                                                size="sm"
-                                                            />
-                                                        </td>
-                                                        <td>
-                                                            <Button
-                                                                variant="outline-danger"
-                                                                size="sm"
-                                                                onClick={() => removeTicketType(ticket.id)}
-                                                                disabled={ticketTypes.length === 1}
-                                                            >
-                                                                <FontAwesomeIcon icon={faTrash} />
-                                                            </Button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </Table>
+                                                            isInvalid={!!errors.ticket_price}
+                                                        />
+                                                        <span className="input-group-text">FCFA</span>
+                                                        <Form.Control.Feedback type="invalid">
+                                                            {errors.ticket_price}
+                                                        </Form.Control.Feedback>
                                     </div>
-
-                                    <div className="mt-3 p-2 bg-light rounded">
-                                        <Row>
-                                            <Col md={6}>
-                                                <small className="text-muted">
-                                                    <strong>Total billets :</strong> {getTotalTickets().toLocaleString()}
-                                                </small>
+                                                </Form.Group>
                                             </Col>
-                                            <Col md={6} className="text-end">
-                                                <small className="text-muted">
-                                                    <strong>À partir de :</strong> {getLowestPrice().toLocaleString()} FCFA
-                                                </small>
-                                            </Col>
+                                        )}
                                         </Row>
-                                    </div>
                                 </Card.Body>
                             </Card>
 
-                            {/* Informations de contact */}
+                            {/* Contact et informations supplémentaires */}
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white border-bottom-0">
                                     <h5 className="fw-bold mb-0">
                                         <FontAwesomeIcon icon={faUsers} className="me-2 text-info" />
-                                        Organisateur et contact
+                                        Contact et informations
                                     </h5>
                                 </Card.Header>
                                 <Card.Body>
                                     <Row className="g-3">
                                         <Col md={6}>
                                             <Form.Group>
-                                                <Form.Label className="fw-medium">Nom de l'organisateur *</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    name="organizer"
-                                                    value={formData.organizer}
-                                                    onChange={handleInputChange}
-                                                    placeholder="Ex: RéveilArt Productions"
-                                                    isInvalid={!!errors.organizer}
-                                                />
-                                                <Form.Control.Feedback type="invalid">
-                                                    {errors.organizer}
-                                                </Form.Control.Feedback>
-                                            </Form.Group>
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Label className="fw-medium">Téléphone *</Form.Label>
+                                                <Form.Label className="fw-medium">Téléphone de contact *</Form.Label>
                                                 <Form.Control
                                                     type="tel"
-                                                    name="phone"
-                                                    value={formData.phone}
+                                                    name="contact_phone"
+                                                    value={formData.contact_phone}
                                                     onChange={handleInputChange}
                                                     placeholder="Ex: +237 6XX XXX XXX"
-                                                    isInvalid={!!errors.phone}
+                                                    isInvalid={!!errors.contact_phone}
                                                 />
                                                 <Form.Control.Feedback type="invalid">
-                                                    {errors.phone}
+                                                    {errors.contact_phone}
                                                 </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
                                         <Col md={6}>
                                             <Form.Group>
-                                                <Form.Label className="fw-medium">Email *</Form.Label>
+                                                <Form.Label className="fw-medium">Email de contact *</Form.Label>
                                                 <Form.Control
                                                     type="email"
-                                                    name="email"
-                                                    value={formData.email}
+                                                    name="contact_email"
+                                                    value={formData.contact_email}
                                                     onChange={handleInputChange}
                                                     placeholder="contact@reveilart4artist.com"
-                                                    isInvalid={!!errors.email}
+                                                    isInvalid={!!errors.contact_email}
                                                 />
                                                 <Form.Control.Feedback type="invalid">
-                                                    {errors.email}
+                                                    {errors.contact_email}
                                                 </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
@@ -587,10 +672,34 @@ const AddEvent = () => {
                                                 <Form.Label className="fw-medium">Site web</Form.Label>
                                                 <Form.Control
                                                     type="url"
-                                                    name="website"
-                                                    value={formData.website}
+                                                    name="website_url"
+                                                    value={formData.website_url}
                                                     onChange={handleInputChange}
                                                     placeholder="https://www.reveilart4artist.com"
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={6}>
+                                            <Form.Group>
+                                                <Form.Label className="fw-medium">Sponsors</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    value={sponsorsInput}
+                                                    onChange={(e) => handleInputChange({ target: { name: 'sponsors', value: e.target.value } })}
+                                                    placeholder="Ex: Orange Cameroun, MTN (séparés par des virgules)"
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col>
+                                            <Form.Group>
+                                                <Form.Label className="fw-medium">Exigences particulières</Form.Label>
+                                                <Form.Control
+                                                    as="textarea"
+                                                    rows={2}
+                                                    name="requirements"
+                                                    value={formData.requirements}
+                                                    onChange={handleInputChange}
+                                                    placeholder="Ex: Âge minimum 18 ans, code vestimentaire..."
                                                 />
                                             </Form.Group>
                                         </Col>
@@ -601,29 +710,29 @@ const AddEvent = () => {
 
                         {/* Sidebar */}
                         <Col lg={4}>
-                            {/* Upload d'image */}
+                            {/* Upload d'affiche */}
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white border-bottom-0">
                                     <h5 className="fw-bold mb-0">
                                         <FontAwesomeIcon icon={faImage} className="me-2 text-primary" />
-                                        Image de l'événement
+                                        Affiche de l'événement
                                     </h5>
                                 </Card.Header>
                                 <Card.Body>
-                                    {!formData.eventImage ? (
+                                    {!formData.poster_image ? (
                                         <div
                                             className="upload-zone border-2 border-dashed rounded p-4 text-center"
                                             style={{ borderColor: '#dee2e6', cursor: 'pointer', minHeight: '200px' }}
-                                            onClick={() => document.getElementById('eventImage').click()}
+                                            onClick={() => document.getElementById('posterImage').click()}
                                         >
                                             <FontAwesomeIcon icon={faImage} size="3x" className="text-muted mb-3" />
-                                            <p className="mb-2">Cliquez pour uploader une image</p>
-                                            <small className="text-muted">JPG, PNG, WebP (max 5MB)<br />Recommandé: 1200x630px</small>
+                                            <p className="mb-2">Cliquez pour uploader une affiche</p>
+                                            <small className="text-muted">JPG, PNG (max 2MB)<br />Recommandé: 1200x630px</small>
                                             <Form.Control
-                                                id="eventImage"
+                                                id="posterImage"
                                                 type="file"
                                                 accept="image/*"
-                                                onChange={handleImageUpload}
+                                                onChange={(e) => handleImageUpload(e, 'poster')}
                                                 style={{ display: 'none' }}
                                             />
                                         </div>
@@ -639,41 +748,72 @@ const AddEvent = () => {
                                                 variant="danger"
                                                 size="sm"
                                                 className="position-absolute top-0 end-0 m-2"
-                                                onClick={removeImage}
+                                                onClick={() => removeImage('poster')}
                                             >
                                                 <FontAwesomeIcon icon={faTimes} />
                                             </Button>
                                         </div>
                                     )}
-                                    {errors.eventImage && (
-                                        <div className="text-danger small mt-2">{errors.eventImage}</div>
+                                    {errors.poster_image && (
+                                        <div className="text-danger small mt-2">{errors.poster_image}</div>
                                     )}
                                 </Card.Body>
                             </Card>
 
-                            {/* Options */}
+                            {/* Upload galerie */}
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white border-bottom-0">
-                                    <h5 className="fw-bold mb-0">Options</h5>
+                                    <h5 className="fw-bold mb-0">
+                                        Galerie d'images
+                                    </h5>
                                 </Card.Header>
                                 <Card.Body>
-                                    <Form.Check
-                                        type="checkbox"
-                                        name="isPublic"
-                                        checked={formData.isPublic}
-                                        onChange={handleInputChange}
-                                        label="Événement public"
-                                        className="mb-3"
-                                    />
+                                    <div
+                                        className="upload-zone border-2 border-dashed rounded p-3 text-center mb-3"
+                                        style={{ borderColor: '#dee2e6', cursor: 'pointer' }}
+                                        onClick={() => document.getElementById('galleryImages').click()}
+                                    >
+                                        <FontAwesomeIcon icon={faImage} className="text-muted mb-2" />
+                                        <p className="mb-0 small">Ajouter des images</p>
+                                        <Form.Control
+                                            id="galleryImages"
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={(e) => handleImageUpload(e, 'gallery')}
+                                            style={{ display: 'none' }}
+                                        />
+                                    </div>
 
-                                    <Form.Check
-                                        type="checkbox"
-                                        name="allowRefunds"
-                                        checked={formData.allowRefunds}
-                                        onChange={handleInputChange}
-                                        label="Autoriser les remboursements"
-                                        className="mb-3"
-                                    />
+                                    {galleryPreviews.length > 0 && (
+                                        <Row className="g-2">
+                                            {galleryPreviews.map((preview, index) => (
+                                                <Col xs={6} key={index}>
+                                                    <div className="position-relative">
+                                                        <img
+                                                            src={preview}
+                                                            alt={`Gallery ${index + 1}`}
+                                                            className="img-fluid rounded"
+                                                            style={{ width: '100%', height: '80px', objectFit: 'cover' }}
+                                                        />
+                                                        <Button
+                                                            variant="danger"
+                                                            size="sm"
+                                                            className="position-absolute top-0 end-0 m-1"
+                                                            onClick={() => removeImage('gallery', index)}
+                                                            style={{ padding: '2px 6px', fontSize: '12px' }}
+                                                        >
+                                                            <FontAwesomeIcon icon={faTimes} />
+                                                        </Button>
+                                                    </div>
+                                                </Col>
+                                            ))}
+                                        </Row>
+                                    )}
+
+                                    {errors.gallery_images && (
+                                        <div className="text-danger small mt-2">{errors.gallery_images}</div>
+                                    )}
                                 </Card.Body>
                             </Card>
 
@@ -687,17 +827,8 @@ const AddEvent = () => {
                                             size="lg"
                                             disabled={loading}
                                         >
-                                            <FontAwesomeIcon icon={faSave} className="me-2" />
+                                            <FontAwesomeIcon icon={loading ? faSpinner : faSave} className="me-2" spin={loading} />
                                             {loading ? 'Création...' : 'Créer l\'événement'}
-                                        </Button>
-
-                                        <Button
-                                            type="button"
-                                            variant="outline-secondary"
-                                            disabled={loading}
-                                        >
-                                            <FontAwesomeIcon icon={faEye} className="me-2" />
-                                            Sauver comme brouillon
                                         </Button>
                                     </div>
 
@@ -705,7 +836,7 @@ const AddEvent = () => {
 
                                     <div className="text-center">
                                         <small className="text-muted">
-                                            L'événement sera publié après validation
+                                            L'événement sera publié après validation par l'équipe d'administration
                                         </small>
                                     </div>
                                 </Card.Body>
