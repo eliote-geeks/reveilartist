@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
+use App\Models\Payment;
 
 class AuthController extends Controller
 {
@@ -317,6 +318,71 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour de la photo de profil',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir le profil complet de l'utilisateur avec achats, favoris, etc.
+     */
+    public function getCompleteProfile(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non authentifié'
+                ], 401);
+            }
+
+            // Version simplifiée pour tester
+            return response()->json([
+                'success' => true,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'role_display' => $user->role_display_name ?? 'Utilisateur',
+                    'phone' => $user->phone,
+                    'bio' => $user->bio,
+                    'location' => $user->location,
+                    'status' => $user->status,
+                    'profile_photo_url' => $user->profile_photo_url,
+                    'created_at' => $user->created_at,
+                    'last_login_at' => $user->last_login_at,
+                ],
+                'purchased_sounds' => [],
+                'purchased_events' => [],
+                'user_sounds' => [],
+                'user_events' => [],
+                'following' => [],
+                'followers' => [],
+                'stats' => [
+                    'sounds_purchased' => 0,
+                    'events_attended' => 0,
+                    'sounds_created' => 0,
+                    'events_organized' => 0,
+                    'following_count' => 0,
+                    'followers_count' => 0,
+                    'total_spent' => 0,
+                    'total_earned' => 0,
+                    'total_plays' => 0,
+                    'total_downloads' => 0,
+                    'total_likes' => 0,
+                ],
+                'playlist' => [],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur dans getCompleteProfile: ' . $e->getMessage() . ' - Trace: ' . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement du profil complet',
+                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne du serveur'
             ], 500);
         }
     }

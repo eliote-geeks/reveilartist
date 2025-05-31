@@ -1,378 +1,388 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Card, ProgressBar } from 'react-bootstrap';
+import { Card, Button, Form, Dropdown, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faPlay,
-    faPause,
-    faVolumeLow,
-    faVolumeHigh,
-    faHeart,
-    faEye,
-    faForward,
-    faBackward
+    faPlay, faPause, faStepForward, faStepBackward,
+    faVolumeUp, faVolumeDown, faVolumeMute, faRandom,
+    faRedo, faListUl, faHeart, faShareAlt, faEllipsisV
 } from '@fortawesome/free-solid-svg-icons';
 
-const AudioPlayer = ({
-    sound,
-    isCompact = false,
-    showDetails = true,
-    onLike,
-    onViewMore,
-    autoPlay = false,
-    previewDuration = 20, // Durée de la preview en secondes
-    showPreviewBadge = true
-}) => {
+const AudioPlayer = ({ playlist = [], autoplay = false, showPlaylist = true }) => {
+    const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(0.7);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [isPreview, setIsPreview] = useState(true);
-    const [previewTimeLeft, setPreviewTimeLeft] = useState(previewDuration);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isShuffling, setIsShuffling] = useState(false);
+    const [isRepeating, setIsRepeating] = useState(false);
+    const [showPlaylistPanel, setShowPlaylistPanel] = useState(showPlaylist);
 
     const audioRef = useRef(null);
     const progressRef = useRef(null);
-    const timeUpdateInterval = useRef(null);
 
-    // URL audio pour preview
-    const audioUrl = sound.preview_url || sound.file_url || '/audio/demo.mp3';
+    const currentTrack = playlist[currentTrackIndex];
 
     useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
-
-        const handleLoadedMetadata = () => {
-            setDuration(audio.duration);
-            setIsLoading(false);
-            if (autoPlay && !isPlaying) {
-                handlePlay();
-            }
-        };
-
-        const handleCanPlay = () => {
-            setIsLoading(false);
-            setError(null);
-        };
-
-        const handleError = (e) => {
-            setError('Erreur de lecture audio');
-            setIsLoading(false);
-            setIsPlaying(false);
-            console.error('Audio error:', e);
-        };
-
-        const handleEnded = () => {
-            setIsPlaying(false);
-            setCurrentTime(0);
-            setPreviewTimeLeft(previewDuration);
-        };
-
-        const handleTimeUpdate = () => {
-            if (audio && !audio.paused) {
-                const current = audio.currentTime;
-                setCurrentTime(current);
-
-                // Gérer la limitation de preview
-                if (isPreview && current >= previewDuration) {
-                    audio.pause();
-                    setIsPlaying(false);
-                    setCurrentTime(previewDuration);
-                    setPreviewTimeLeft(0);
-                    return;
-                }
-
-                if (isPreview) {
-                    setPreviewTimeLeft(Math.max(0, previewDuration - current));
-                }
-            }
-        };
-
-        audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.addEventListener('canplay', handleCanPlay);
-        audio.addEventListener('error', handleError);
-        audio.addEventListener('ended', handleEnded);
-        audio.addEventListener('timeupdate', handleTimeUpdate);
-
-        return () => {
-            audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-            audio.removeEventListener('canplay', handleCanPlay);
-            audio.removeEventListener('error', handleError);
-            audio.removeEventListener('ended', handleEnded);
-            audio.removeEventListener('timeupdate', handleTimeUpdate);
-        };
-    }, [autoPlay, isPreview, previewDuration]);
-
-    useEffect(() => {
-        const audio = audioRef.current;
-        if (audio) {
-            audio.volume = volume;
+        if (audioRef.current) {
+            audioRef.current.volume = volume;
         }
     }, [volume]);
 
-    const handlePlay = async () => {
-        const audio = audioRef.current;
-        if (!audio) return;
-
-        try {
-            setIsLoading(true);
-
-            if (isPlaying) {
-                audio.pause();
-                setIsPlaying(false);
-            } else {
-                await audio.play();
-                setIsPlaying(true);
+    useEffect(() => {
+        if (playlist.length > 0 && autoplay) {
+                handlePlay();
             }
-        } catch (error) {
-            console.error('Play error:', error);
-            setError('Impossible de lire le fichier audio');
+    }, [playlist, autoplay]);
+
+    const handlePlay = () => {
+        if (audioRef.current) {
+            audioRef.current.play();
+            setIsPlaying(true);
+        }
+        };
+
+    const handlePause = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
             setIsPlaying(false);
-        } finally {
-            setIsLoading(false);
+        }
+    };
+
+    const handlePlayPause = () => {
+        if (isPlaying) {
+            handlePause();
+        } else {
+            handlePlay();
+        }
+        };
+
+    const handleNext = () => {
+        if (isShuffling) {
+            const randomIndex = Math.floor(Math.random() * playlist.length);
+            setCurrentTrackIndex(randomIndex);
+        } else {
+            setCurrentTrackIndex((prevIndex) =>
+                prevIndex < playlist.length - 1 ? prevIndex + 1 : 0
+            );
+        }
+    };
+
+    const handlePrevious = () => {
+        setCurrentTrackIndex((prevIndex) =>
+            prevIndex > 0 ? prevIndex - 1 : playlist.length - 1
+        );
+        };
+
+        const handleTimeUpdate = () => {
+        if (audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+            }
+        };
+
+    const handleLoadedMetadata = () => {
+        if (audioRef.current) {
+            setDuration(audioRef.current.duration);
+        }
+    };
+
+    const handleEnded = () => {
+        if (isRepeating) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play();
+            } else {
+            handleNext();
         }
     };
 
     const handleProgressClick = (e) => {
-        const audio = audioRef.current;
-        const progressBar = progressRef.current;
-
-        if (!audio || !progressBar || isPreview) return; // Pas de seek en mode preview
-
-        const rect = progressBar.getBoundingClientRect();
+        if (progressRef.current && audioRef.current) {
+            const rect = progressRef.current.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
-        const clickPercent = clickX / rect.width;
-        const newTime = clickPercent * duration;
-
-        audio.currentTime = newTime;
-        setCurrentTime(newTime);
-    };
-
-    const formatTime = (time) => {
-        if (isNaN(time)) return '0:00';
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const getProgressPercent = () => {
-        if (isPreview) {
-            return duration > 0 ? (currentTime / previewDuration) * 100 : 0;
+            const newTime = (clickX / rect.width) * duration;
+            audioRef.current.currentTime = newTime;
         }
-        return duration > 0 ? (currentTime / duration) * 100 : 0;
     };
 
-    if (error) {
+    const handleVolumeChange = (newVolume) => {
+        setVolume(newVolume);
+        setIsMuted(newVolume === 0);
+    };
+
+    const toggleMute = () => {
+        if (isMuted) {
+            setVolume(0.7);
+            setIsMuted(false);
+        } else {
+            setVolume(0);
+            setIsMuted(true);
+        }
+    };
+
+    const formatTime = (seconds) => {
+        if (!seconds) return '0:00';
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
+    const handleTrackSelect = (index) => {
+        setCurrentTrackIndex(index);
+        if (isPlaying) {
+            setTimeout(() => handlePlay(), 100);
+        }
+    };
+
+    if (!playlist.length || !currentTrack) {
         return (
-            <div className="text-center text-muted small">
-                <p className="mb-0">{error}</p>
+            <Card className="border-0 shadow-sm">
+                <Card.Body className="text-center p-4">
+                    <div className="text-muted">
+                        <FontAwesomeIcon icon={faListUl} size="2x" className="mb-3" />
+                        <p>Aucun son disponible dans votre bibliothèque</p>
             </div>
+                </Card.Body>
+            </Card>
         );
     }
 
-    // Version compacte pour les cartes
-    if (isCompact) {
         return (
-            <div className="audio-player-compact">
-                <audio ref={audioRef} src={audioUrl} preload="metadata" />
+        <div className="audio-player-container">
+            {/* Lecteur audio principal */}
+            <Card className="border-0 shadow-sm mb-3" style={{ borderRadius: '16px' }}>
+                <Card.Body className="p-3">
+                    <div className="d-flex align-items-center">
+                        {/* Couverture du track */}
+                        <div className="me-3">
+                            <img
+                                src={currentTrack.cover || "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=80&h=80&fit=crop"}
+                                alt={currentTrack.title}
+                                className="rounded"
+                                style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                            />
+                        </div>
 
-                <div className="d-flex align-items-center gap-2">
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handlePlay}
-                        disabled={isLoading}
-                        className="rounded-circle"
-                        style={{ width: '32px', height: '32px', padding: '0' }}
-                    >
-                        <FontAwesomeIcon
-                            icon={isLoading ? faForward : (isPlaying ? faPause : faPlay)}
-                            style={{ fontSize: '12px' }}
-                            spin={isLoading}
-                        />
-                    </Button>
+                        {/* Informations du track */}
+                        <div className="flex-grow-1 me-3">
+                            <h6 className="fw-bold mb-1">{currentTrack.title}</h6>
+                            <p className="text-muted mb-2 small">{currentTrack.artist}</p>
 
-                    <div className="flex-grow-1">
+                            {/* Barre de progression */}
+                            <div className="d-flex align-items-center">
+                                <span className="small text-muted me-2">{formatTime(currentTime)}</span>
                         <div
                             ref={progressRef}
-                            className="progress"
-                            style={{ height: '4px', cursor: isPreview ? 'default' : 'pointer' }}
+                                    className="progress flex-grow-1 me-2"
+                                    style={{ height: '4px', cursor: 'pointer' }}
                             onClick={handleProgressClick}
                         >
                             <div
                                 className="progress-bar bg-primary"
-                                style={{ width: `${getProgressPercent()}%` }}
+                                        style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
                             />
                         </div>
-                        <div className="d-flex justify-content-between align-items-center mt-1">
-                            <small className="text-muted">
-                                {formatTime(currentTime)}
-                                {isPreview && showPreviewBadge && (
-                                    <span className="text-warning ms-1">
-                                        (Preview {Math.ceil(previewTimeLeft)}s)
-                                    </span>
-                                )}
-                            </small>
-                            <small className="text-muted">
-                                {formatTime(isPreview ? previewDuration : duration)}
-                            </small>
+                                <span className="small text-muted">{formatTime(duration)}</span>
                         </div>
                     </div>
 
-                    {onViewMore && (
+                        {/* Contrôles de lecture */}
+                        <div className="d-flex align-items-center gap-2">
                         <Button
                             variant="outline-secondary"
                             size="sm"
-                            onClick={onViewMore}
-                            style={{ width: '32px', height: '32px', padding: '0' }}
+                                onClick={handlePrevious}
+                                className="rounded-circle"
+                                style={{ width: '36px', height: '36px' }}
                         >
-                            <FontAwesomeIcon icon={faEye} style={{ fontSize: '12px' }} />
+                                <FontAwesomeIcon icon={faStepBackward} style={{ fontSize: '12px' }} />
                         </Button>
-                    )}
-                </div>
-            </div>
-        );
-    }
 
-    // Version complète
-    return (
-        <Card className="audio-player border-0" style={{ borderRadius: '12px', background: 'rgba(255, 255, 255, 0.95)' }}>
-            <audio ref={audioRef} src={audioUrl} preload="metadata" />
-
-            <Card.Body className="p-3">
-                {showDetails && (
-                    <div className="d-flex align-items-center mb-3">
-                        <img
-                            src={sound.cover}
-                            alt={sound.title}
-                            className="rounded me-3"
-                            style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                        />
-                        <div className="flex-grow-1">
-                            <h6 className="mb-1 fw-bold" style={{ fontSize: '14px' }}>
-                                {sound.title}
-                                {isPreview && showPreviewBadge && (
-                                    <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '10px' }}>
-                                        Preview
-                                    </span>
-                                )}
-                            </h6>
-                            <small className="text-muted">par {sound.artist}</small>
-                        </div>
-                    </div>
-                )}
-
-                {/* Contrôles de lecture */}
-                <div className="d-flex align-items-center gap-3 mb-3">
                     <Button
-                        variant="primary"
-                        onClick={handlePlay}
-                        disabled={isLoading}
+                                variant={isPlaying ? "outline-primary" : "primary"}
+                                size="sm"
+                                onClick={handlePlayPause}
                         className="rounded-circle"
-                        style={{ width: '40px', height: '40px' }}
+                                style={{ width: '44px', height: '44px' }}
                     >
                         <FontAwesomeIcon
-                            icon={isLoading ? faForward : (isPlaying ? faPause : faPlay)}
-                            spin={isLoading}
+                                    icon={isPlaying ? faPause : faPlay}
+                                    style={{ fontSize: '16px' }}
                         />
                     </Button>
 
-                    <div className="flex-grow-1">
-                        {/* Barre de progression */}
-                        <div
-                            ref={progressRef}
-                            className="progress mb-2"
-                            style={{
-                                height: '6px',
-                                cursor: isPreview ? 'default' : 'pointer',
-                                borderRadius: '3px'
-                            }}
-                            onClick={handleProgressClick}
-                        >
-                            <div
-                                className="progress-bar"
-                                style={{
-                                    width: `${getProgressPercent()}%`,
-                                    background: isPreview ? '#ffc107' : '#0d6efd'
-                                }}
-                            />
-                        </div>
-
-                        {/* Temps */}
-                        <div className="d-flex justify-content-between align-items-center">
-                            <small className="text-muted">
-                                {formatTime(currentTime)}
-                                {isPreview && previewTimeLeft > 0 && (
-                                    <span className="text-warning ms-1">
-                                        / {Math.ceil(previewTimeLeft)}s restant
-                                    </span>
-                                )}
-                            </small>
-                            <small className="text-muted">
-                                {formatTime(isPreview ? previewDuration : duration)}
-                            </small>
-                        </div>
-                    </div>
-
-                    {/* Contrôle du volume */}
-                    <div className="d-flex align-items-center gap-2">
-                        <FontAwesomeIcon
-                            icon={volume > 0.5 ? faVolumeHigh : faVolumeLow}
-                            className="text-muted"
-                            style={{ fontSize: '14px' }}
-                        />
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.1"
-                            value={volume}
-                            onChange={(e) => setVolume(parseFloat(e.target.value))}
-                            style={{ width: '60px' }}
-                        />
-                    </div>
-                </div>
-
-                {/* Actions */}
-                {(onLike || onViewMore) && (
-                    <div className="d-flex justify-content-between align-items-center">
-                        <div className="d-flex gap-2">
-                            {onLike && (
-                                <Button
-                                    variant="outline-danger"
-                                    size="sm"
-                                    onClick={() => onLike(sound.id)}
-                                >
-                                    <FontAwesomeIcon icon={faHeart} className="me-1" />
-                                    J'aime
-                                </Button>
-                            )}
-                        </div>
-
-                        {onViewMore && (
                             <Button
-                                variant="outline-primary"
+                                variant="outline-secondary"
                                 size="sm"
-                                onClick={onViewMore}
+                                onClick={handleNext}
+                                className="rounded-circle"
+                                style={{ width: '36px', height: '36px' }}
                             >
-                                <FontAwesomeIcon icon={faEye} className="me-1" />
-                                Voir plus
+                                <FontAwesomeIcon icon={faStepForward} style={{ fontSize: '12px' }} />
                             </Button>
-                        )}
-                    </div>
-                )}
+                        </div>
 
-                {/* Message de preview */}
-                {isPreview && showPreviewBadge && (
-                    <div className="text-center mt-2">
-                        <small className="text-warning">
-                            <FontAwesomeIcon icon={faForward} className="me-1" />
-                            Preview limitée à {previewDuration} secondes
-                        </small>
+                        {/* Contrôles additionnels */}
+                        <div className="d-flex align-items-center gap-2 ms-3">
+                            <Button
+                                variant={isShuffling ? "primary" : "outline-secondary"}
+                                size="sm"
+                                onClick={() => setIsShuffling(!isShuffling)}
+                                className="rounded-circle"
+                                style={{ width: '32px', height: '32px' }}
+                            >
+                                <FontAwesomeIcon icon={faRandom} style={{ fontSize: '10px' }} />
+                            </Button>
+
+                            <Button
+                                variant={isRepeating ? "primary" : "outline-secondary"}
+                                size="sm"
+                                onClick={() => setIsRepeating(!isRepeating)}
+                                className="rounded-circle"
+                                style={{ width: '32px', height: '32px' }}
+                            >
+                                <FontAwesomeIcon icon={faRedo} style={{ fontSize: '10px' }} />
+                            </Button>
+
+                            {/* Contrôle de volume */}
+                    <div className="d-flex align-items-center gap-2">
+                                <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={toggleMute}
+                                    className="rounded-circle"
+                                    style={{ width: '32px', height: '32px' }}
+                                >
+                                    <FontAwesomeIcon
+                                        icon={isMuted ? faVolumeMute : volume > 0.5 ? faVolumeUp : faVolumeDown}
+                                        style={{ fontSize: '10px' }}
+                                    />
+                                </Button>
+                                <Form.Range
+                                    value={volume}
+                                    min={0}
+                                    max={1}
+                                    step={0.1}
+                                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                                    style={{ width: '80px' }}
+                                />
+                        </div>
+
+                            <Button
+                                variant="outline-secondary"
+                                size="sm"
+                                onClick={() => setShowPlaylistPanel(!showPlaylistPanel)}
+                                className="rounded-circle"
+                                style={{ width: '32px', height: '32px' }}
+                            >
+                                <FontAwesomeIcon icon={faListUl} style={{ fontSize: '10px' }} />
+                            </Button>
+                        </div>
+                    </div>
+                </Card.Body>
+            </Card>
+
+            {/* Panel de playlist */}
+            {showPlaylistPanel && (
+                <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
+                    <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
+                        <h6 className="fw-bold mb-0">
+                            <FontAwesomeIcon icon={faListUl} className="me-2" />
+                            Ma Bibliothèque ({playlist.length} sons)
+                        </h6>
+                        <Button
+                            variant="link"
+                            size="sm"
+                            onClick={() => setShowPlaylistPanel(false)}
+                            className="text-muted p-0"
+                        >
+                            ×
+                        </Button>
+                    </Card.Header>
+                    <Card.Body className="p-0" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                        {playlist.map((track, index) => (
+                            <div
+                                key={track.id}
+                                className={`d-flex align-items-center p-3 border-bottom playlist-item ${
+                                    index === currentTrackIndex ? 'bg-light' : ''
+                                }`}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => handleTrackSelect(index)}
+                            >
+                                <div className="me-3">
+                                    <img
+                                        src={track.cover || "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=40&h=40&fit=crop"}
+                                        alt={track.title}
+                                        className="rounded"
+                                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                    />
+                                </div>
+                                <div className="flex-grow-1">
+                                    <div className="fw-medium">{track.title}</div>
+                                    <div className="small text-muted">{track.artist}</div>
+                                </div>
+                                <div className="text-end">
+                                    <div className="small text-muted">{track.duration}</div>
+                                    {track.is_favorite && (
+                                        <FontAwesomeIcon icon={faHeart} className="text-danger small" />
+                                    )}
+                                </div>
+                                {index === currentTrackIndex && isPlaying && (
+                                    <div className="ms-2">
+                                        <div className="audio-wave">
+                                            <div className="bar"></div>
+                                            <div className="bar"></div>
+                                            <div className="bar"></div>
+                                        </div>
                     </div>
                 )}
+                            </div>
+                        ))}
             </Card.Body>
         </Card>
+            )}
+
+            {/* Audio element */}
+            <audio
+                ref={audioRef}
+                src={currentTrack.file_url}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onEnded={handleEnded}
+                preload="metadata"
+            />
+
+            <style jsx>{`
+                .playlist-item:hover {
+                    background-color: #f8f9fa !important;
+                }
+
+                .audio-wave {
+                    display: flex;
+                    align-items: end;
+                    gap: 1px;
+                    height: 16px;
+                }
+
+                .audio-wave .bar {
+                    width: 2px;
+                    background: var(--bs-primary);
+                    animation: wave 1s ease-in-out infinite;
+                }
+
+                .audio-wave .bar:nth-child(2) {
+                    animation-delay: 0.2s;
+                }
+
+                .audio-wave .bar:nth-child(3) {
+                    animation-delay: 0.4s;
+                }
+
+                @keyframes wave {
+                    0%, 100% { height: 4px; }
+                    50% { height: 16px; }
+                }
+            `}</style>
+        </div>
     );
 };
 

@@ -207,6 +207,48 @@ class User extends Authenticatable
     }
 
     /**
+     * Sons aimés par l'utilisateur
+     */
+    public function likedSounds()
+    {
+        return $this->belongsToMany(Sound::class, 'sound_likes', 'user_id', 'sound_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Événements aimés par l'utilisateur
+     */
+    public function likedEvents()
+    {
+        return $this->belongsToMany(Event::class, 'event_likes', 'user_id', 'event_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Sons achetés par l'utilisateur (via les paiements)
+     */
+    public function purchasedSounds()
+    {
+        return $this->belongsToMany(Sound::class, 'payments', 'user_id', 'sound_id')
+                    ->wherePivot('type', 'sound')
+                    ->wherePivot('status', 'completed')
+                    ->withPivot(['amount', 'paid_at', 'transaction_id'])
+                    ->withTimestamps();
+    }
+
+    /**
+     * Événements pour lesquels l'utilisateur a acheté des billets
+     */
+    public function purchasedEvents()
+    {
+        return $this->belongsToMany(Event::class, 'payments', 'user_id', 'event_id')
+                    ->wherePivot('type', 'event')
+                    ->wherePivot('status', 'completed')
+                    ->withPivot(['amount', 'paid_at', 'transaction_id'])
+                    ->withTimestamps();
+    }
+
+    /**
      * Vérifier si cet utilisateur suit un autre utilisateur
      */
     public function isFollowing($userId)

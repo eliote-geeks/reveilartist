@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\SoundController as ApiSoundController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\CommissionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -94,14 +96,29 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Routes d'administration (admin uniquement)
-    Route::prefix('admin')->middleware('admin')->group(function () {
-        // Gestion des sons
-        Route::get('/sounds', [AdminController::class, 'getSounds'])->name('api.admin.sounds.index');
-        Route::patch('/sounds/{id}/approve', [AdminController::class, 'approveSound'])->name('api.admin.sounds.approve');
-        Route::patch('/sounds/{id}/reject', [AdminController::class, 'rejectSound'])->name('api.admin.sounds.reject');
+    Route::middleware(['role:admin'])->prefix('admin')->group(function () {
+        // Dashboard - Statistiques
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('api.dashboard.index');
+        Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('api.dashboard.stats');
+        Route::get('/dashboard/export', [DashboardController::class, 'exportStats'])->name('api.dashboard.export');
+        Route::get('/dashboard/calculate-commission', [DashboardController::class, 'calculateCommission'])->name('api.dashboard.calculate-commission');
+        Route::get('/dashboard/user-stats', [DashboardController::class, 'getUsersWithRevenue'])->name('api.dashboard.users-revenue');
 
-        // Notifications
-        Route::post('/send-notification', [AdminController::class, 'sendNotification'])->name('api.admin.notifications.send');
+        // Gestion des paiements
+        Route::apiResource('payments', PaymentController::class);
+        Route::post('/payments/{payment}/complete', [PaymentController::class, 'markAsCompleted'])->name('api.payments.complete');
+        Route::post('/payments/{payment}/refund', [PaymentController::class, 'refund'])->name('api.payments.refund');
+        Route::get('/payments-stats', [PaymentController::class, 'statistics'])->name('api.payments.stats');
+        Route::get('/payments-export', [PaymentController::class, 'export'])->name('api.payments.export');
+
+        // Gestion des utilisateurs
+        Route::get('/users', [UserController::class, 'index'])->name('api.admin.users.index');
+        Route::get('/users/{id}', [UserController::class, 'show'])->name('api.admin.users.show');
+        Route::put('/users/{id}', [UserController::class, 'update'])->name('api.admin.users.update');
+        Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('api.admin.users.destroy');
+
+        // Gestion des commissions
+        Route::apiResource('commissions', CommissionController::class);
     });
 
     // Routes pour le dashboard admin
@@ -138,6 +155,35 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/events/{event}', [EventController::class, 'destroy']);
     Route::post('/events/{event}/register', [EventController::class, 'register']);
     Route::post('/events/{event}/approve', [EventController::class, 'approve']);
+
+    // Routes du profil utilisateur
+    Route::prefix('user')->group(function () {
+        // Profil utilisateur complet avec achats, favoris, etc.
+        Route::get('/profile-complete', [AuthController::class, 'getCompleteProfile'])->name('api.user.profile-complete');
+
+        // Sons et achats de l'utilisateur
+        Route::get('/purchased-sounds', [UserController::class, 'getPurchasedSounds'])->name('api.user.purchased-sounds');
+        Route::get('/purchased-events', [UserController::class, 'getPurchasedEvents'])->name('api.user.purchased-events');
+        Route::get('/sounds', [UserController::class, 'getUserSounds'])->name('api.user.sounds');
+        Route::get('/mes-creations', [UserController::class, 'getUserSounds'])->name('api.user.mes-creations');
+
+        // Événements créés par l'utilisateur
+        Route::get('/events', [UserController::class, 'getUserEvents'])->name('api.user.events');
+
+        // Revenus et gains de l'utilisateur
+        Route::get('/earnings', [UserController::class, 'getUserEarnings'])->name('api.user.earnings');
+
+        // Favoris et relations sociales
+        Route::get('/favorite-sounds', [UserController::class, 'getFavoriteSounds'])->name('api.user.favorite-sounds');
+        Route::get('/favorite-events', [UserController::class, 'getFavoriteEvents'])->name('api.user.favorite-events');
+        Route::get('/followed-artists', [UserController::class, 'getFollowedArtists'])->name('api.user.followed-artists');
+
+        // Statistiques détaillées de l'utilisateur
+        Route::get('/stats', [UserController::class, 'getUserStats'])->name('api.user.stats');
+
+        // Notifications (alias pour la route existante)
+        Route::get('/notifications', [UserController::class, 'getNotifications'])->name('api.user.notifications');
+    });
 });
 
 // Route pour vérifier le statut de l'API
@@ -177,3 +223,31 @@ Route::prefix('artists')->group(function () {
         Route::post('/{id}/follow', [App\Http\Controllers\Api\ArtistController::class, 'toggleFollow']);
     });
 });
+
+// Paiements de test (accessible à tous les utilisateurs connectés)
+Route::post('/payments/test-payment', [PaymentController::class, 'processTestPayment'])->name('api.payments.test');
+
+// Route de test pour l'authentification
+Route::middleware('auth:sanctum')->get('/test-auth', function (Request $request) {
+    $user = $request->user();
+    return response()->json([
+        'success' => true,
+        'message' => 'Authentification réussie',
+        'user_id' => $user->id,
+        'user_name' => $user->name,
+        'user_role' => $user->role
+    ]);
+});
+
+// Route de test simple sans authentification
+Route::get('/test-simple', function () {
+    return response()->json([
+        'success' => true,
+        'message' => 'API fonctionne correctement',
+        'timestamp' => now(),
+        'users_count' => App\Models\User::count()
+    ]);
+});
+
+// Profil utilisateur complet avec achats, favoris, etc. (route ancienne pour compatibilité)
+Route::get('/user/profile-complete', [AuthController::class, 'getCompleteProfile'])->name('api.user.profile-complete.legacy');

@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
@@ -342,5 +343,118 @@ class PaymentController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Traiter un paiement de test depuis le panier
+     */
+    public function processTestPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'items' => 'required|array|min:1',
+            'items.*.id' => 'required|integer',
+            'items.*.type' => 'required|in:sound,event',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric|min:0',
+            'subtotal' => 'required|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'total' => 'required|numeric|min:0',
+            'promo_code' => 'nullable|string',
+            'payment_method' => 'required|string',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $orderNumber = 'RVL-' . time() . '-' . strtoupper(Str::random(5));
+            $payments = [];
+
+            // Créer un paiement pour chaque article
+            foreach ($validated['items'] as $item) {
+                $itemPrice = $item['price'] * $item['quantity'];
+
+                // Appliquer la réduction proportionnelle si applicable
+                if ($validated['discount'] > 0) {
+                    $discountRatio = $validated['discount'] / $validated['subtotal'];
+                    $itemDiscount = $itemPrice * $discountRatio;
+                    $finalItemPrice = $itemPrice - $itemDiscount;
+                } else {
+                    $finalItemPrice = $itemPrice;
+                }
+
+                // Déterminer le vendeur selon le type
+                if ($item['type'] === 'sound') {
+                    $product = Sound::findOrFail($item['id']);
+                    $sellerId = $product->user_id;
+                } else {
+                    $product = Event::findOrFail($item['id']);
+                    $sellerId = $product->user_id;
+                }
+
+                // Calculer les commissions
+                $commission = Payment::calculateCommission($finalItemPrice, $item['type']);
+
+                // Créer le paiement
+                $paymentData = [
+                    'user_id' => $validated['user_id'],
+                    'seller_id' => $sellerId,
+                    'type' => $item['type'],
+                    'amount' => $finalItemPrice,
+                    'payment_method' => $validated['payment_method'],
+                    'payment_provider' => 'test_payment',
+                    'external_payment_id' => $orderNumber . '-' . $item['id'],
+                    'metadata' => json_encode([
+                        'order_number' => $orderNumber,
+                        'quantity' => $item['quantity'],
+                        'original_price' => $item['price'],
+                        'promo_code' => $validated['promo_code'],
+                        'test_payment' => true
+                    ])
+                ];
+
+                if ($item['type'] === 'sound') {
+                    $paymentData['sound_id'] = $item['id'];
+                } else {
+                    $paymentData['event_id'] = $item['id'];
+                }
+
+                $payment = Payment::create(array_merge($paymentData, $commission, [
+                    'transaction_id' => 'TXN_' . time() . '_' . rand(1000, 9999),
+                    'status' => 'completed', // Test payment = automatiquement complété
+                    'paid_at' => now(),
+                ]));
+
+                $payments[] = $payment->load(['user', 'seller', 'sound', 'event']);
+
+                // Mettre à jour les statistiques du produit
+                if ($item['type'] === 'sound') {
+                    $product->increment('downloads_count', $item['quantity']);
+                } else {
+                    $product->increment('current_attendees', $item['quantity']);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement de test traité avec succès',
+                'order_number' => $orderNumber,
+                'payments' => $payments,
+                'total_amount' => $validated['total'],
+                'discount_applied' => $validated['discount'] ?? 0,
+                'promo_code' => $validated['promo_code']
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du traitement du paiement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -119,15 +119,10 @@ const Cart = () => {
 
         try {
             // Simuler un délai de traitement de paiement
-            await new Promise(resolve => setTimeout(resolve, 3000));
-
-            // Générer un numéro de commande
-            const orderNumber = `RVL-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             // Créer les données de commande
             const order = {
-                orderNumber,
-                date: new Date().toISOString(),
                 user: {
                     name: user.name,
                     email: user.email,
@@ -145,20 +140,28 @@ const Cart = () => {
                 status: 'completed'
             };
 
-            // Simuler l'enregistrement en base de données
-            await saveOrderToDatabase(order);
+            // Appeler l'API de paiement réelle
+            const paymentResult = await saveOrderToDatabase(order);
 
-            setOrderData(order);
+            // Utiliser le numéro de commande retourné par l'API
+            const finalOrder = {
+                ...order,
+                orderNumber: paymentResult.order_number,
+                date: new Date().toISOString(),
+                payments: paymentResult.payments
+            };
+
+            setOrderData(finalOrder);
             setOrderSuccess(true);
 
             // Vider le panier
             clearCart();
 
             // Notification de succès
-            toast.success('Commande confirmée !', `Votre commande ${orderNumber} a été traitée avec succès`);
+            toast.success('Commande confirmée !', `Votre commande ${paymentResult.order_number} a été traitée avec succès`);
 
         } catch (error) {
-            toast.error('Erreur de paiement', 'Une erreur est survenue lors du traitement de votre commande');
+            toast.error('Erreur de paiement', error.message || 'Une erreur est survenue lors du traitement de votre commande');
             console.error('Erreur checkout:', error);
         } finally {
             setIsProcessing(false);
@@ -166,32 +169,44 @@ const Cart = () => {
     };
 
     const saveOrderToDatabase = async (order) => {
-        // Simuler un appel API pour sauvegarder la commande
+        // Appel à l'API de paiement de test avec les vraies données
         try {
-            const response = await fetch('/api/orders', {
+            const paymentData = {
+                user_id: order.user.id,
+                items: order.items.map(item => ({
+                    id: item.id,
+                    type: item.type,
+                    quantity: item.quantity,
+                    price: item.type === 'sound' ? item.price : item.ticket_price
+                })),
+                subtotal: order.subtotal,
+                discount: order.discount,
+                total: order.total,
+                promo_code: order.promoCode,
+                payment_method: 'test_payment'
+            };
+
+            const response = await fetch('/api/payments/test-payment', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    order_number: order.orderNumber,
-                    user_id: order.user.id,
-                    items: order.items,
-                    subtotal: order.subtotal,
-                    discount: order.discount,
-                    promo_code: order.promoCode,
-                    total: order.total,
-                    payment_method: order.paymentMethod,
-                    status: order.status
-                })
+                body: JSON.stringify(paymentData)
             });
 
             if (!response.ok) {
-                console.warn('Erreur lors de la sauvegarde de la commande en BDD');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Erreur lors du traitement du paiement');
             }
+
+            const result = await response.json();
+            console.log('Paiement traité avec succès:', result);
+
+            return result;
         } catch (error) {
-            console.warn('Erreur de connexion à la BDD, commande sauvegardée localement');
+            console.error('Erreur de connexion à l\'API de paiement:', error);
+            throw error;
         }
     };
 

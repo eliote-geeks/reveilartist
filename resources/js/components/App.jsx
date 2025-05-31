@@ -32,6 +32,7 @@ import CategoryDetail from './pages/CategoryDetail';
 import SoundDetails from './pages/SoundDetails';
 import Profile from './pages/Profile';
 import ProfileEdit from './pages/ProfileEdit';
+import AuthTest from './pages/AuthTest';
 
 // Import des pages d'ajout/gestion
 import AddSound from './pages/AddSound';
@@ -56,6 +57,7 @@ function App() {
                         <Route path="/register" element={<Register />} />
                         <Route path="/contact" element={<Contact />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/auth-test" element={<AuthTest />} />
 
                         {/* Pages de contenu publiques */}
                                     <Route path="/catalog" element={<Catalog />} />

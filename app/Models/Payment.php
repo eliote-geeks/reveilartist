@@ -16,16 +16,29 @@ class Payment extends Model
         'sound_id',
         'event_id',
         'amount',
-        'commission',
+        'seller_amount',
+        'commission_amount',
+        'commission_rate',
         'type',
         'status',
         'payment_method',
-        'transaction_id'
+        'payment_provider',
+        'transaction_id',
+        'external_payment_id',
+        'failure_reason',
+        'metadata',
+        'paid_at',
+        'refunded_at'
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'commission' => 'decimal:2',
+        'seller_amount' => 'decimal:2',
+        'commission_amount' => 'decimal:2',
+        'commission_rate' => 'decimal:2',
+        'metadata' => 'array',
+        'paid_at' => 'datetime',
+        'refunded_at' => 'datetime',
     ];
 
     /**

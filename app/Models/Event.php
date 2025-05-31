@@ -130,6 +130,23 @@ class Event extends Model
     }
 
     /**
+     * Utilisateurs qui ont aimé cet événement
+     */
+    public function likes()
+    {
+        return $this->belongsToMany(User::class, 'event_likes', 'event_id', 'user_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Compter le nombre de likes
+     */
+    public function getLikesCountAttribute()
+    {
+        return $this->likes()->count();
+    }
+
+    /**
      * Scope pour les événements publiés
      */
     public function scopePublished($query)
