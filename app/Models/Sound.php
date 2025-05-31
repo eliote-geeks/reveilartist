@@ -110,6 +110,14 @@ class Sound extends Model
     }
 
     /**
+     * Relation vers les paiements (ventes de ce son)
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
      * Scope pour les sons publiés
      */
     public function scopePublished($query)

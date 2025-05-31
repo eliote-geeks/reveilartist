@@ -122,6 +122,14 @@ class Event extends Model
     }
 
     /**
+     * Relation vers les paiements (ventes de billets pour cet événement)
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
      * Scope pour les événements publiés
      */
     public function scopePublished($query)

@@ -173,6 +173,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Paiements effectués par l'utilisateur (en tant qu'acheteur)
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Paiements reçus par l'utilisateur (en tant que vendeur)
+     */
+    public function sales()
+    {
+        return $this->hasMany(Payment::class, 'seller_id');
+    }
+
+    /**
      * Utilisateurs que cet utilisateur suit
      */
     public function following()
