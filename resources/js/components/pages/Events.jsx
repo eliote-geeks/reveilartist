@@ -42,6 +42,36 @@ const Events = () => {
     const [viewMode, setViewMode] = useState('grid');
     const [categories, setCategories] = useState(['Tous']);
     const [cities, setCities] = useState(['Toutes']);
+    const [favoriteEvents, setFavoriteEvents] = useState(new Set());
+
+    // Villes populaires du Cameroun
+    const cameroonCities = [
+        'Toutes',
+        'Yaoundé',
+        'Douala',
+        'Bamenda',
+        'Bafoussam',
+        'Garoua',
+        'Maroua',
+        'Ngaoundéré',
+        'Bertoua',
+        'Kribi',
+        'Limbe',
+        'Buea',
+        'Kumba',
+        'Edéa',
+        'Foumban',
+        'Dschang',
+        'Ebolowa',
+        'Sangmélima',
+        'Mbalmayo',
+        'Nkongsamba',
+        'Loum',
+        'Mbouda',
+        'Tiko',
+        'Yokadouma',
+        'Batouri'
+    ];
 
     const { addToCart } = useCart();
     const toast = useToast();
@@ -54,6 +84,12 @@ const Events = () => {
     useEffect(() => {
         filterEvents();
     }, [events, searchQuery, selectedCategory, selectedCity]);
+
+    useEffect(() => {
+        if (token) {
+            loadFavorites();
+        }
+    }, [token]);
 
     const loadEvents = async () => {
         try {
@@ -82,10 +118,12 @@ const Events = () => {
 
                 // Extraire les catégories et villes uniques
                 const uniqueCategories = ['Tous', ...new Set(adaptedEvents.map(event => event.category))];
-                const uniqueCities = ['Toutes', ...new Set(adaptedEvents.map(event => event.city))];
+                // Combiner les villes existantes avec celles du Cameroun
+                const existingCities = new Set(adaptedEvents.map(event => event.city));
+                const allCities = [...new Set([...cameroonCities, ...existingCities])];
 
                 setCategories(uniqueCategories);
-                setCities(uniqueCities);
+                setCities(allCities);
             } else {
                 toast.error('Erreur', data.message || 'Impossible de charger les événements');
             }
@@ -176,6 +214,67 @@ const Events = () => {
         setShowTicketModal(false);
         setSelectedEvent(null);
         setTicketQuantities({});
+    };
+
+    const loadFavorites = async () => {
+        if (!token) return;
+
+        try {
+            const response = await fetch('/api/events/favorites', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const favoriteIds = data.favorites.map(fav => fav.id);
+                setFavoriteEvents(new Set(favoriteIds));
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des favoris:', error);
+        }
+    };
+
+    const handleToggleFavorite = async (eventId) => {
+        if (!token) {
+            toast.warning('Connexion requise', 'Vous devez être connecté pour ajouter aux favoris');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/events/${eventId}/favorite`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setFavoriteEvents(prev => {
+                    const newSet = new Set(prev);
+                    if (data.is_favorite) {
+                        newSet.add(eventId);
+                    } else {
+                        newSet.delete(eventId);
+                    }
+                    return newSet;
+                });
+
+                toast.success(
+                    'Favoris',
+                    data.is_favorite ? 'Événement ajouté aux favoris' : 'Événement retiré des favoris'
+                );
+            } else {
+                toast.error('Erreur', 'Impossible de modifier les favoris');
+            }
+        } catch (error) {
+            console.error('Erreur lors de la modification des favoris:', error);
+            toast.error('Erreur', 'Erreur de connexion');
+        }
     };
 
     const handleAddToCart = () => {
@@ -289,7 +388,11 @@ const Events = () => {
                                 {event.title}
                             </Link>
                         </h5>
-                        <Button variant="outline-danger" size="sm">
+                        <Button
+                            variant={favoriteEvents.has(event.id) ? "danger" : "outline-danger"}
+                            size="sm"
+                            onClick={() => handleToggleFavorite(event.id)}
+                        >
                             <FontAwesomeIcon icon={faHeart} />
                         </Button>
                     </div>
@@ -421,8 +524,9 @@ const Events = () => {
 
                                     <div className="d-flex gap-2 justify-content-end">
                                         <Button
-                                            variant="outline-danger"
+                                            variant={favoriteEvents.has(event.id) ? "danger" : "outline-danger"}
                                             size="sm"
+                                            onClick={() => handleToggleFavorite(event.id)}
                                         >
                                             <FontAwesomeIcon icon={faHeart} />
                                         </Button>
@@ -456,7 +560,7 @@ const Events = () => {
     );
 
     return (
-        <div className="min-vh-100 bg-light" style={{ paddingTop: '70px' }}>
+        <div className="min-vh-100 bg-light avoid-header-overlap">
             {/* Hero Section */}
             <div className="hero-gradient text-white">
                 <Container>

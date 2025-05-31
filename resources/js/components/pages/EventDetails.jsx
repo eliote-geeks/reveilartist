@@ -45,6 +45,7 @@ const EventDetails = () => {
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
     const [ticketQuantities, setTicketQuantities] = useState({});
+    const [isFavorite, setIsFavorite] = useState(false);
 
     const { addToCart } = useCart();
     const toast = useToast();
@@ -83,6 +84,11 @@ const EventDetails = () => {
                 };
 
                 setEvent(adaptedEvent);
+
+                // Vérifier si l'événement est en favoris
+                if (token) {
+                    checkFavoriteStatus(id);
+                }
             } else {
                 toast.error('Erreur', data.message || 'Événement non trouvé');
                 navigate('/events');
@@ -93,6 +99,55 @@ const EventDetails = () => {
             navigate('/events');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const checkFavoriteStatus = async (eventId) => {
+        try {
+            const response = await fetch(`/api/events/${eventId}/favorite`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setIsFavorite(data.is_favorite);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la vérification des favoris:', error);
+        }
+    };
+
+    const handleToggleFavorite = async () => {
+        if (!token) {
+            toast.warning('Connexion requise', 'Vous devez être connecté pour ajouter aux favoris');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/events/${event.id}/favorite`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setIsFavorite(data.is_favorite);
+                toast.success(
+                    'Favoris',
+                    data.is_favorite ? 'Événement ajouté aux favoris' : 'Événement retiré des favoris'
+                );
+            } else {
+                toast.error('Erreur', 'Impossible de modifier les favoris');
+            }
+        } catch (error) {
+            console.error('Erreur lors de la modification des favoris:', error);
+            toast.error('Erreur', 'Erreur de connexion');
         }
     };
 
@@ -175,7 +230,7 @@ const EventDetails = () => {
 
     if (!event) {
         return (
-            <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center" style={{ paddingTop: '70px' }}>
+            <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center avoid-header-overlap">
                 <div className="text-center">
                     <h3>Événement non trouvé</h3>
                     <Button as={Link} to="/events" variant="primary">
@@ -332,9 +387,9 @@ const EventDetails = () => {
                                     Acheter des billets
                                 </Button>
                             )}
-                            <Button variant="outline-danger">
+                            <Button variant="outline-danger" onClick={handleToggleFavorite}>
                                 <FontAwesomeIcon icon={faHeart} className="me-2" />
-                                Ajouter aux favoris
+                                {isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                             </Button>
                             <Button variant="outline-secondary">
                                 <FontAwesomeIcon icon={faShare} className="me-2" />
@@ -428,43 +483,42 @@ const EventDetails = () => {
     );
 
     return (
-        <div className="min-vh-100 bg-light" style={{ paddingTop: '70px' }}>
-            {/* Header */}
-            <div className="bg-white border-bottom">
-                <Container>
-                    <div className="py-3">
-                        <AnimatedElement animation="slideInLeft" delay={100}>
+        <div className="min-vh-100 bg-light avoid-header-overlap">
+            <Container className="py-4">
+                <AnimatedElement animation="slideInLeft" delay={100}>
+                    <div className="bg-white border-bottom">
+                        <Container>
+                            <div className="py-3">
                                 <div className="d-flex align-items-center">
                                     <Button
                                         variant="outline-secondary"
                                         size="sm"
-                                    onClick={() => navigate('/events')}
+                                        onClick={() => navigate('/events')}
                                         className="me-3"
                                     >
-                                    <FontAwesomeIcon icon={faArrowLeft} />
+                                        <FontAwesomeIcon icon={faArrowLeft} />
                                     </Button>
                                     <div>
-                                    <h1 className="h4 fw-bold mb-1">{event.title}</h1>
-                                    <p className="text-muted mb-0">
-                                        {formatDate(event.event_date)} • {event.venue || event.location}
-                                    </p>
+                                        <h1 className="h4 fw-bold mb-1">{event.title}</h1>
+                                        <p className="text-muted mb-0">
+                                            {formatDate(event.event_date)} • {event.venue || event.location}
+                                        </p>
+                                    </div>
                                 </div>
-                                </div>
-                        </AnimatedElement>
+                            </div>
+                        </Container>
                     </div>
-                </Container>
-            </div>
+                </AnimatedElement>
 
-            <Container className="py-4">
                 <Tabs
                     activeKey={activeTab}
                     onSelect={(k) => setActiveTab(k)}
                     className="mb-4"
                 >
                     <Tab eventKey="overview" title="Vue d'ensemble">
-                <AnimatedElement animation="fadeIn" delay={100}>
+                        <AnimatedElement animation="fadeIn" delay={100}>
                             {renderOverview()}
-                </AnimatedElement>
+                        </AnimatedElement>
                     </Tab>
                 </Tabs>
             </Container>

@@ -26,6 +26,7 @@ import ArtistProfile from './pages/ArtistProfile';
 import Events from './pages/Events';
 import EventDetails from './pages/EventDetails';
 import Categories from './pages/Categories';
+import CategoryDetail from './pages/CategoryDetail';
 
 // Import des pages de détails
 import SoundDetails from './pages/SoundDetails';
@@ -62,6 +63,7 @@ function App() {
                                     <Route path="/events" element={<Events />} />
                                     <Route path="/event/:id" element={<EventDetails />} />
                         <Route path="/categories" element={<Categories />} />
+                        <Route path="/category/:id" element={<CategoryDetail />} />
                         <Route path="/sound/:id" element={<SoundDetails />} />
 
                         {/* Pages protégées - nécessitent une authentification */}

@@ -65,8 +65,8 @@ const Categories = () => {
                 const categoriesWithDisplay = response.data.categories.map((category, index) => ({
                     ...category,
                     image: category.image_url || defaultImages[index % defaultImages.length],
-                    soundCount: Math.floor(Math.random() * 200) + 50, // Temporaire jusqu'à ce qu'on ait les vraies données
-                    trending: index % 3 === 0 // Quelques catégories en tendance
+                    soundCount: category.sounds_count || 0, // Utiliser les vraies données de la BD
+                    trending: category.sounds_count > 50 // Catégories avec plus de 50 sons sont tendance
                 }));
 
                 setCategories(categoriesWithDisplay);
@@ -111,7 +111,7 @@ const Categories = () => {
     }
 
     return (
-        <div className="bg-light min-vh-100">
+        <div className="bg-light min-vh-100 avoid-header-overlap">
             {/* Hero Section */}
             <section className="hero-gradient text-white py-4">
                 <Container>
@@ -147,7 +147,7 @@ const Categories = () => {
                             <Col key={category.id} lg={4} md={6} className="mb-3">
                                 <Card
                                     as={Link}
-                                    to={`/catalog?category=${category.slug}`}
+                                    to={`/category/${category.id}`}
                                     className="category-card border-0 h-100 text-decoration-none"
                                     style={{ borderRadius: '16px' }}
                                 >
@@ -247,29 +247,29 @@ const Categories = () => {
             </section>
 
             {/* Stats Section */}
-            <section className="section-stats text-white py-4">
+            <section className="py-4 bg-primary">
                 <Container>
                     <Row className="text-center">
                         <Col md={4} className="mb-3">
                             <div className="pulse-animation">
-                                <div className="fs-2 fw-bold mb-1">{categories.length}</div>
-                                <p className="small mb-0 opacity-90">Catégories Musicales</p>
+                                <div className="fs-2 fw-bold mb-1 text-white">{categories.length}</div>
+                                <p className="small mb-0 opacity-90 text-white">Catégories Musicales</p>
                             </div>
                         </Col>
                         <Col md={4} className="mb-3">
                             <div className="pulse-animation" style={{ animationDelay: '0.5s' }}>
-                                <div className="fs-2 fw-bold mb-1">
+                                <div className="fs-2 fw-bold mb-1 text-white">
                                     {categories.reduce((total, cat) => total + cat.soundCount, 0)}
                                 </div>
-                                <p className="small mb-0 opacity-90">Sons Disponibles</p>
+                                <p className="small mb-0 opacity-90 text-white">Sons Disponibles</p>
                             </div>
                         </Col>
                         <Col md={4} className="mb-3">
                             <div className="pulse-animation" style={{ animationDelay: '1s' }}>
-                                <div className="fs-2 fw-bold mb-1">
+                                <div className="fs-2 fw-bold mb-1 text-white">
                                     {categories.filter(cat => cat.trending).length}
                                 </div>
-                                <p className="small mb-0 opacity-90">Tendances Actuelles</p>
+                                <p className="small mb-0 opacity-90 text-white">Tendances Actuelles</p>
                             </div>
                         </Col>
                     </Row>

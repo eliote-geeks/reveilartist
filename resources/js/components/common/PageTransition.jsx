@@ -70,6 +70,7 @@ const usePageTransition = () => {
 const LoadingOverlay = ({ progress }) => (
     <div className="page-loading-overlay">
         <div className="loading-content">
+            <div className="loading-logo-container">
             <div className="loading-logo">
                 <img
                     src="/images/reveilart-logo.svg"
@@ -81,6 +82,9 @@ const LoadingOverlay = ({ progress }) => (
             <div className="loading-spinner">
                 <FontAwesomeIcon icon={faSpinner} className="fa-spin" />
             </div>
+            </div>
+
+            <div className="loading-text-container">
             <div className="loading-text">Chargement...</div>
             <div className="loading-progress">
                 <div className="progress-bar">
@@ -90,6 +94,7 @@ const LoadingOverlay = ({ progress }) => (
                     ></div>
                 </div>
                 <div className="progress-text">{Math.round(progress)}%</div>
+                </div>
             </div>
         </div>
 
@@ -112,72 +117,165 @@ const LoadingOverlay = ({ progress }) => (
             .loading-content {
                 text-align: center;
                 color: white;
-                padding: 2rem;
-                border-radius: 1rem;
+                padding: 2.5rem;
+                border-radius: 1.5rem;
                 background: rgba(255, 255, 255, 0.1);
                 backdrop-filter: blur(10px);
                 border: 1px solid rgba(255, 255, 255, 0.2);
-                min-width: 280px;
+                min-width: 320px;
+                max-width: 400px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1.5rem;
+            }
+
+            .loading-logo-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1rem;
             }
 
             .loading-logo {
-                margin-bottom: 1.5rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 animation: float 2s ease-in-out infinite;
             }
 
             .loading-logo-img {
                 filter: brightness(0) invert(1);
                 opacity: 0.9;
+                display: block;
             }
 
             .loading-spinner {
                 font-size: 1.5rem;
-                margin-bottom: 1rem;
                 color: white;
+                opacity: 0.8;
+                animation: spin 1s linear infinite;
+            }
+
+            .loading-text-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1rem;
+                width: 100%;
             }
 
             .loading-text {
-                font-size: 1rem;
+                font-size: 1.1rem;
                 font-weight: 500;
-                margin-bottom: 1.5rem;
                 opacity: 0.9;
+                text-align: center;
+                margin: 0;
             }
 
             .loading-progress {
-                margin-top: 1rem;
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.5rem;
             }
 
             .progress-bar {
                 width: 100%;
-                height: 4px;
+                height: 6px;
                 background: rgba(255, 255, 255, 0.2);
-                border-radius: 2px;
+                border-radius: 3px;
                 overflow: hidden;
-                margin-bottom: 0.5rem;
+                position: relative;
             }
 
             .progress-fill {
                 height: 100%;
                 background: linear-gradient(90deg, #f59e0b, #fbbf24);
-                border-radius: 2px;
+                border-radius: 3px;
                 transition: width 0.3s ease;
                 box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+                position: relative;
+            }
+
+            .progress-fill::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                animation: shimmer 2s infinite;
             }
 
             .progress-text {
-                font-size: 0.875rem;
+                font-size: 0.9rem;
                 opacity: 0.8;
                 font-weight: 600;
+                text-align: center;
+                min-width: 40px;
             }
 
             @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
+                from {
+                    opacity: 0;
+                    transform: scale(0.9);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
             }
 
             @keyframes float {
-                0%, 100% { transform: translateY(0); }
-                50% { transform: translateY(-10px); }
+                0%, 100% {
+                    transform: translateY(0);
+                }
+                50% {
+                    transform: translateY(-8px);
+                }
+            }
+
+            @keyframes spin {
+                from {
+                    transform: rotate(0deg);
+                }
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            @keyframes shimmer {
+                0% {
+                    transform: translateX(-100%);
+                }
+                100% {
+                    transform: translateX(100%);
+                }
+            }
+
+            /* Responsive */
+            @media (max-width: 768px) {
+                .loading-content {
+                    min-width: 280px;
+                    padding: 2rem;
+                    margin: 1rem;
+                }
+
+                .loading-logo-img {
+                    height: 40px !important;
+                }
+
+                .loading-text {
+                    font-size: 1rem;
+                }
+
+                .progress-text {
+                    font-size: 0.85rem;
+                }
             }
         `}</style>
     </div>

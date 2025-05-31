@@ -222,7 +222,7 @@ const Catalog = () => {
     };
 
     return (
-        <div className="bg-light min-vh-100">
+        <div className="bg-light min-vh-100 avoid-header-overlap">
             {/* Hero Section */}
             <section className="hero-gradient text-white py-4">
                 <Container>

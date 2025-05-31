@@ -15,7 +15,9 @@ import { useToast } from '../../context/ToastContext';
 const Home = () => {
     const [playingId, setPlayingId] = useState(null);
     const [activeTab, setActiveTab] = useState('populaires');
+    const [activeCategory, setActiveCategory] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [soundsLoading, setSoundsLoading] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -41,6 +43,10 @@ const Home = () => {
     useEffect(() => {
         loadSounds();
     }, [activeTab]);
+
+    useEffect(() => {
+        loadSounds();
+    }, [activeCategory]);
 
     const loadInitialData = async () => {
         try {
@@ -81,25 +87,38 @@ const Home = () => {
 
     const loadSounds = async () => {
         try {
+            setSoundsLoading(true);
             let endpoint = '';
-            switch (activeTab) {
-                case 'populaires':
-                    endpoint = '/api/sounds/popular?limit=8';
-                    break;
-                case 'recents':
-                    endpoint = '/api/sounds/recent?limit=8';
-                    break;
-                case 'gratuits':
-                    endpoint = '/api/sounds?price=free&limit=8';
-                    break;
-                case 'premium':
-                    endpoint = '/api/sounds?price=premium&limit=8';
-                    break;
-                default:
-                    endpoint = '/api/sounds/popular?limit=8';
+            let params = new URLSearchParams();
+            params.append('limit', '8');
+
+            // Si une catégorie est sélectionnée, on filtre par cette catégorie
+            if (activeCategory) {
+                params.append('category', activeCategory);
+                endpoint = '/api/sounds';
+        } else {
+                // Sinon on utilise les filtres par défaut
+                switch (activeTab) {
+                    case 'populaires':
+                        endpoint = '/api/sounds/popular';
+                        break;
+                    case 'recents':
+                        endpoint = '/api/sounds/recent';
+                        break;
+                    case 'gratuits':
+                        endpoint = '/api/sounds';
+                        params.append('price', 'free');
+                        break;
+                    case 'premium':
+                        endpoint = '/api/sounds';
+                        params.append('price', 'premium');
+                        break;
+                    default:
+                        endpoint = '/api/sounds/popular';
+                }
             }
 
-            const response = await fetch(endpoint, {
+            const response = await fetch(`${endpoint}?${params}`, {
                 headers: {
                     ...(token && { 'Authorization': `Bearer ${token}` }),
                     'Content-Type': 'application/json'
@@ -117,6 +136,8 @@ const Home = () => {
             }
         } catch (error) {
             console.error('Erreur lors du chargement des sons:', error);
+        } finally {
+            setSoundsLoading(false);
         }
     };
 
@@ -236,8 +257,23 @@ const Home = () => {
         return num?.toString() || '0';
     };
 
+    const handleCategoryFilter = (categoryId) => {
+        setActiveCategory(categoryId);
+        setActiveTab(null); // Désactiver les onglets quand on filtre par catégorie
+    };
+
+    const handleTabFilter = (tab) => {
+        setActiveTab(tab);
+        setActiveCategory(null); // Désactiver le filtre catégorie quand on utilise les onglets
+    };
+
+    const clearFilters = () => {
+        setActiveCategory(null);
+        setActiveTab('populaires');
+    };
+
     return (
-        <div className="bg-light min-vh-100">
+        <div className="bg-light min-vh-100 avoid-header-overlap">
             {/* Lecteur audio invisible */}
             <audio
                 ref={audioRef}
@@ -259,8 +295,8 @@ const Home = () => {
                                 {/* Logo Section */}
                                 <div className="mb-4">
                                     <AnimatedElement animation="bounceIn" delay={300}>
-                                        <img
-                                            src="/images/reveilart-logo.svg"
+                                    <img
+                                        src="/images/reveilart-logo.svg"
                                             alt="reveilart"
                                             style={{ height: '40px' }}
                                             className="mb-3"
@@ -281,8 +317,8 @@ const Home = () => {
                                 {/* Subheading */}
                                 <AnimatedElement animation="fadeIn" delay={700}>
                                     <p className="mb-4 opacity-90 text-sm">
-                                        Découvrez les sons les plus authentiques du Cameroun
-                                    </p>
+                                    Découvrez les sons les plus authentiques du Cameroun
+                                </p>
                                 </AnimatedElement>
 
                                 {/* Search Bar */}
@@ -322,25 +358,25 @@ const Home = () => {
                                 {/* Action Buttons */}
                                 <AnimatedElement animation="slideInUp" delay={800}>
                                     <div className="d-flex gap-2 justify-content-center flex-wrap">
-                                        <Button
-                                            variant="warning"
+                                    <Button
+                                        variant="warning"
                                             size="sm"
                                             className="px-3 py-2 fw-medium rounded-lg btn-glow"
                                             onClick={handleExploreNow}
-                                        >
-                                            <FontAwesomeIcon icon={faMusic} className="me-2" />
-                                            Explorer maintenant
-                                        </Button>
-                                        <Button
+                                    >
+                                        <FontAwesomeIcon icon={faMusic} className="me-2" />
+                                        Explorer maintenant
+                                    </Button>
+                                    <Button
                                             as={Link}
                                             to="/events"
-                                            variant="outline-light"
+                                        variant="outline-light"
                                             size="sm"
                                             className="px-3 py-2 fw-medium rounded-lg btn-pulse"
-                                        >
+                                    >
                                             <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
                                             Événements
-                                        </Button>
+                                    </Button>
                                     </div>
                                 </AnimatedElement>
                             </AnimatedElement>
@@ -467,7 +503,7 @@ const Home = () => {
                             <AnimatedElement animation="slideInUp" delay={100}>
                                 <div className="text-center">
                                     <h2 className="h4 fw-bold mb-2">Explorez par catégories</h2>
-                                    <p className="text-secondary text-sm">Trouvez le son parfait pour votre projet</p>
+                                    <p className="text-secondary text-sm">Cliquez sur une catégorie pour voir les sons correspondants</p>
                                 </div>
                             </AnimatedElement>
                         </Col>
@@ -479,21 +515,34 @@ const Home = () => {
                                     <Spinner animation="border" variant="primary" />
                                 </div>
                             ) : (
-                                <div className="d-flex flex-wrap justify-content-center gap-2">
+                            <div className="d-flex flex-wrap justify-content-center gap-2">
+                                    {/* Bouton pour réinitialiser les filtres */}
+                                    <AnimatedElement animation="bounceIn" delay={100}>
+                                        <button
+                                            onClick={clearFilters}
+                                            className={`category-pill category-pill-animated text-decoration-none ${!activeCategory && activeTab === 'populaires' ? 'active' : ''}`}
+                                        >
+                                            Tous les sons
+                                            <Badge bg="light" text="dark" className="ms-2 text-xs">
+                                                {stats.total_sounds || 0}
+                                            </Badge>
+                                        </button>
+                                    </AnimatedElement>
+
                                     {categories.map((category, index) => (
                                         <AnimatedElement key={category.id} animation="bounceIn" delay={200 + (index * 100)}>
-                                            <Link
-                                                to={`/catalog?category=${category.id}`}
-                                                className="category-pill category-pill-animated text-decoration-none"
+                                            <button
+                                                onClick={() => handleCategoryFilter(category.id)}
+                                                className={`category-pill category-pill-animated text-decoration-none ${activeCategory === category.id ? 'active' : ''}`}
                                             >
-                                                {category.name}
-                                                <Badge bg="light" text="dark" className="ms-2 text-xs">
+                                            {category.name}
+                                            <Badge bg="light" text="dark" className="ms-2 text-xs">
                                                     {category.sounds_count || 0}
-                                                </Badge>
-                                            </Link>
-                                        </AnimatedElement>
-                                    ))}
-                                </div>
+                                            </Badge>
+                                            </button>
+                                    </AnimatedElement>
+                                ))}
+                            </div>
                             )}
                         </Col>
                     </Row>
@@ -506,8 +555,22 @@ const Home = () => {
                     <Row className="mb-4">
                         <Col md={8}>
                             <AnimatedElement animation="slideInLeft" delay={100}>
-                                <h3 className="h5 fw-bold mb-2">Sons populaires</h3>
-                                <p className="text-secondary text-sm">Les créations les plus appréciées de la communauté</p>
+                                <h3 className="h5 fw-bold mb-2">
+                                    {activeCategory
+                                        ? `Sons - ${categories.find(c => c.id === activeCategory)?.name || 'Catégorie'}`
+                                        : activeTab === 'populaires' ? 'Sons populaires'
+                                        : activeTab === 'recents' ? 'Sons récents'
+                                        : activeTab === 'gratuits' ? 'Sons gratuits'
+                                        : activeTab === 'premium' ? 'Sons premium'
+                                        : 'Sons populaires'
+                                    }
+                                </h3>
+                                <p className="text-secondary text-sm">
+                                    {activeCategory
+                                        ? 'Découvrez les sons de cette catégorie'
+                                        : 'Les créations les plus appréciées de la communauté'
+                                    }
+                                </p>
                             </AnimatedElement>
                         </Col>
                         <Col md={4} className="text-md-end">
@@ -526,26 +589,27 @@ const Home = () => {
                         </Col>
                     </Row>
 
-                    {/* Navigation Pills avec tri fonctionnel */}
+                    {/* Navigation Pills avec tri fonctionnel - masquer si catégorie active */}
+                    {!activeCategory && (
                     <Row className="mb-3">
                         <Col>
                             <AnimatedElement animation="slideInUp" delay={300}>
                                 <Nav variant="pills" className="nav-fill">
-                                    {[
-                                        { key: 'populaires', label: 'Populaires', icon: faFire },
-                                        { key: 'recents', label: 'Récents', icon: faStopwatch },
-                                        { key: 'gratuits', label: 'Gratuits', icon: faHeart },
-                                        { key: 'premium', label: 'Premium', icon: faStar }
-                                    ].map((tab) => (
-                                        <Nav.Item key={tab.key}>
+                                        {[
+                                            { key: 'populaires', label: 'Populaires', icon: faFire },
+                                            { key: 'recents', label: 'Récents', icon: faStopwatch },
+                                            { key: 'gratuits', label: 'Gratuits', icon: faHeart },
+                                            { key: 'premium', label: 'Premium', icon: faStar }
+                                        ].map((tab) => (
+                                            <Nav.Item key={tab.key}>
                                             <Nav.Link
-                                                active={activeTab === tab.key}
+                                                    active={activeTab === tab.key}
                                                 className="text-sm rounded-lg nav-pill-animated"
-                                                onClick={() => setActiveTab(tab.key)}
-                                                style={{ cursor: 'pointer' }}
+                                                    onClick={() => handleTabFilter(tab.key)}
+                                                    style={{ cursor: 'pointer' }}
                                             >
-                                                <FontAwesomeIcon icon={tab.icon} className="me-2" />
-                                                {tab.label}
+                                                    <FontAwesomeIcon icon={tab.icon} className="me-2" />
+                                                    {tab.label}
                                             </Nav.Link>
                                         </Nav.Item>
                                     ))}
@@ -553,74 +617,91 @@ const Home = () => {
                             </AnimatedElement>
                         </Col>
                     </Row>
+                    )}
 
                     {/* Sounds Grid avec vraies données */}
-                    {loading ? (
+                    {soundsLoading ? (
                         <div className="text-center py-5">
                             <Spinner animation="border" variant="primary" size="lg" />
+                            <p className="mt-2 text-muted">Chargement des sons...</p>
+                        </div>
+                    ) : sounds.length === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
+                            <h5 className="text-muted">Aucun son trouvé</h5>
+                            <p className="text-muted">
+                                {activeCategory
+                                    ? 'Cette catégorie ne contient pas encore de sons.'
+                                    : 'Aucun son ne correspond à vos critères.'
+                                }
+                            </p>
+                            <Button variant="outline-primary" onClick={clearFilters}>
+                                <FontAwesomeIcon icon={faArrowRight} className="me-2" />
+                                Voir tous les sons
+                            </Button>
                         </div>
                     ) : (
-                        <Row className="g-3">
+                    <Row className="g-3">
                             {sounds.map((sound, index) => (
-                                <Col key={sound.id} lg={3} md={4} sm={6}>
+                            <Col key={sound.id} lg={3} md={4} sm={6}>
                                     <AnimatedElement
-                                        animation={index % 2 === 0 ? "slideInLeft" : "slideInRight"}
-                                        delay={400 + (index * 150)}
-                                    >
-                                        <Card className="sound-card sound-card-enhanced h-100">
-                                            <div className="position-relative">
-                                                <Card.Img
-                                                    variant="top"
+                                    animation={index % 2 === 0 ? "slideInLeft" : "slideInRight"}
+                                    delay={400 + (index * 150)}
+                                >
+                                    <Card className="sound-card sound-card-enhanced h-100">
+                                        <div className="position-relative">
+                                            <Card.Img
+                                                variant="top"
                                                     src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=280&h=160&fit=crop`}
-                                                    alt={sound.title}
-                                                    className="sound-image"
-                                                />
-                                                <div className="sound-play-overlay">
-                                                    <Button
-                                                        className="play-button play-button-enhanced"
-                                                        onClick={() => handlePlayPause(sound)}
-                                                    >
-                                                        <FontAwesomeIcon
-                                                            icon={currentPlaying?.id === sound.id && isPlaying ? faPause : faPlay}
-                                                        />
-                                                    </Button>
-                                                </div>
+                                                alt={sound.title}
+                                                className="sound-image"
+                                            />
+                                            <div className="sound-play-overlay">
+                                                <Button
+                                                    className="play-button play-button-enhanced"
+                                                    onClick={() => handlePlayPause(sound)}
+                                                >
+                                                    <FontAwesomeIcon
+                                                        icon={currentPlaying?.id === sound.id && isPlaying ? faPause : faPlay}
+                                                    />
+                                                </Button>
+                                                    </div>
                                                 {sound.is_free && (
-                                                    <Badge
-                                                        bg="success"
-                                                        className="position-absolute top-0 start-0 m-2 text-xs badge-pulse"
-                                                    >
-                                                        Gratuit
-                                                    </Badge>
-                                                )}
+                                                <Badge
+                                                    bg="success"
+                                                    className="position-absolute top-0 start-0 m-2 text-xs badge-pulse"
+                                                >
+                                                    Gratuit
+                                                </Badge>
+                                            )}
                                                 {sound.is_featured && (
-                                                    <Badge
-                                                        bg="danger"
-                                                        className="position-absolute top-0 end-0 m-2 text-xs badge-fire"
-                                                    >
-                                                        <FontAwesomeIcon icon={faFire} className="me-1" />
+                                                <Badge
+                                                    bg="danger"
+                                                    className="position-absolute top-0 end-0 m-2 text-xs badge-fire"
+                                                >
+                                                                <FontAwesomeIcon icon={faFire} className="me-1" />
                                                         Vedette
-                                                    </Badge>
-                                                )}
+                                                            </Badge>
+                                                        )}
+                                                </div>
+
+                                        <Card.Body className="p-3">
+                                            <div className="d-flex justify-content-between align-items-start mb-2">
+                                                <div className="flex-grow-1">
+                                                    <Card.Title className="h6 mb-1 text-truncate">
+                                                    {sound.title}
+                                                    </Card.Title>
+                                                    <Card.Text className="small text-muted mb-2">
+                                                        par {sound.artist}
+                                                    </Card.Text>
+                                                </div>
+                                                <Badge bg="light" text="dark" className="text-xs badge-category">
+                                                    {sound.category}
+                                                </Badge>
                                             </div>
 
-                                            <Card.Body className="p-3">
-                                                <div className="d-flex justify-content-between align-items-start mb-2">
-                                                    <div className="flex-grow-1">
-                                                        <Card.Title className="h6 mb-1 text-truncate">
-                                                            {sound.title}
-                                                        </Card.Title>
-                                                        <Card.Text className="small text-muted mb-2">
-                                                            par {sound.artist}
-                                                        </Card.Text>
-                                                    </div>
-                                                    <Badge bg="light" text="dark" className="text-xs badge-category">
-                                                        {sound.category}
-                                                    </Badge>
-                                                </div>
-
                                                 <div className="d-flex justify-content-between align-items-center mb-2">
-                                                    <div className="d-flex align-items-center gap-3">
+                                                <div className="d-flex align-items-center gap-3">
                                                         <Button
                                                             variant="link"
                                                             size="sm"
@@ -630,11 +711,11 @@ const Home = () => {
                                                             <FontAwesomeIcon icon={faHeart} className="me-1" />
                                                             {formatNumber(sound.likes || 0)}
                                                         </Button>
-                                                        <small className="text-muted stat-item">
-                                                            <FontAwesomeIcon icon={faPlay} className="me-1 text-primary" />
+                                                    <small className="text-muted stat-item">
+                                                        <FontAwesomeIcon icon={faPlay} className="me-1 text-primary" />
                                                             {formatNumber(sound.plays || 0)}
                                                         </small>
-                                                    </div>
+                                                </div>
                                                     <Button
                                                         as={Link}
                                                         to={`/sound/${sound.id}`}
@@ -647,17 +728,17 @@ const Home = () => {
                                                 </div>
 
                                                 <div className="d-flex justify-content-between align-items-center">
-                                                    <div className="text-end">
+                                                <div className="text-end">
                                                         {sound.is_free ? (
-                                                            <span className="fw-bold text-success small price-tag">
-                                                                Gratuit
-                                                            </span>
+                                                        <span className="fw-bold text-success small price-tag">
+                                                            Gratuit
+                                                        </span>
                                                         ) : (
                                                             <span className="fw-bold text-primary small price-tag">
                                                                 {formatCurrency(sound.price || 0)}
                                                             </span>
-                                                        )}
-                                                    </div>
+                                                    )}
+                                                </div>
                                                     <small className="text-muted">
                                                         {sound.duration || '0:00'}
                                                     </small>
@@ -665,9 +746,9 @@ const Home = () => {
                                             </Card.Body>
                                         </Card>
                                     </AnimatedElement>
-                                </Col>
-                            ))}
-                        </Row>
+                            </Col>
+                        ))}
+                    </Row>
                     )}
                 </Container>
             </section>
@@ -828,6 +909,21 @@ const Home = () => {
                     text-decoration: none;
                     font-size: 0.875rem;
                     font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+
+                .category-pill.active {
+                    background: #8B5CF6;
+                    color: white;
+                    border-color: #8B5CF6;
+                    transform: scale(1.05);
+                    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+                }
+
+                .category-pill.active .badge {
+                    background: rgba(255, 255, 255, 0.2) !important;
+                    color: white !important;
                 }
 
                 .category-pill-animated {
@@ -1090,7 +1186,7 @@ const Home = () => {
 
                 .search-input:focus + .search-button {
                     background: #F59E0B !important;
-                    transform: scale(1.05);
+                        transform: scale(1.05);
                 }
 
                 .search-button {

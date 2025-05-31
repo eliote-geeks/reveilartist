@@ -305,7 +305,7 @@ const ArtistProfile = () => {
                                             <div className="stat-item p-3 rounded-3 bg-light">
                                                 <div className="fw-bold text-primary h4 mb-1">
                                                     <FontAwesomeIcon icon={faMusic} className="me-2" />
-                                                    {artist.sounds_count || 0}
+                                                {artist.sounds_count || 0}
                                                 </div>
                                                 <small className="text-muted fw-medium">Sons</small>
                                             </div>
@@ -314,7 +314,7 @@ const ArtistProfile = () => {
                                             <div className="stat-item p-3 rounded-3 bg-light">
                                                 <div className="fw-bold text-success h4 mb-1">
                                                     <FontAwesomeIcon icon={faUsers} className="me-2" />
-                                                    {formatNumber(artist.followers_count || 0)}
+                                                {formatNumber(artist.followers_count || 0)}
                                                 </div>
                                                 <small className="text-muted fw-medium">Followers</small>
                                             </div>
@@ -323,7 +323,7 @@ const ArtistProfile = () => {
                                             <div className="stat-item p-3 rounded-3 bg-light">
                                                 <div className="fw-bold text-warning h4 mb-1">
                                                     <FontAwesomeIcon icon={faHeadphones} className="me-2" />
-                                                    {formatNumber(stats.total_plays || 0)}
+                                                {formatNumber(stats.total_plays || 0)}
                                                 </div>
                                                 <small className="text-muted fw-medium">Écoutes</small>
                                             </div>
@@ -332,7 +332,7 @@ const ArtistProfile = () => {
                                             <div className="stat-item p-3 rounded-3 bg-light">
                                                 <div className="fw-bold text-info h4 mb-1">
                                                     <FontAwesomeIcon icon={faCalendar} className="me-2" />
-                                                    {artist.events_count || 0}
+                                                {artist.events_count || 0}
                                                 </div>
                                                 <small className="text-muted fw-medium">Événements</small>
                                             </div>
@@ -461,10 +461,10 @@ const ArtistProfile = () => {
                                                                         <p className="text-muted small mb-2">{sound.genre || 'Non défini'}</p>
                                                                         <div className="d-flex justify-content-between align-items-center mb-2">
                                                                             <div className="d-flex gap-3">
-                                                                                <small className="text-primary">
-                                                                                    <FontAwesomeIcon icon={faPlay} className="me-1" />
-                                                                                    {formatNumber(sound.plays_count || 0)}
-                                                                                </small>
+                                                                            <small className="text-primary">
+                                                                                <FontAwesomeIcon icon={faPlay} className="me-1" />
+                                                                                {formatNumber(sound.plays_count || 0)}
+                                                                            </small>
                                                                                 <small className="text-danger">
                                                                                     <FontAwesomeIcon icon={faHeart} className="me-1" />
                                                                                     {formatNumber(sound.likes_count || 0)}
