@@ -58,6 +58,35 @@ import DataTable from 'react-data-table-component';
 import styled from 'styled-components';
 import '../../../css/dashboard.css'; // Import du CSS dashboard
 
+// Styles additionnels pour les cartes de statistiques
+const styles = `
+    .stat-card {
+        transition: all 0.3s ease !important;
+        border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px) !important;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+    }
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+`;
+
+// Injecter les styles
+if (!document.getElementById('dashboard-styles')) {
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'dashboard-styles';
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+}
+
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [showModal, setShowModal] = useState(false);
@@ -99,6 +128,8 @@ const Dashboard = () => {
     const [sounds, setSounds] = useState([]);
     const [events, setEvents] = useState([]);
     const [users, setUsers] = useState([]);
+    const [usersRevenue, setUsersRevenue] = useState([]);
+    const [revenueStats, setRevenueStats] = useState({});
     const [stats, setStats] = useState({
         // Statistiques principales
         totalSounds: 0,
@@ -149,7 +180,8 @@ const Dashboard = () => {
                 loadSounds(),
                 loadEvents(),
                 loadUsers(),
-                loadStats()
+                loadStats(),
+                loadUsersRevenue()
             ]);
         } catch (error) {
             console.error('Erreur lors du chargement des données:', error);
@@ -244,6 +276,30 @@ const Dashboard = () => {
         } catch (error) {
             console.error('Erreur chargement utilisateurs:', error);
             setUsers([]);
+        }
+    };
+
+    const loadUsersRevenue = async () => {
+        try {
+            const response = await fetch('/api/dashboard/users-revenue', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setUsersRevenue(Array.isArray(data.users_revenue) ? data.users_revenue : []);
+                setRevenueStats(data.summary || {});
+            } else {
+                setUsersRevenue([]);
+                setRevenueStats({});
+            }
+        } catch (error) {
+            console.error('Erreur chargement revenus utilisateurs:', error);
+            setUsersRevenue([]);
+            setRevenueStats({});
         }
     };
 
@@ -734,6 +790,14 @@ const Dashboard = () => {
             color: 'warning',
             count: stats.totalUsers,
             description: 'Gestion des utilisateurs'
+        },
+        {
+            id: 'revenue',
+            label: 'Revenus',
+            icon: faEuroSign,
+            color: 'success',
+            count: revenueStats.active_sellers || 0,
+            description: 'Revenus par utilisateur'
         },
         {
             id: 'analytics',
@@ -1381,86 +1445,424 @@ const Dashboard = () => {
         }
     ];
 
+    // Colonnes pour la table des revenus utilisateurs
+    const revenueColumns = [
+        {
+            name: 'Vendeur',
+            selector: row => row.name,
+            sortable: true,
+            cell: row => (
+                <div className="d-flex align-items-center">
+                    <div className="me-3 p-3 rounded-circle text-center position-relative" style={{
+                        background: `linear-gradient(135deg, ${
+                            row.seller_category === 'platinum' ? '#e5e7eb, #9ca3af' :
+                            row.seller_category === 'gold' ? '#fbbf24, #f59e0b' :
+                            row.seller_category === 'silver' ? '#6b7280, #4b5563' :
+                            row.seller_category === 'bronze' ? '#92400e, #78350f' :
+                            row.seller_category === 'rookie' ? '#059669, #047857' :
+                            '#6b7280, #4b5563'
+                        })`,
+                        color: 'white',
+                        minWidth: '60px',
+                        minHeight: '60px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <FontAwesomeIcon icon={
+                            row.seller_category === 'platinum' ? faCrown :
+                            row.seller_category === 'gold' ? faStar :
+                            row.seller_category === 'silver' ? faStar :
+                            row.seller_category === 'bronze' ? faStar :
+                            faUser
+                        } className="text-white" />
+
+                        {/* Badge catégorie */}
+                        {row.seller_category !== 'none' && (
+                            <div className="position-absolute" style={{
+                                bottom: '-5px',
+                                right: '-5px',
+                                background: row.seller_category === 'platinum' ? '#8b5cf6' :
+                                           row.seller_category === 'gold' ? '#f59e0b' :
+                                           row.seller_category === 'silver' ? '#6b7280' :
+                                           row.seller_category === 'bronze' ? '#92400e' : '#059669',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                fontWeight: 'bold',
+                                color: 'white',
+                                border: '2px solid white'
+                            }}>
+                                {row.seller_category === 'platinum' ? 'P' :
+                                 row.seller_category === 'gold' ? 'G' :
+                                 row.seller_category === 'silver' ? 'S' :
+                                 row.seller_category === 'bronze' ? 'B' : 'R'}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex-grow-1">
+                        <div className="fw-bold text-dark mb-1">{row.name}</div>
+                        <small className="text-muted d-block">{row.email}</small>
+                        <div className="small d-flex align-items-center gap-2 mt-1">
+                            <Badge bg={row.role === 'artist' ? 'primary' : row.role === 'producer' ? 'success' : 'secondary'}>
+                                <FontAwesomeIcon
+                                    icon={row.role === 'artist' ? faStar : row.role === 'producer' ? faCog : faUser}
+                                    className="me-1"
+                                />
+                                {row.role === 'artist' ? 'Artiste' : row.role === 'producer' ? 'Producteur' : 'Utilisateur'}
+                            </Badge>
+                            {row.seller_category !== 'none' && (
+                                <Badge bg={
+                                    row.seller_category === 'platinum' ? 'secondary' :
+                                    row.seller_category === 'gold' ? 'warning' :
+                                    row.seller_category === 'silver' ? 'light' :
+                                    row.seller_category === 'bronze' ? 'dark' : 'success'
+                                } className="text-uppercase">
+                                    {row.seller_category}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ),
+            width: '280px'
+        },
+        {
+            name: 'Revenus Totaux',
+            selector: row => row.total_earnings,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold h6 mb-1 text-success">
+                        <FontAwesomeIcon icon={faEuroSign} className="me-1" />
+                        {row.formatted_total_earnings}
+                    </div>
+                    <small className="text-muted">
+                        Ventes: {row.formatted_total_sales}
+                    </small>
+                    <div className="small text-info">
+                        Commission: {row.formatted_total_commission_paid}
+                    </div>
+                </div>
+            ),
+            width: '150px'
+        },
+        {
+            name: 'Répartition',
+            selector: row => row.sound_earnings + row.event_earnings,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="mb-2">
+                        <div className="small text-primary">
+                            <FontAwesomeIcon icon={faMusic} className="me-1" />
+                            Sons: {row.formatted_sound_earnings}
+                        </div>
+                        <div className="small text-success">
+                            <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
+                            Events: {row.formatted_event_earnings}
+                        </div>
+                    </div>
+                    {row.total_earnings > 0 && (
+                        <div className="progress" style={{ height: '4px' }}>
+                            <div
+                                className="progress-bar bg-primary"
+                                style={{
+                                    width: `${(row.sound_earnings / row.total_earnings) * 100}%`
+                                }}
+                                title={`Sons: ${Math.round((row.sound_earnings / row.total_earnings) * 100)}%`}
+                            />
+                            <div
+                                className="progress-bar bg-success"
+                                style={{
+                                    width: `${(row.event_earnings / row.total_earnings) * 100}%`
+                                }}
+                                title={`Événements: ${Math.round((row.event_earnings / row.total_earnings) * 100)}%`}
+                            />
+                        </div>
+                    )}
+                </div>
+            ),
+            width: '160px'
+        },
+        {
+            name: 'Ventes',
+            selector: row => row.total_sales_count,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold text-primary mb-1">
+                        <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                        {row.total_sales_count}
+                    </div>
+                    <div className="small text-muted mb-1">
+                        <FontAwesomeIcon icon={faMusic} className="me-1 text-primary" />
+                        {row.sound_sales_count} sons
+                    </div>
+                    <div className="small text-muted">
+                        <FontAwesomeIcon icon={faCalendarAlt} className="me-1 text-success" />
+                        {row.event_sales_count} events
+                    </div>
+                    {row.pending_sales_count > 0 && (
+                        <div className="small text-warning mt-1">
+                            <FontAwesomeIcon icon={faClock} className="me-1" />
+                            {row.pending_sales_count} en attente
+                        </div>
+                    )}
+                </div>
+            ),
+            width: '120px'
+        },
+        {
+            name: 'Performance',
+            selector: row => row.average_sale_amount,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="small text-muted mb-1">Vente moyenne</div>
+                    <div className="fw-medium text-info mb-2">
+                        {row.formatted_average_sale_amount}
+                    </div>
+                    {row.commission_rate > 0 && (
+                        <div className="small text-secondary">
+                            <FontAwesomeIcon icon={faPercentage} className="me-1" />
+                            {row.commission_rate}% commission
+                        </div>
+                    )}
+                    {row.pending_earnings > 0 && (
+                        <div className="small text-warning">
+                            <FontAwesomeIcon icon={faClock} className="me-1" />
+                            {row.formatted_pending_earnings} en attente
+                        </div>
+                    )}
+                </div>
+            ),
+            width: '140px'
+        },
+        {
+            name: 'Activité',
+            selector: row => row.days_since_last_sale,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="small text-muted mb-1">Dernière vente</div>
+                    <div className="fw-medium mb-1">
+                        {row.formatted_last_sale_date}
+                    </div>
+                    {row.days_since_last_sale !== null && (
+                        <div className={`small ${
+                            row.days_since_last_sale <= 7 ? 'text-success' :
+                            row.days_since_last_sale <= 30 ? 'text-warning' : 'text-danger'
+                        }`}>
+                            {row.days_since_last_sale === 0 ? 'Aujourd\'hui' :
+                             row.days_since_last_sale === 1 ? 'Hier' :
+                             `Il y a ${row.days_since_last_sale} jours`}
+                        </div>
+                    )}
+                    <div className="small text-muted">
+                        Membre depuis {row.formatted_join_date}
+                    </div>
+                </div>
+            ),
+            width: '140px'
+        },
+        {
+            name: 'Actions',
+            cell: row => (
+                <div className="d-flex gap-1">
+                    <Button
+                        as={Link}
+                        to={`/artist/${row.id}`}
+                        variant="outline-primary"
+                        size="sm"
+                        title="Voir le profil"
+                    >
+                        <FontAwesomeIcon icon={faEye} />
+                    </Button>
+                    <Button
+                        variant="outline-success"
+                        size="sm"
+                        title="Détails des revenus"
+                    >
+                        <FontAwesomeIcon icon={faChartLine} />
+                    </Button>
+                    {row.pending_earnings > 0 && (
+                        <Button
+                            variant="outline-warning"
+                            size="sm"
+                            title="Paiements en attente"
+                        >
+                            <FontAwesomeIcon icon={faClock} />
+                        </Button>
+                    )}
+                </div>
+            ),
+            ignoreRowClick: true,
+            allowOverflow: true,
+            button: true,
+            width: '120px'
+        }
+    ];
+
+    // Composant DataTable personnalisé
+    const CustomDataTable = styled(DataTable)`
+        .rdt_TableHeadRow {
+            background-color: #f8f9fa !important;
+        }
+        .rdt_TableHead {
+            color: #495057 !important;
+            font-weight: 600 !important;
+        }
+        .rdt_TableRow {
+            transition: all 0.2s ease;
+        }
+        .rdt_TableRow:hover {
+            background-color: rgba(59, 130, 246, 0.04) !important;
+        }
+    `;
+
     // Fonctions d'export
     const exportSounds = () => {
         const csvContent = [
-            ['Titre', 'Artiste', 'Statut', 'Prix', 'Écoutes', 'Date'].join(','),
-            ...getFilteredSounds().map(sound => [
+            ['ID', 'Titre', 'Artiste', 'Date de téléchargement', 'Écoutes', 'Téléchargements', 'Revenu', 'Statut', 'Catégorie', 'Durée', 'Cover'],
+            ...sounds.map(sound => [
+                sound.id,
                 sound.title,
-                typeof sound.artist === 'object' ? sound.artist?.name || sound.user?.name || 'Artiste' : sound.artist || sound.user?.name || 'Artiste',
-                sound.status,
-                sound.is_free ? 'Gratuit' : sound.price || 0,
-                sound.plays_count || sound.plays || 0,
-                new Date(sound.created_at).toLocaleDateString('fr-FR')
-            ].join(','))
-        ].join('\n');
+                sound.artist_name || sound.artist || (sound.user ? sound.user.name : 'Artiste inconnu'),
+                new Date(sound.created_at).toLocaleDateString('fr-FR'),
+                sound.plays_count || 0,
+                sound.downloads_count || 0,
+                formatCurrency(sound.revenue || 0),
+                getStatusBadge(sound.status),
+                sound.category || 'Inconnue',
+                sound.formatted_duration || formatTime(sound.duration) || '0:00',
+                sound.cover || 'Inconnue'
+            ])
+        ];
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const csvString = csvContent.map(row => row.join(',')).join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `sons_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = 'sons.csv';
         link.click();
+        URL.revokeObjectURL(link.href);
     };
 
     const exportEvents = () => {
         const csvContent = [
-            ['Titre', 'Lieu', 'Date', 'Statut', 'Participants', 'Capacité'].join(','),
-            ...getFilteredEvents().map(event => [
+            ['ID', 'Titre', 'Lieu', 'Date', 'Tickets vendus', 'Total de tickets', 'Revenu', 'Statut', 'Catégorie', 'Organisateur'],
+            ...events.map(event => [
+                event.id,
                 event.title,
-                event.venue || event.location || 'Non défini',
+                event.venue || event.location || 'Lieu non défini',
                 new Date(event.event_date || event.date).toLocaleDateString('fr-FR'),
-                event.status,
-                event.current_attendees || 0,
-                event.capacity || event.max_attendees || 0
-            ].join(','))
-        ].join('\n');
+                event.ticketsSold || 0,
+                event.totalTickets || 0,
+                formatCurrency(event.revenue || 0),
+                getStatusBadge(event.status),
+                event.category || 'Inconnue',
+                event.organizer || 'Inconnu'
+            ])
+        ];
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const csvString = csvContent.map(row => row.join(',')).join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `evenements_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = 'événements.csv';
         link.click();
+        URL.revokeObjectURL(link.href);
     };
 
     const exportUsers = () => {
         const csvContent = [
-            ['Nom', 'Email', 'Rôle', 'Sons', 'Revenus', 'Date inscription'].join(','),
-            ...getFilteredUsers().map(user => [
+            ['ID', 'Nom', 'Email', 'Rôle', 'Date de création', 'Date de dernière connexion'],
+            ...users.map(user => [
+                user.id,
                 user.name,
                 user.email,
                 user.role,
-                user.sounds_count || 0,
-                user.revenue || 0,
-                new Date(user.join_date || user.created_at).toLocaleDateString('fr-FR')
-            ].join(','))
-        ].join('\n');
+                new Date(user.created_at).toLocaleDateString('fr-FR'),
+                new Date(user.last_login).toLocaleDateString('fr-FR')
+            ])
+        ];
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const csvString = csvContent.map(row => row.join(',')).join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `utilisateurs_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = 'utilisateurs.csv';
         link.click();
+        URL.revokeObjectURL(link.href);
     };
 
-    // Composant DataTable stylisé
-    const CustomDataTable = styled(DataTable)`
-        .rdt_Table {
-            border-radius: 8px;
+    const exportRevenue = () => {
+        const csvContent = [
+            ['ID', 'Nom', 'Email', 'Rôle', 'Revenu', 'Statut'],
+            ...usersRevenue.map(revenue => [
+                revenue.id,
+                revenue.name,
+                revenue.email,
+                revenue.role,
+                formatCurrency(revenue.total_earnings || 0),
+                getStatusBadge(revenue.status)
+            ])
+        ];
+
+        const csvString = csvContent.map(row => row.join(',')).join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'revenus.csv';
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+
+    // Fonction pour approuver un son
+    const handleApproveSound = async (soundId) => {
+        try {
+            setActionLoading(true);
+            const response = await fetch(`/api/admin/sounds/${soundId}/approve`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success || response.ok) {
+                toast.success('Succès', 'Son approuvé avec succès');
+                loadSounds(); // Recharger la liste
+            } else {
+                toast.error('Erreur', data.message || 'Impossible d\'approuver le son');
+            }
+        } catch (error) {
+            console.error('Erreur lors de l\'approbation:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setActionLoading(false);
         }
-        .rdt_TableHead {
-            background-color: #f8f9fa;
-        }
-        .rdt_TableHeadRow {
-            border-bottom: 2px solid #dee2e6;
-        }
-        .rdt_TableRow:hover {
-            background-color: #f8f9fa;
-        }
-    `;
+    };
+
+    // Fonction de filtrage pour les revenus
+    const getFilteredRevenue = () => {
+        return usersRevenue.filter(user => {
+            // Filtrer seulement les utilisateurs qui ont des revenus ou sont des vendeurs actifs
+            return user.total_earnings > 0 || user.total_sales_count > 0;
+        });
+    };
 
     const renderOverview = () => (
         <div>
-            {/* Cartes de statistiques principales - 4 colonnes avec vraies données */}
+            {/* Cartes de statistiques principales */}
             <Row className="g-4 mb-4">
                 <Col xl={3} lg={6} md={6}>
                     <Card className="stat-card border-0 shadow-sm h-100">
@@ -1514,18 +1916,18 @@ const Dashboard = () => {
                         <Card.Body>
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <p className="text-muted mb-1 small fw-medium">Paiements</p>
-                                    <h2 className="fw-bold mb-0 text-warning">{(stats.totalPayments || 0).toLocaleString()}</h2>
+                                    <p className="text-muted mb-1 small fw-medium">Utilisateurs</p>
+                                    <h2 className="fw-bold mb-0 text-info">{(stats.totalUsers || 0).toLocaleString()}</h2>
                                     <div className="d-flex align-items-center mt-2">
-                                        <span className="text-warning small">
-                                            <FontAwesomeIcon icon={faClock} className="me-1" />
-                                            {stats.pendingPayments || 0}
+                                        <span className="text-success small">
+                                            <FontAwesomeIcon icon={faUsers} className="me-1" />
+                                            {stats.activeUsers || 0}
                                         </span>
-                                        <span className="text-muted small ms-2">en attente</span>
+                                        <span className="text-muted small ms-2">actifs</span>
                                     </div>
                                 </div>
-                                <div className="stat-icon bg-warning bg-opacity-10">
-                                    <FontAwesomeIcon icon={faCreditCard} className="text-warning" />
+                                <div className="stat-icon bg-info bg-opacity-10">
+                                    <FontAwesomeIcon icon={faUsers} className="text-info" />
                                 </div>
                             </div>
                         </Card.Body>
@@ -1537,18 +1939,21 @@ const Dashboard = () => {
                         <Card.Body>
                             <div className="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <p className="text-muted mb-1 small fw-medium">Paiement Moyen</p>
-                                    <h2 className="fw-bold mb-0 text-info">{formatCurrency(stats.averagePayment || 0)}</h2>
+                                    <p className="text-muted mb-1 small fw-medium">Contenu</p>
+                                    <h2 className="fw-bold mb-0 text-warning">{((stats.totalSounds || 0) + (stats.totalEvents || 0)).toLocaleString()}</h2>
                                     <div className="d-flex align-items-center mt-2">
-                                        <span className="text-success small">
-                                            <FontAwesomeIcon icon={faArrowUp} className="me-1" />
-                                            {stats.soundPayments || 0} sons
+                                        <span className="text-primary small">
+                                            <FontAwesomeIcon icon={faMusic} className="me-1" />
+                                            {stats.totalSounds || 0} sons
                                         </span>
-                                        <span className="text-muted small ms-2">+ {stats.eventPayments || 0} events</span>
+                                        <span className="text-success small ms-2">
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
+                                            {stats.totalEvents || 0} events
+                                        </span>
                                     </div>
                                 </div>
-                                <div className="stat-icon bg-info bg-opacity-10">
-                                    <FontAwesomeIcon icon={faChartLine} className="text-info" />
+                                <div className="stat-icon bg-warning bg-opacity-10">
+                                    <FontAwesomeIcon icon={faChartLine} className="text-warning" />
                                 </div>
                             </div>
                         </Card.Body>
@@ -1556,158 +1961,30 @@ const Dashboard = () => {
                 </Col>
             </Row>
 
-            {/* Statistiques détaillées avec vraies données */}
-            <Row className="g-4 mb-4">
+            {/* Statistiques détaillées */}
+            <Row className="g-4">
                 <Col lg={8}>
                     <Card className="border-0 shadow-sm">
                         <Card.Header className="bg-white border-bottom">
-                            <div className="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 className="fw-bold mb-1">Performances Paiements</h5>
-                                    <p className="text-muted mb-0 small">Données réelles de la base de données</p>
-                                </div>
-                                <Button variant="outline-primary" size="sm" onClick={loadStats}>
-                                    <FontAwesomeIcon icon={faSync} className="me-1" />
-                                    Actualiser
-                                </Button>
-                            </div>
+                            <h6 className="fw-bold mb-0">Aperçu des Performances</h6>
                         </Card.Header>
                         <Card.Body>
-                            <Row className="g-3 mb-4">
-                                <Col sm={3}>
+                            <Row className="g-3">
+                                <Col sm={6}>
                                     <div className="text-center p-3 bg-light rounded">
-                                        <FontAwesomeIcon icon={faCheckCircle} className="text-success mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{(stats.completedPayments || 0).toLocaleString()}</div>
-                                        <small className="text-muted">Validés</small>
+                                        <FontAwesomeIcon icon={faMusic} className="text-primary mb-2" size="lg" />
+                                        <div className="fw-bold h5 mb-1">{stats.totalSounds || 0}</div>
+                                        <small className="text-muted">Sons totaux</small>
                                     </div>
                                 </Col>
-                                <Col sm={3}>
+                                <Col sm={6}>
                                     <div className="text-center p-3 bg-light rounded">
-                                        <FontAwesomeIcon icon={faClock} className="text-warning mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{(stats.pendingPayments || 0).toLocaleString()}</div>
-                                        <small className="text-muted">En attente</small>
-                                    </div>
-                                </Col>
-                                <Col sm={3}>
-                                    <div className="text-center p-3 bg-light rounded">
-                                        <FontAwesomeIcon icon={faTimesCircle} className="text-danger mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{(stats.failedPayments || 0).toLocaleString()}</div>
-                                        <small className="text-muted">Échoués</small>
-                                    </div>
-                                </Col>
-                                <Col sm={3}>
-                                    <div className="text-center p-3 bg-light rounded">
-                                        <FontAwesomeIcon icon={faUndo} className="text-info mb-2" size="lg" />
-                                        <div className="fw-bold h5 mb-1">{(stats.refundedPayments || 0).toLocaleString()}</div>
-                                        <small className="text-muted">Remboursés</small>
+                                        <FontAwesomeIcon icon={faCalendarAlt} className="text-success mb-2" size="lg" />
+                                        <div className="fw-bold h5 mb-1">{stats.totalEvents || 0}</div>
+                                        <small className="text-muted">Événements</small>
                                     </div>
                                 </Col>
                             </Row>
-
-                            {/* Affichage des données journalières s'il y en a */}
-                            {dailyStats && dailyStats.length > 0 ? (
-                                <div className="bg-light rounded p-4">
-                                    <h6 className="fw-bold mb-3">Évolution des 7 derniers jours</h6>
-                                    <div className="row g-2">
-                                        {dailyStats.map((day, index) => (
-                                            <div key={index} className="col">
-                                                <div className="text-center">
-                                                    <small className="text-muted d-block">{new Date(day.date).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' })}</small>
-                                                    <div className="fw-bold">{day.count}</div>
-                                                    <small className="text-success">{formatCurrency(day.amount)}</small>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-light rounded p-4 text-center">
-                                    <FontAwesomeIcon icon={faChartLine} size="3x" className="text-muted mb-3" />
-                                    <h6 className="text-muted">Données de paiements</h6>
-                                    <p className="text-muted small mb-0">Visualisation des transactions en temps réel</p>
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </Col>
-
-                <Col lg={4}>
-                    <div className="h-100 d-flex flex-column gap-3">
-                        {/* Top Vendeurs avec vraies données */}
-                        <Card className="border-0 shadow-sm flex-grow-1">
-                            <Card.Header className="bg-white border-bottom">
-                                <h6 className="fw-bold mb-0">Top Vendeurs</h6>
-                            </Card.Header>
-                            <Card.Body>
-                                {topSellers && topSellers.length > 0 ? (
-                                    topSellers.slice(0, 5).map((seller, index) => (
-                                        <div key={seller.seller_id} className="mb-3">
-                                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                                <div className="d-flex align-items-center">
-                                                    <span className="badge bg-primary me-2">{index + 1}</span>
-                                                    <div>
-                                                        <span className="small fw-medium">{seller.seller_name}</span>
-                                                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                                            {seller.seller_role === 'artist' ? 'Artiste' : 'Organisateur'} • {seller.sales_count} vente(s)
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <span className="small fw-bold text-success">{formatCurrency(seller.total_earnings)}</span>
-                                            </div>
-                                            <ProgressBar
-                                                variant="success"
-                                                now={Math.min((seller.total_earnings / (topSellers[0]?.total_earnings || 1)) * 100, 100)}
-                                                style={{ height: '4px' }}
-                                            />
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-3">
-                                        <FontAwesomeIcon icon={faUsers} size="2x" className="text-muted mb-2" />
-                                        <p className="text-muted small mb-0">Aucune vente enregistrée</p>
-                                    </div>
-                                )}
-                            </Card.Body>
-                        </Card>
-
-                        {/* Répartition par type */}
-                        <Card className="border-0 shadow-sm">
-                            <Card.Body className="text-center">
-                                <h6 className="fw-bold mb-3">Répartition des Ventes</h6>
-                                <Row>
-                                    <Col>
-                                        <FontAwesomeIcon icon={faMusic} className="text-primary mb-2" size="lg" />
-                                        <div className="fw-bold text-primary">{stats.soundPayments || 0}</div>
-                                        <small className="text-muted">Sons</small>
-                                    </Col>
-                                    <Col>
-                                        <FontAwesomeIcon icon={faCalendarAlt} className="text-success mb-2" size="lg" />
-                                        <div className="fw-bold text-success">{stats.eventPayments || 0}</div>
-                                        <small className="text-muted">Événements</small>
-                                    </Col>
-                                </Row>
-                            </Card.Body>
-                        </Card>
-                    </div>
-                </Col>
-            </Row>
-
-            {/* Données générales de la plateforme */}
-            <Row className="g-4">
-                <Col lg={4}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Utilisateurs</h6>
-                        </Card.Header>
-                        <Card.Body>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className="text-muted">Total</span>
-                                <span className="fw-bold">{(stats.totalUsers || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="d-flex justify-content-between align-items-center">
-                                <span className="text-muted">Actifs</span>
-                                <span className="fw-bold text-success">{(stats.activeUsers || 0).toLocaleString()}</span>
-                            </div>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -1715,34 +1992,12 @@ const Dashboard = () => {
                 <Col lg={4}>
                     <Card className="border-0 shadow-sm">
                         <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Sons</h6>
+                            <h6 className="fw-bold mb-0">Activité Récente</h6>
                         </Card.Header>
                         <Card.Body>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className="text-muted">Total</span>
-                                <span className="fw-bold">{(stats.totalSounds || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="d-flex justify-content-between align-items-center">
-                                <span className="text-muted">Publiés</span>
-                                <span className="fw-bold text-success">{(stats.publishedSounds || 0).toLocaleString()}</span>
-                            </div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-
-                <Col lg={4}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Événements</h6>
-                        </Card.Header>
-                        <Card.Body>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <span className="text-muted">Total</span>
-                                <span className="fw-bold">{(stats.totalEvents || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="d-flex justify-content-between align-items-center">
-                                <span className="text-muted">Publiés</span>
-                                <span className="fw-bold text-success">{(stats.publishedEvents || 0).toLocaleString()}</span>
+                            <div className="text-center py-3">
+                                <FontAwesomeIcon icon={faChartLine} size="2x" className="text-muted mb-2" />
+                                <p className="text-muted small mb-0">Plateforme active</p>
                             </div>
                         </Card.Body>
                     </Card>
@@ -1753,7 +2008,6 @@ const Dashboard = () => {
 
     const renderSoundsManagement = () => (
         <div>
-            {/* Header avec actions */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h5 className="fw-bold mb-1">Gestion des Sons</h5>
@@ -1765,112 +2019,21 @@ const Dashboard = () => {
                 </Button>
             </div>
 
-            {/* Stats rapides */}
-            <Row className="g-3 mb-4">
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faMusic} className="text-primary mb-2" size="lg" />
-                            <h4 className="fw-bold text-primary">{sounds?.length || 0}</h4>
-                            <small className="text-muted">Sons totaux</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faPlay} className="text-success mb-2" size="lg" />
-                            <h4 className="fw-bold text-success">{((sounds || []).reduce((acc, sound) => acc + (sound.plays_count || sound.plays || 0), 0) || 0).toLocaleString()}</h4>
-                            <small className="text-muted">Écoutes totales</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faDownload} className="text-info mb-2" size="lg" />
-                            <h4 className="fw-bold text-info">{(sounds || []).reduce((acc, sound) => acc + (sound.downloads_count || sound.downloads || 0), 0) || 0}</h4>
-                            <small className="text-muted">Téléchargements</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="lg" />
-                            <h4 className="fw-bold text-warning">{formatCurrency((sounds || []).reduce((acc, sound) => acc + (sound.is_free ? 0 : (sound.price || 0)), 0) || 0)}</h4>
-                            <small className="text-muted">Valeur totale</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Liste des sons */}
             <Card className="border-0 shadow-sm">
                 <Card.Header className="bg-white">
-                    <div className="d-flex justify-content-between align-items-center">
-                        <h6 className="fw-bold mb-0">Tous les sons</h6>
-                        <div className="d-flex gap-2">
-                            <Form.Select
-                                size="sm"
-                                style={{ width: 'auto' }}
-                                value={soundFilter}
-                                onChange={(e) => setSoundFilter(e.target.value)}
-                            >
-                                <option value="all">Tous les statuts</option>
-                                <option value="pending">En attente</option>
-                                <option value="published">Publié</option>
-                                <option value="rejected">Rejeté</option>
-                                <option value="draft">Brouillon</option>
-                            </Form.Select>
-                        </div>
-                    </div>
+                    <h6 className="fw-bold mb-0">Tous les sons</h6>
                 </Card.Header>
-                <Card.Body className="p-0">
+                <Card.Body>
                     {(sounds?.length || 0) === 0 ? (
                         <div className="text-center py-5">
                             <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
                             <h6 className="text-muted">Aucun son trouvé</h6>
-                            <p className="text-muted small">Ajoutez votre premier son</p>
-                            <Button as={Link} to="/add-sound" variant="primary">
-                                <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                Ajouter un son
-                            </Button>
                         </div>
                     ) : (
                         <CustomDataTable
                             columns={soundsColumns}
                             data={getFilteredSounds()}
                             {...dataTableConfig}
-                            subHeader
-                            subHeaderComponent={
-                                <div className="d-flex justify-content-between align-items-center w-100 p-3">
-                                    <div>
-                                        <strong>{getFilteredSounds().length}</strong> son(s) affiché(s)
-                                    </div>
-                                    <div className="d-flex gap-2">
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Rechercher par titre, artiste..."
-                                            size="sm"
-                                            style={{ width: '250px' }}
-                                            value={soundsSearchTerm}
-                                            onChange={(e) => setSoundsSearchTerm(e.target.value)}
-                                        />
-                                        <Button variant="outline-secondary" size="sm">
-                                            <FontAwesomeIcon icon={faSearch} />
-                                        </Button>
-                                        <Button
-                                            variant="outline-primary"
-                                            size="sm"
-                                            onClick={exportSounds}
-                                            title="Exporter en CSV"
-                                        >
-                                            <FontAwesomeIcon icon={faDownload} />
-                                        </Button>
-                                    </div>
-                                </div>
-                            }
                         />
                     )}
                 </Card.Body>
@@ -1880,7 +2043,6 @@ const Dashboard = () => {
 
     const renderEventsManagement = () => (
         <div>
-            {/* Header avec actions */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h5 className="fw-bold mb-1">Gestion des Événements</h5>
@@ -1892,109 +2054,21 @@ const Dashboard = () => {
                 </Button>
             </div>
 
-            {/* Stats rapides */}
-            <Row className="g-3 mb-4">
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faCalendarAlt} className="text-primary mb-2" size="lg" />
-                            <h4 className="fw-bold text-primary">{events?.length || 0}</h4>
-                            <small className="text-muted">Événements totaux</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faTicketAlt} className="text-success mb-2" size="lg" />
-                            <h4 className="fw-bold text-success">{((events || []).reduce((acc, event) => acc + (event.current_attendees || 0), 0) || 0).toLocaleString()}</h4>
-                            <small className="text-muted">Billets vendus</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faUsers} className="text-info mb-2" size="lg" />
-                            <h4 className="fw-bold text-info">{((events || []).reduce((acc, event) => acc + (event.capacity || event.max_attendees || 0), 0) || 0).toLocaleString()}</h4>
-                            <small className="text-muted">Capacité totale</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="lg" />
-                            <h4 className="fw-bold text-warning">{formatCurrency((events || []).reduce((acc, event) => acc + (event.revenue || 0), 0) || 0)}</h4>
-                            <small className="text-muted">Revenus estimés</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Liste des événements */}
             <Card className="border-0 shadow-sm">
                 <Card.Header className="bg-white">
-                    <div className="d-flex justify-content-between align-items-center">
-                        <h6 className="fw-bold mb-0">Tous les événements</h6>
-                        <Form.Select
-                            size="sm"
-                            style={{ width: 'auto' }}
-                            value={eventFilter}
-                            onChange={(e) => setEventFilter(e.target.value)}
-                        >
-                            <option value="all">Tous les statuts</option>
-                            <option value="pending">En attente d'approbation</option>
-                            <option value="published">Publié</option>
-                            <option value="draft">Brouillon</option>
-                        </Form.Select>
-                    </div>
+                    <h6 className="fw-bold mb-0">Tous les événements</h6>
                 </Card.Header>
-                <Card.Body className="p-0">
+                <Card.Body>
                     {(events?.length || 0) === 0 ? (
                         <div className="text-center py-5">
                             <FontAwesomeIcon icon={faCalendarAlt} size="3x" className="text-muted mb-3" />
                             <h6 className="text-muted">Aucun événement trouvé</h6>
-                            <p className="text-muted small">Créez votre premier événement</p>
-                            <Button as={Link} to="/add-event" variant="primary">
-                                <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                Créer un événement
-                            </Button>
                         </div>
                     ) : (
                         <CustomDataTable
                             columns={eventsColumns}
                             data={getFilteredEvents()}
                             {...dataTableConfig}
-                            subHeader
-                            subHeaderComponent={
-                                <div className="d-flex justify-content-between align-items-center w-100 p-3">
-                                    <div>
-                                        <strong>{getFilteredEvents().length}</strong> événement(s) affiché(s)
-                                    </div>
-                                    <div className="d-flex gap-2">
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Rechercher par titre, lieu..."
-                                            size="sm"
-                                            style={{ width: '250px' }}
-                                            value={eventsSearchTerm}
-                                            onChange={(e) => setEventsSearchTerm(e.target.value)}
-                                        />
-                                        <Button variant="outline-secondary" size="sm">
-                                            <FontAwesomeIcon icon={faSearch} />
-                                        </Button>
-                                        <Button
-                                            variant="outline-primary"
-                                            size="sm"
-                                            onClick={exportEvents}
-                                            title="Exporter en CSV"
-                                        >
-                                            <FontAwesomeIcon icon={faDownload} />
-                                        </Button>
-                                    </div>
-                                </div>
-                            }
                         />
                     )}
                 </Card.Body>
@@ -2004,113 +2078,30 @@ const Dashboard = () => {
 
     const renderUsersManagement = () => (
         <div>
-            {/* Header avec actions */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h5 className="fw-bold mb-1">Gestion des Utilisateurs</h5>
                     <p className="text-muted mb-0 small">Gérez tous les utilisateurs de la plateforme</p>
                 </div>
-                <Button variant="primary">
-                    <FontAwesomeIcon icon={faPlus} className="me-2" />
-                    Inviter un utilisateur
-                </Button>
             </div>
 
-            {/* Stats rapides */}
-            <Row className="g-3 mb-4">
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faUsers} className="text-primary mb-2" size="lg" />
-                            <h4 className="fw-bold text-primary">{users.length}</h4>
-                            <small className="text-muted">Utilisateurs totaux</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faMusic} className="text-success mb-2" size="lg" />
-                            <h4 className="fw-bold text-success">{users.filter(u => u.role === 'Artist').length}</h4>
-                            <small className="text-muted">Artistes</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faCog} className="text-info mb-2" size="lg" />
-                            <h4 className="fw-bold text-info">{users.filter(u => u.role === 'Producer').length}</h4>
-                            <small className="text-muted">Producteurs</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="lg" />
-                            <h4 className="fw-bold text-warning">{formatCurrency(users.reduce((acc, user) => acc + user.revenue, 0))}</h4>
-                            <small className="text-muted">Revenus générés</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Liste des utilisateurs */}
             <Card className="border-0 shadow-sm">
                 <Card.Header className="bg-white">
-                    <div className="d-flex justify-content-between align-items-center">
-                        <h6 className="fw-bold mb-0">Tous les utilisateurs</h6>
-                        <div className="d-flex gap-2">
-                            <Form.Select size="sm" style={{ width: 'auto' }}>
-                                <option>Tous les rôles</option>
-                                <option value="Artist">Artiste</option>
-                                <option value="Producer">Producteur</option>
-                                <option value="User">Utilisateur</option>
-                            </Form.Select>
-                            <Form.Select size="sm" style={{ width: 'auto' }}>
-                                <option>Tous les statuts</option>
-                                <option value="active">Actif</option>
-                                <option value="suspended">Suspendu</option>
-                            </Form.Select>
-                        </div>
-                    </div>
+                    <h6 className="fw-bold mb-0">Tous les utilisateurs</h6>
                 </Card.Header>
-                <Card.Body className="p-0">
-                    <CustomDataTable
-                        columns={usersColumns}
-                        data={getFilteredUsers()}
-                        {...dataTableConfig}
-                        subHeader
-                        subHeaderComponent={
-                            <div className="d-flex justify-content-between align-items-center w-100 p-3">
-                                <div>
-                                    <strong>{getFilteredUsers().length}</strong> utilisateur(s) affiché(s)
-                                </div>
-                                <div className="d-flex gap-2">
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="Rechercher par nom, email..."
-                                        size="sm"
-                                        style={{ width: '250px' }}
-                                        value={usersSearchTerm}
-                                        onChange={(e) => setUsersSearchTerm(e.target.value)}
-                                    />
-                                    <Button variant="outline-secondary" size="sm">
-                                        <FontAwesomeIcon icon={faSearch} />
-                                    </Button>
-                                    <Button
-                                        variant="outline-primary"
-                                        size="sm"
-                                        onClick={exportUsers}
-                                        title="Exporter en CSV"
-                                    >
-                                        <FontAwesomeIcon icon={faDownload} />
-                                    </Button>
-                                </div>
-                            </div>
-                        }
-                    />
+                <Card.Body>
+                    {(users?.length || 0) === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faUsers} size="3x" className="text-muted mb-3" />
+                            <h6 className="text-muted">Aucun utilisateur trouvé</h6>
+                        </div>
+                    ) : (
+                        <CustomDataTable
+                            columns={usersColumns}
+                            data={getFilteredUsers()}
+                            {...dataTableConfig}
+                        />
+                    )}
                 </Card.Body>
             </Card>
         </div>
@@ -2123,169 +2114,31 @@ const Dashboard = () => {
                 <p className="text-muted mb-0 small">Analysez les performances financières en temps réel</p>
             </div>
 
-            {/* Métriques principales basées sur les vraies données */}
-            <Row className="g-4 mb-4">
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faChartLine} className="text-primary mb-2" size="2x" />
-                            <h3 className="fw-bold text-primary">
-                                {stats.totalRevenue > 0 && stats.totalCommission > 0 ?
-                                    `${Math.round((stats.totalCommission / stats.totalRevenue) * 100)}%` :
-                                    '0%'
-                                }
-                            </h3>
-                            <small className="text-muted">Taux de commission moyen</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faUsers} className="text-success mb-2" size="2x" />
-                            <h3 className="fw-bold text-success">{(stats.activeUsers || 0).toLocaleString()}</h3>
-                            <small className="text-muted">Utilisateurs actifs</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faCreditCard} className="text-info mb-2" size="2x" />
-                            <h3 className="fw-bold text-info">{(stats.totalPayments || 0).toLocaleString()}</h3>
-                            <small className="text-muted">Transactions totales</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col lg={3} md={6}>
-                    <Card className="border-0 shadow-sm">
-                        <Card.Body className="text-center">
-                            <FontAwesomeIcon icon={faEuroSign} className="text-warning mb-2" size="2x" />
-                            <h3 className="fw-bold text-warning">{formatCurrency(stats.averagePayment || 0)}</h3>
-                            <small className="text-muted">Valeur moyenne transaction</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-
-            <Row className="g-4 mb-4">
-                {/* Répartition des statuts de paiement */}
+            <Row className="g-4">
                 <Col lg={6}>
                     <Card className="border-0 shadow-sm">
-                        <Card.Header className="bg-white">
-                            <h6 className="fw-bold mb-0">Statuts des Paiements</h6>
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Statistiques des Paiements</h6>
                         </Card.Header>
                         <Card.Body>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <div className="d-flex align-items-center">
-                                        <FontAwesomeIcon icon={faCheckCircle} className="text-success me-2" />
-                                        <span className="small fw-medium">Validés</span>
-                                    </div>
-                                    <span className="small fw-bold text-success">
-                                        {stats.completedPayments || 0} ({stats.totalPayments > 0 ? Math.round((stats.completedPayments / stats.totalPayments) * 100) : 0}%)
-                                    </span>
-                                </div>
-                                <ProgressBar
-                                    variant="success"
-                                    now={stats.totalPayments > 0 ? (stats.completedPayments / stats.totalPayments) * 100 : 0}
-                                    style={{ height: '6px' }}
-                                />
-                            </div>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <div className="d-flex align-items-center">
-                                        <FontAwesomeIcon icon={faClock} className="text-warning me-2" />
-                                        <span className="small fw-medium">En attente</span>
-                                    </div>
-                                    <span className="small fw-bold text-warning">
-                                        {stats.pendingPayments || 0} ({stats.totalPayments > 0 ? Math.round((stats.pendingPayments / stats.totalPayments) * 100) : 0}%)
-                                    </span>
-                                </div>
-                                <ProgressBar
-                                    variant="warning"
-                                    now={stats.totalPayments > 0 ? (stats.pendingPayments / stats.totalPayments) * 100 : 0}
-                                    style={{ height: '6px' }}
-                                />
-                            </div>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <div className="d-flex align-items-center">
-                                        <FontAwesomeIcon icon={faTimesCircle} className="text-danger me-2" />
-                                        <span className="small fw-medium">Échoués</span>
-                                    </div>
-                                    <span className="small fw-bold text-danger">
-                                        {stats.failedPayments || 0} ({stats.totalPayments > 0 ? Math.round((stats.failedPayments / stats.totalPayments) * 100) : 0}%)
-                                    </span>
-                                </div>
-                                <ProgressBar
-                                    variant="danger"
-                                    now={stats.totalPayments > 0 ? (stats.failedPayments / stats.totalPayments) * 100 : 0}
-                                    style={{ height: '6px' }}
-                                />
-                            </div>
-                            <div className="mb-0">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <div className="d-flex align-items-center">
-                                        <FontAwesomeIcon icon={faUndo} className="text-info me-2" />
-                                        <span className="small fw-medium">Remboursés</span>
-                                    </div>
-                                    <span className="small fw-bold text-info">
-                                        {stats.refundedPayments || 0} ({stats.totalPayments > 0 ? Math.round((stats.refundedPayments / stats.totalPayments) * 100) : 0}%)
-                                    </span>
-                                </div>
-                                <ProgressBar
-                                    variant="info"
-                                    now={stats.totalPayments > 0 ? (stats.refundedPayments / stats.totalPayments) * 100 : 0}
-                                    style={{ height: '6px' }}
-                                />
+                            <div className="text-center">
+                                <FontAwesomeIcon icon={faChartLine} size="3x" className="text-primary mb-3" />
+                                <h4 className="fw-bold text-primary">{formatCurrency(stats.totalRevenue || 0)}</h4>
+                                <p className="text-muted">Revenus totaux</p>
                             </div>
                         </Card.Body>
                     </Card>
                 </Col>
-
-                {/* Paramètres de commission */}
                 <Col lg={6}>
                     <Card className="border-0 shadow-sm">
-                        <Card.Header className="bg-white">
-                            <h6 className="fw-bold mb-0">Paramètres des Commissions</h6>
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Commissions</h6>
                         </Card.Header>
                         <Card.Body>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <span className="small text-muted">Commission totale perçue</span>
-                                </div>
-                                <div className="fw-bold h5 text-success">{formatCurrency(stats.totalCommission || 0)}</div>
-                            </div>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <span className="small text-muted">Taux moyen effectif</span>
-                                </div>
-                                <div className="fw-bold h6 text-primary">
-                                    {stats.totalRevenue > 0 ?
-                                        `${Math.round((stats.totalCommission / stats.totalRevenue) * 100)}%` :
-                                        '0%'
-                                    }
-                                </div>
-                            </div>
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <span className="small text-muted">Revenus versés aux vendeurs</span>
-                                </div>
-                                <div className="fw-bold h6 text-info">
-                                    {formatCurrency((stats.totalRevenue || 0) - (stats.totalCommission || 0))}
-                                </div>
-                            </div>
-                            <hr />
-                            <div className="small text-muted">
-                                <div className="d-flex justify-content-between mb-1">
-                                    <span>Paiements sons:</span>
-                                    <span className="fw-medium">{stats.soundPayments || 0}</span>
-                                </div>
-                                <div className="d-flex justify-content-between">
-                                    <span>Paiements événements:</span>
-                                    <span className="fw-medium">{stats.eventPayments || 0}</span>
-                                </div>
+                            <div className="text-center">
+                                <FontAwesomeIcon icon={faPercentage} size="3x" className="text-success mb-3" />
+                                <h4 className="fw-bold text-success">{formatCurrency(stats.totalCommission || 0)}</h4>
+                                <p className="text-muted">Commissions perçues</p>
                             </div>
                         </Card.Body>
                     </Card>
@@ -2293,502 +2146,315 @@ const Dashboard = () => {
             </Row>
         </div>
     );
-
-    // Simplification du système de commission
-    const updateCommissionSettings = async (newRates) => {
-        try {
-            const response = await fetch('/api/dashboard/commission', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ rates: newRates })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setCommissionSettings({
-                    sound_commission: data.rates?.sound_commission || newRates.sound_commission || 15,
-                    event_commission: data.rates?.event_commission || newRates.event_commission || 10
-                });
-                toast.success('Succès', 'Paramètres mis à jour');
-            } else {
-                toast.error('Erreur', 'Impossible de mettre à jour');
-            }
-        } catch (error) {
-            toast.error('Erreur', 'Erreur de connexion');
-        }
-    };
-
-    // Fonction pour mettre à jour un seul taux de commission
-    const updateSingleCommissionRate = async (rateType, value) => {
-        const newRates = { [rateType]: parseFloat(value) };
-        await updateCommissionSettings(newRates);
-    };
-
-    // Fonctions de calcul pour les simulateurs
-    const calculateSoundCommission = (price) => {
-        const amount = parseFloat(price) || 0;
-        const rate = commissionSettings.sound_commission || 0;
-        const commission = (amount * rate) / 100;
-        const sellerAmount = amount - commission;
-
-        const commissionElement = document.getElementById('sound-commission-result');
-        const sellerElement = document.getElementById('sound-seller-result');
-
-        if (commissionElement) commissionElement.textContent = formatCurrency(commission);
-        if (sellerElement) sellerElement.textContent = formatCurrency(sellerAmount);
-    };
-
-    const calculateEventCommission = (price) => {
-        const amount = parseFloat(price) || 0;
-        const rate = commissionSettings.event_commission || 0;
-        const commission = (amount * rate) / 100;
-        const sellerAmount = amount - commission;
-
-        const commissionElement = document.getElementById('event-commission-result');
-        const sellerElement = document.getElementById('event-seller-result');
-
-        if (commissionElement) commissionElement.textContent = formatCurrency(commission);
-        if (sellerElement) sellerElement.textContent = formatCurrency(sellerAmount);
-    };
-
-    // Fonction d'export des statistiques
-    const exportStats = () => {
-        const csvContent = [
-            ['Type', 'Nombre', 'Montant Total'],
-            ['Paiements Validés', stats.completedPayments || 0, formatCurrency(stats.totalRevenue || 0)],
-            ['Paiements En Attente', stats.pendingPayments || 0, '-'],
-            ['Commissions Totales', '-', formatCurrency(stats.totalCommission || 0)],
-            ['Utilisateurs Totaux', stats.totalUsers || 0, '-'],
-            ['Sons Publiés', stats.publishedSounds || 0, '-'],
-            ['Événements Publiés', stats.publishedEvents || 0, '-']
-        ].map(row => row.join(',')).join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `dashboard_stats_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-    };
-
-    // Fonction d'export des paiements
-    const exportPayments = () => {
-        const url = '/api/payments/export/csv';
-        window.open(url, '_blank');
-    };
 
     const renderSettings = () => (
         <div>
             <div className="mb-4">
-                <h5 className="fw-bold mb-1">Paramètres de Commission</h5>
-                <p className="text-muted mb-0 small">Configurez les taux de commission pour les sons et événements</p>
+                <h5 className="fw-bold mb-1">Paramètres</h5>
+                <p className="text-muted mb-0 small">Configurez les paramètres de la plateforme</p>
             </div>
 
-            <Row className="g-4">
-                {/* Configuration des taux de commission */}
-                <Col lg={8}>
+            <Card className="border-0 shadow-sm">
+                <Card.Header className="bg-white border-bottom">
+                    <h6 className="fw-bold mb-0">Configuration générale</h6>
+                </Card.Header>
+                <Card.Body>
+                    <div className="text-center py-5">
+                        <FontAwesomeIcon icon={faCog} size="3x" className="text-muted mb-3" />
+                        <h6 className="text-muted">Paramètres</h6>
+                        <p className="text-muted small">Configuration de la plateforme</p>
+                    </div>
+                </Card.Body>
+            </Card>
+        </div>
+    );
+
+    const renderRevenueManagement = () => (
+        <div>
+            {/* Header avec actions */}
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h5 className="fw-bold mb-1">Revenus par Utilisateur</h5>
+                    <p className="text-muted mb-0 small">Analysez les revenus générés par chaque vendeur de la plateforme</p>
+                </div>
+                <div className="d-flex gap-2">
+                    <Button
+                        variant="outline-primary"
+                        onClick={loadUsersRevenue}
+                        disabled={loading}
+                    >
+                        <FontAwesomeIcon icon={faSync} className="me-2" />
+                        Actualiser
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={() => {
+                            // Export des revenus
+                            const csvContent = [
+                                ['Nom', 'Email', 'Rôle', 'Catégorie', 'Revenus Totaux', 'Revenus Sons', 'Revenus Événements', 'Commission Payée', 'Nombre de Ventes', 'Vente Moyenne', 'Dernière Vente'],
+                                ...getFilteredRevenue().map(user => [
+                                    user.name,
+                                    user.email,
+                                    user.role,
+                                    user.seller_category,
+                                    user.total_earnings,
+                                    user.sound_earnings,
+                                    user.event_earnings,
+                                    user.total_commission_paid,
+                                    user.total_sales_count,
+                                    user.average_sale_amount,
+                                    user.formatted_last_sale_date
+                                ])
+                            ].map(row => row.join(',')).join('\n');
+
+                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `revenus_utilisateurs_${new Date().toISOString().split('T')[0]}.csv`;
+                            link.click();
+                        }}
+                    >
+                        <FontAwesomeIcon icon={faDownload} className="me-2" />
+                        Exporter CSV
+                    </Button>
+                </div>
+            </div>
+
+            {/* Statistiques rapides des revenus */}
+            <Row className="g-3 mb-4">
+                <Col lg={3} md={6}>
                     <Card className="border-0 shadow-sm">
-                        <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Taux de Commission Actuels</h6>
-                        </Card.Header>
-                        <Card.Body>
-                            <Row className="g-4">
-                                <Col md={6}>
-                                    <div className="border rounded-3 p-4">
-                                        <div className="d-flex align-items-center mb-3">
-                                            <FontAwesomeIcon icon={faMusic} className="text-primary me-3" size="lg" />
-                                            <div>
-                                                <h6 className="fw-bold mb-0">Commission Sons</h6>
-                                                <small className="text-muted">Taux appliqué sur les ventes de sons</small>
-                                            </div>
-                                        </div>
-                                        <div className="mb-3">
-                                            <Form.Label className="small fw-medium">Taux de commission (%)</Form.Label>
-                                            <div className="d-flex gap-2">
-                                                <Form.Control
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    max="100"
-                                                    value={commissionSettings.sound_commission}
-                                                    onChange={(e) => {
-                                                        const newValue = parseFloat(e.target.value) || 0;
-                                                        setCommissionSettings({
-                                                            ...commissionSettings,
-                                                            sound_commission: newValue
-                                                        });
-                                                    }}
-                                                    onBlur={(e) => {
-                                                        const newValue = parseFloat(e.target.value) || 0;
-                                                        if (newValue !== commissionSettings.sound_commission) {
-                                                            updateSingleCommissionRate('sound_commission', newValue);
-                                                        }
-                                                    }}
-                                                />
-                                                <Button
-                                                    variant="primary"
-                                                    size="sm"
-                                                    onClick={() => updateSingleCommissionRate('sound_commission', commissionSettings.sound_commission)}
-                                                >
-                                                    <FontAwesomeIcon icon={faSync} />
-                                                </Button>
-                                            </div>
-                                            <Form.Text className="text-muted">
-                                                Appuyez sur Entrée ou cliquez sur le bouton pour appliquer
-                                            </Form.Text>
-                                        </div>
-                                        <div className="bg-light rounded p-3">
-                                            <small className="text-muted">Exemple : Sur 1000 XAF</small>
-                                            <div className="d-flex justify-content-between mt-2">
-                                                <span className="small">Commission :</span>
-                                                <span className="small fw-bold text-danger">
-                                                    {formatCurrency((1000 * commissionSettings.sound_commission) / 100)}
-                                                </span>
-                                            </div>
-                                            <div className="d-flex justify-content-between">
-                                                <span className="small">Artiste reçoit :</span>
-                                                <span className="small fw-bold text-success">
-                                                    {formatCurrency(1000 - (1000 * commissionSettings.sound_commission) / 100)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Col>
-                                <Col md={6}>
-                                    <div className="border rounded-3 p-4">
-                                        <div className="d-flex align-items-center mb-3">
-                                            <FontAwesomeIcon icon={faCalendarAlt} className="text-success me-3" size="lg" />
-                                            <div>
-                                                <h6 className="fw-bold mb-0">Commission Événements</h6>
-                                                <small className="text-muted">Taux appliqué sur les ventes de billets</small>
-                                            </div>
-                                        </div>
-                                        <div className="mb-3">
-                                            <Form.Label className="small fw-medium">Taux de commission (%)</Form.Label>
-                                            <div className="d-flex gap-2">
-                                                <Form.Control
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    max="100"
-                                                    value={commissionSettings.event_commission}
-                                                    onChange={(e) => {
-                                                        const newValue = parseFloat(e.target.value) || 0;
-                                                        setCommissionSettings({
-                                                            ...commissionSettings,
-                                                            event_commission: newValue
-                                                        });
-                                                    }}
-                                                    onBlur={(e) => {
-                                                        const newValue = parseFloat(e.target.value) || 0;
-                                                        if (newValue !== commissionSettings.event_commission) {
-                                                            updateSingleCommissionRate('event_commission', newValue);
-                                                        }
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            const newValue = parseFloat(e.target.value) || 0;
-                                                            updateSingleCommissionRate('event_commission', newValue);
-                                                        }
-                                                    }}
-                                                />
-                                                <Button
-                                                    variant="success"
-                                                    size="sm"
-                                                    onClick={() => updateSingleCommissionRate('event_commission', commissionSettings.event_commission)}
-                                                >
-                                                    <FontAwesomeIcon icon={faSync} />
-                                                </Button>
-                                            </div>
-                                            <Form.Text className="text-muted">
-                                                Appuyez sur Entrée ou cliquez sur le bouton pour appliquer
-                                            </Form.Text>
-                                        </div>
-                                        <div className="bg-light rounded p-3">
-                                            <small className="text-muted">Exemple : Sur 5000 XAF</small>
-                                            <div className="d-flex justify-content-between mt-2">
-                                                <span className="small">Commission :</span>
-                                                <span className="small fw-bold text-danger">
-                                                    {formatCurrency((5000 * commissionSettings.event_commission) / 100)}
-                                                </span>
-                                            </div>
-                                            <div className="d-flex justify-content-between">
-                                                <span className="small">Organisateur reçoit :</span>
-                                                <span className="small fw-bold text-success">
-                                                    {formatCurrency(5000 - (5000 * commissionSettings.event_commission) / 100)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Col>
-                            </Row>
-
-                            {/* Boutons d'action globaux */}
-                            <div className="mt-4 d-flex gap-2">
-                                <Button
-                                    variant="primary"
-                                    onClick={() => updateCommissionSettings({
-                                        sound_commission: commissionSettings.sound_commission,
-                                        event_commission: commissionSettings.event_commission
-                                    })}
-                                >
-                                    <FontAwesomeIcon icon={faSync} className="me-2" />
-                                    Mettre à jour tout
-                                </Button>
-                                <Button
-                                    variant="outline-secondary"
-                                    onClick={() => {
-                                        setCommissionSettings({
-                                            sound_commission: 15,
-                                            event_commission: 10
-                                        });
-                                        updateCommissionSettings({
-                                            sound_commission: 15,
-                                            event_commission: 10
-                                        });
-                                    }}
-                                >
-                                    <FontAwesomeIcon icon={faUndo} className="me-2" />
-                                    Réinitialiser
-                                </Button>
-                                <Button
-                                    variant="outline-info"
-                                    onClick={loadCommissionSettings}
-                                >
-                                    <FontAwesomeIcon icon={faDownload} className="me-2" />
-                                    Recharger
-                                </Button>
-                            </div>
-                        </Card.Body>
-                    </Card>
-
-                    {/* Simulateurs de commission */}
-                    <Card className="border-0 shadow-sm mt-4">
-                        <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Simulateur de Commission en Temps Réel</h6>
-                        </Card.Header>
-                        <Card.Body>
-                            <Row className="g-4">
-                                <Col md={6}>
-                                    <div className="bg-light rounded-3 p-4">
-                                        <h6 className="fw-bold mb-3">
-                                            <FontAwesomeIcon icon={faMusic} className="text-primary me-2" />
-                                            Simulation Son
-                                        </h6>
-                                        <div className="mb-3">
-                                            <Form.Label className="small">Prix de vente (XAF)</Form.Label>
-                                            <Form.Control
-                                                type="number"
-                                                placeholder="Ex: 1000"
-                                                onChange={(e) => {
-                                                    const amount = parseFloat(e.target.value) || 0;
-                                                    const commission = (amount * commissionSettings.sound_commission) / 100;
-                                                    const seller = amount - commission;
-
-                                                    const commissionEl = document.getElementById('sound-commission-result');
-                                                    const sellerEl = document.getElementById('sound-seller-result');
-
-                                                    if (commissionEl) commissionEl.textContent = formatCurrency(commission);
-                                                    if (sellerEl) sellerEl.textContent = formatCurrency(seller);
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="border-top pt-3">
-                                            <div className="d-flex justify-content-between mb-2">
-                                                <span className="small text-muted">Commission ({commissionSettings.sound_commission}%)</span>
-                                                <span className="small fw-bold text-danger" id="sound-commission-result">0 XAF</span>
-                                            </div>
-                                            <div className="d-flex justify-content-between">
-                                                <span className="small text-muted">Montant vendeur</span>
-                                                <span className="small fw-bold text-success" id="sound-seller-result">0 XAF</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Col>
-                                <Col md={6}>
-                                    <div className="bg-light rounded-3 p-4">
-                                        <h6 className="fw-bold mb-3">
-                                            <FontAwesomeIcon icon={faCalendarAlt} className="text-success me-2" />
-                                            Simulation Événement
-                                        </h6>
-                                        <div className="mb-3">
-                                            <Form.Label className="small">Prix du billet (XAF)</Form.Label>
-                                            <Form.Control
-                                                type="number"
-                                                placeholder="Ex: 5000"
-                                                onChange={(e) => {
-                                                    const amount = parseFloat(e.target.value) || 0;
-                                                    const commission = (amount * commissionSettings.event_commission) / 100;
-                                                    const seller = amount - commission;
-
-                                                    const commissionEl = document.getElementById('event-commission-result');
-                                                    const sellerEl = document.getElementById('event-seller-result');
-
-                                                    if (commissionEl) commissionEl.textContent = formatCurrency(commission);
-                                                    if (sellerEl) sellerEl.textContent = formatCurrency(seller);
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="border-top pt-3">
-                                            <div className="d-flex justify-content-between mb-2">
-                                                <span className="small text-muted">Commission ({commissionSettings.event_commission}%)</span>
-                                                <span className="small fw-bold text-danger" id="event-commission-result">0 XAF</span>
-                                            </div>
-                                            <div className="d-flex justify-content-between">
-                                                <span className="small text-muted">Montant organisateur</span>
-                                                <span className="small fw-bold text-success" id="event-seller-result">0 XAF</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Col>
-                            </Row>
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faUsers} className="text-primary mb-2" size="lg" />
+                            <h4 className="fw-bold text-primary">{revenueStats.active_sellers || 0}</h4>
+                            <small className="text-muted">Vendeurs actifs</small>
                         </Card.Body>
                     </Card>
                 </Col>
-
-                {/* Statistiques de commission */}
-                <Col lg={4}>
+                <Col lg={3} md={6}>
                     <Card className="border-0 shadow-sm">
-                        <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Résumé des Commissions</h6>
-                        </Card.Header>
-                        <Card.Body>
-                            <div className="text-center mb-4">
-                                <FontAwesomeIcon icon={faPercentage} size="3x" className="text-primary mb-3" />
-                                <h3 className="fw-bold text-primary">{formatCurrency(stats.totalCommission || 0)}</h3>
-                                <small className="text-muted">Total des commissions perçues</small>
-                            </div>
-
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <small className="text-muted">Taux moyen effectif</small>
-                                    <span className="fw-bold">
-                                        {stats.totalRevenue > 0 ?
-                                            `${Math.round((stats.totalCommission / stats.totalRevenue) * 100)}%` :
-                                            '0%'
-                                        }
-                                    </span>
-                                </div>
-                                <ProgressBar
-                                    variant="primary"
-                                    now={stats.totalRevenue > 0 ? (stats.totalCommission / stats.totalRevenue) * 100 : 0}
-                                    style={{ height: '6px' }}
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-1">
-                                    <small className="text-muted">Commissions sons</small>
-                                    <small className="fw-medium text-primary">{commissionSettings.sound_commission}%</small>
-                                </div>
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <small className="text-muted">Commissions événements</small>
-                                    <small className="fw-medium text-success">{commissionSettings.event_commission}%</small>
-                                </div>
-                            </div>
-
-                            <hr />
-
-                            <div className="d-grid gap-2">
-                                <Button
-                                    variant="outline-primary"
-                                    size="sm"
-                                    onClick={loadCommissionSettings}
-                                >
-                                    <FontAwesomeIcon icon={faSync} className="me-2" />
-                                    Actualiser
-                                </Button>
-                                <Button
-                                    variant="outline-success"
-                                    size="sm"
-                                    onClick={exportStats}
-                                >
-                                    <FontAwesomeIcon icon={faDownload} className="me-2" />
-                                    Exporter
-                                </Button>
-                            </div>
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faEuroSign} className="text-success mb-2" size="lg" />
+                            <h4 className="fw-bold text-success">{revenueStats.formatted_total_earnings_all || '0 XAF'}</h4>
+                            <small className="text-muted">Revenus totaux distribués</small>
                         </Card.Body>
                     </Card>
-
-                    {/* Statut de la connexion API */}
-                    <Card className="border-0 shadow-sm mt-3">
+                </Col>
+                <Col lg={3} md={6}>
+                    <Card className="border-0 shadow-sm">
                         <Card.Body className="text-center">
-                            <div className="mb-2">
-                                <div className="d-inline-flex align-items-center gap-2 px-3 py-2 bg-success bg-opacity-10 rounded-pill">
-                                    <div className="bg-success rounded-circle" style={{ width: '8px', height: '8px' }}></div>
-                                    <small className="text-success fw-medium">API Connectée</small>
-                                </div>
-                            </div>
-                            <small className="text-muted">
-                                Dernière synchronisation:<br />
-                                {new Date().toLocaleString('fr-FR')}
-                            </small>
+                            <FontAwesomeIcon icon={faPercentage} className="text-warning mb-2" size="lg" />
+                            <h4 className="fw-bold text-warning">{revenueStats.formatted_total_commission_paid_all || '0 XAF'}</h4>
+                            <small className="text-muted">Commission totale perçue</small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col lg={3} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faChartLine} className="text-info mb-2" size="lg" />
+                            <h4 className="fw-bold text-info">{revenueStats.formatted_average_earnings_per_seller || '0 XAF'}</h4>
+                            <small className="text-muted">Revenus moyens par vendeur</small>
                         </Card.Body>
                     </Card>
                 </Col>
             </Row>
+
+            {/* Répartition par catégorie de vendeurs */}
+            <Row className="g-4 mb-4">
+                <Col lg={8}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Top Vendeurs</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            {revenueStats.top_earner ? (
+                                <div className="d-flex align-items-center mb-3 p-3 bg-light rounded">
+                                    <div className="me-3 p-3 rounded-circle text-center" style={{
+                                        background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                                        color: 'white',
+                                        minWidth: '60px',
+                                        minHeight: '60px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <FontAwesomeIcon icon={faCrown} size="lg" />
+                                    </div>
+                                    <div className="flex-grow-1">
+                                        <h6 className="fw-bold mb-1">🏆 Meilleur Vendeur</h6>
+                                        <div className="fw-medium text-primary">{revenueStats.top_earner.name}</div>
+                                        <div className="text-success fw-bold">{revenueStats.top_earner.formatted_total_earnings}</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-3">
+                                    <FontAwesomeIcon icon={faUsers} size="2x" className="text-muted mb-2" />
+                                    <p className="text-muted">Aucun vendeur actif pour le moment</p>
+                                </div>
+                            )}
+
+                            {/* Statistiques par catégorie */}
+                            <div className="row g-3">
+                                <div className="col-md-6">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faCrown} className="text-secondary me-2" />
+                                            Platinum
+                                        </span>
+                                        <span className="fw-bold">{revenueStats.seller_categories?.platinum || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faStar} className="text-warning me-2" />
+                                            Gold
+                                        </span>
+                                        <span className="fw-bold">{revenueStats.seller_categories?.gold || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faStar} className="text-light me-2" />
+                                            Silver
+                                        </span>
+                                        <span className="fw-bold">{revenueStats.seller_categories?.silver || 0}</span>
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faStar} className="text-dark me-2" />
+                                            Bronze
+                                        </span>
+                                        <span className="fw-bold">{revenueStats.seller_categories?.bronze || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faUser} className="text-success me-2" />
+                                            Rookie
+                                        </span>
+                                        <span className="fw-bold">{revenueStats.seller_categories?.rookie || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+
+                <Col lg={4}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Légende des Catégories</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            <div className="mb-3">
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#8b5cf6', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faCrown} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Platinum</div>
+                                        <small className="text-muted">500 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#f59e0b', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faStar} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Gold</div>
+                                        <small className="text-muted">250 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#6b7280', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faStar} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Silver</div>
+                                        <small className="text-muted">100 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#92400e', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faStar} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Bronze</div>
+                                        <small className="text-muted">25 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#059669', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faUser} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Rookie</div>
+                                        <small className="text-muted">Premières ventes</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Table des revenus */}
+            <Card className="border-0 shadow-sm">
+                <Card.Header className="bg-white">
+                    <div className="d-flex justify-content-between align-items-center">
+                        <h6 className="fw-bold mb-0">Revenus détaillés par vendeur</h6>
+                        <div className="d-flex gap-2">
+                            <Form.Select size="sm" style={{ width: 'auto' }}>
+                                <option>Toutes les catégories</option>
+                                <option value="platinum">Platinum</option>
+                                <option value="gold">Gold</option>
+                                <option value="silver">Silver</option>
+                                <option value="bronze">Bronze</option>
+                                <option value="rookie">Rookie</option>
+                            </Form.Select>
+                        </div>
+                    </div>
+                </Card.Header>
+                <Card.Body className="p-0">
+                    {getFilteredRevenue().length === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faEuroSign} size="3x" className="text-muted mb-3" />
+                            <h6 className="text-muted">Aucun revenu trouvé</h6>
+                            <p className="text-muted small">Les revenus apparaîtront ici une fois les premières ventes effectuées</p>
+                        </div>
+                    ) : (
+                        <CustomDataTable
+                            columns={revenueColumns}
+                            data={getFilteredRevenue()}
+                            {...dataTableConfig}
+                            subHeader
+                            subHeaderComponent={
+                                <div className="d-flex justify-content-between align-items-center w-100 p-3">
+                                    <div>
+                                        <strong>{getFilteredRevenue().length}</strong> vendeur(s) actif(s) •
+                                        <span className="text-success ms-1">
+                                            {revenueStats.formatted_total_earnings_all || '0 XAF'} distribués
+                                        </span>
+                                    </div>
+                                    <div className="d-flex gap-2">
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Rechercher un vendeur..."
+                                            size="sm"
+                                            style={{ width: '250px' }}
+                                        />
+                                        <Button variant="outline-secondary" size="sm">
+                                            <FontAwesomeIcon icon={faSearch} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            }
+                        />
+                    )}
+                </Card.Body>
+            </Card>
         </div>
     );
-
-    // Nouvelles fonctions pour approbation/rejet des sons
-    const handleApproveSound = async (soundId) => {
-        try {
-            setActionLoading(true);
-            const response = await fetch(`/api/admin/sounds/${soundId}/approve`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.success || response.ok) {
-                toast.success('Succès', 'Son approuvé avec succès');
-                loadSounds(); // Recharger la liste
-            } else {
-                toast.error('Erreur', data.message || 'Impossible d\'approuver le son');
-            }
-        } catch (error) {
-            console.error('Erreur lors de l\'approbation:', error);
-            toast.error('Erreur', 'Erreur de connexion au serveur');
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handleRejectSound = async (soundId, reason) => {
-        try {
-            setActionLoading(true);
-            const response = await fetch(`/api/admin/sounds/${soundId}/reject`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ reason })
-            });
-
-            const data = await response.json();
-
-            if (data.success || response.ok) {
-                toast.success('Succès', 'Son rejeté avec succès');
-                loadSounds(); // Recharger la liste
-                setShowSoundRejectModal(false);
-                setRejectReason('');
-            } else {
-                toast.error('Erreur', data.message || 'Impossible de rejeter le son');
-            }
-        } catch (error) {
-            console.error('Erreur lors du rejet:', error);
-            toast.error('Erreur', 'Erreur de connexion au serveur');
-        } finally {
-            setActionLoading(false);
-        }
-    };
 
     return (
         <div className="dashboard-container" style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
@@ -2797,15 +2463,15 @@ const Dashboard = () => {
                 <div className="sidebar shadow-lg" style={{
                     width: '280px',
                     minHeight: '100vh',
-                    height: 'auto', // Changé de minHeight à height auto
+                    height: 'auto',
                     position: 'fixed',
                     top: 0,
                     left: 0,
                     zIndex: 1000,
                     background: 'linear-gradient(180deg, #1e3a8a 0%, #1e40af 50%, #1d4ed8 100%)',
                     borderRight: '1px solid #e5e7eb',
-                    overflowY: 'auto', // Ajouté pour permettre le scroll si nécessaire
-                    maxHeight: '100vh' // Limiter la hauteur maximale
+                    overflowY: 'auto',
+                    maxHeight: '100vh'
                 }}>
                     {/* Header de la sidebar */}
                     <div className="sidebar-header p-4 border-bottom border-white border-opacity-20">
@@ -2851,28 +2517,6 @@ const Dashboard = () => {
                                             boxShadow: activeTab === item.id
                                                 ? '0 4px 15px rgba(0, 0, 0, 0.1)'
                                                 : 'none'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (activeTab !== item.id) {
-                                                e.target.style.background = 'rgba(255, 255, 255, 0.15)';
-                                                e.target.style.transform = 'translateX(4px)';
-                                                // Garder la couleur des icônes
-                                                const icon = e.target.querySelector('.fa-icon');
-                                                if (icon) {
-                                                    icon.style.color = '#ffffff';
-                                                }
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (activeTab !== item.id) {
-                                                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                                                e.target.style.transform = 'translateX(0)';
-                                                // Remettre la couleur normale
-                                                const icon = e.target.querySelector('.fa-icon');
-                                                if (icon) {
-                                                    icon.style.color = '#ffffff';
-                                                }
-                                            }
                                         }}
                                     >
                                         {/* Indicateur actif */}
@@ -2921,151 +2565,7 @@ const Dashboard = () => {
                                 ))}
                             </div>
                         </div>
-
-                        {/* Section Statistiques rapides */}
-                        <div className="mb-4">
-                            <small className="text-white text-opacity-60 text-uppercase fw-bold px-3 d-block mb-3"
-                                   style={{ fontSize: '11px', letterSpacing: '0.5px' }}>
-                                STATISTIQUES RAPIDES
-                            </small>
-                            <div className="px-2">
-                                <div className="p-3 rounded-3 mb-2" style={{
-                                    background: 'rgba(255, 255, 255, 0.1)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)'
-                                }}>
-                                    <div className="d-flex justify-content-between align-items-center mb-2">
-                                        <small className="text-white text-opacity-80" style={{ fontSize: '12px' }}>
-                                            Revenus aujourd'hui
-                                        </small>
-                                        <div className="p-1 bg-success bg-opacity-20 rounded">
-                                            <FontAwesomeIcon icon={faEuroSign} className="text-success" style={{ fontSize: '12px' }} />
-                                        </div>
-                                    </div>
-                                    <div className="fw-bold text-white h6 mb-0" style={{ fontSize: '16px' }}>
-                                        {formatCurrency(stats.totalRevenue * 0.1 || 0)}
-                                    </div>
-                                </div>
-
-                                <div className="p-3 rounded-3 mb-2" style={{
-                                    background: 'rgba(255, 255, 255, 0.1)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)'
-                                }}>
-                                    <div className="d-flex justify-content-between align-items-center mb-2">
-                                        <small className="text-white text-opacity-80" style={{ fontSize: '12px' }}>
-                                            Paiements en attente
-                                        </small>
-                                        <div className="p-1 bg-warning bg-opacity-20 rounded">
-                                            <FontAwesomeIcon icon={faClock} className="text-warning" style={{ fontSize: '12px' }} />
-                                        </div>
-                                    </div>
-                                    <div className="fw-bold text-white h6 mb-0" style={{ fontSize: '16px' }}>
-                                        {(stats.pendingPayments || 0).toLocaleString()}
-                                    </div>
-                                </div>
-
-                                <div className="p-3 rounded-3" style={{
-                                    background: 'rgba(255, 255, 255, 0.1)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)'
-                                }}>
-                                    <div className="d-flex justify-content-between align-items-center mb-2">
-                                        <small className="text-white text-opacity-80" style={{ fontSize: '12px' }}>
-                                            Utilisateurs actifs
-                                        </small>
-                                        <div className="p-1 bg-info bg-opacity-20 rounded">
-                                            <FontAwesomeIcon icon={faUsers} className="text-info" style={{ fontSize: '12px' }} />
-                                        </div>
-                                    </div>
-                                    <div className="fw-bold text-white h6 mb-0" style={{ fontSize: '16px' }}>
-                                        {(stats.activeUsers || stats.totalUsers || 0).toLocaleString()}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Actions rapides */}
-                        <div className="mb-4">
-                            <small className="text-white text-opacity-60 text-uppercase fw-bold px-3 d-block mb-3"
-                                   style={{ fontSize: '11px', letterSpacing: '0.5px' }}>
-                                ACTIONS RAPIDES
-                            </small>
-                            <div className="px-2 d-grid gap-2">
-                                <button
-                                    className="btn btn-outline-light btn-sm d-flex align-items-center justify-content-center"
-                                    onClick={exportStats}
-                                    style={{
-                                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                                        backdropFilter: 'blur(10px)',
-                                        transition: 'all 0.3s ease'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.background = 'rgba(255, 255, 255, 0.15)';
-                                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.background = 'transparent';
-                                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                                    }}
-                                >
-                                    <FontAwesomeIcon icon={faDownload} className="me-2" style={{ fontSize: '12px' }} />
-                                    <span style={{ fontSize: '12px' }}>Exporter Stats</span>
-                                </button>
-                                <button
-                                    className="btn btn-outline-light btn-sm d-flex align-items-center justify-content-center"
-                                    onClick={loadStats}
-                                    style={{
-                                        borderColor: 'rgba(255, 255, 255, 0.3)',
-                                        backdropFilter: 'blur(10px)',
-                                        transition: 'all 0.3s ease'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.background = 'rgba(255, 255, 255, 0.15)';
-                                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.5)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.background = 'transparent';
-                                        e.target.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                                    }}
-                                >
-                                    <FontAwesomeIcon icon={faSync} className="me-2" style={{ fontSize: '12px' }} />
-                                    <span style={{ fontSize: '12px' }}>Actualiser</span>
-                                </button>
-                            </div>
-                        </div>
                     </nav>
-
-                    {/* Footer de la sidebar */}
-                    <div className="sidebar-footer mt-auto p-3" style={{
-                        borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-                        background: 'rgba(0, 0, 0, 0.1)'
-                    }}>
-                        <div className="d-flex align-items-center p-2 rounded-3" style={{
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)'
-                        }}>
-                            <div className="avatar bg-white text-primary rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm"
-                                 style={{ width: '42px', height: '42px', fontSize: '16px', fontWeight: 'bold' }}>
-                                {user?.name?.charAt(0).toUpperCase() || 'A'}
-                            </div>
-                            <div className="flex-grow-1">
-                                <div className="fw-semibold text-white" style={{ fontSize: '13px' }}>
-                                    {user?.name || 'Administrateur'}
-                                </div>
-                                <small className="text-white text-opacity-70" style={{ fontSize: '11px' }}>
-                                    {user?.email || 'admin@reveilartist.com'}
-                                </small>
-                            </div>
-                            <button className="btn btn-outline-light btn-sm p-2" style={{
-                                borderColor: 'rgba(255, 255, 255, 0.3)',
-                                width: '36px',
-                                height: '36px'
-                            }}>
-                                <FontAwesomeIcon icon={faSignOutAlt} style={{ fontSize: '12px' }} />
-                            </button>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Contenu principal */}
@@ -3103,48 +2603,6 @@ const Dashboard = () => {
                                     {navigationItems.find(item => item.id === activeTab)?.description || 'Bienvenue sur votre dashboard administrateur'}
                                 </p>
                             </div>
-                            <div className="d-flex gap-2 align-items-center">
-                                {/* Indicateur de statut */}
-                                <div className="d-flex align-items-center me-3">
-                                    <div className="me-2 p-1 bg-success rounded-circle" style={{ width: '8px', height: '8px' }}></div>
-                                    <small className="text-muted">En ligne</small>
-                                </div>
-
-                                <button className="btn btn-outline-primary btn-sm position-relative" style={{
-                                    borderColor: '#e2e8f0',
-                                    color: '#64748b',
-                                    transition: 'all 0.3s ease'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.target.style.borderColor = '#3b82f6';
-                                    e.target.style.color = '#3b82f6';
-                                    e.target.style.background = 'rgba(59, 130, 246, 0.05)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.target.style.borderColor = '#e2e8f0';
-                                    e.target.style.color = '#64748b';
-                                    e.target.style.background = 'transparent';
-                                }}>
-                                    <FontAwesomeIcon icon={faBell} className="me-1" />
-                                    Notifications
-                                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                                          style={{ fontSize: '10px', padding: '2px 6px' }}>
-                                        3
-                                    </span>
-                                </button>
-
-                                <div className="dropdown">
-                                    <button className="btn btn-primary btn-sm dropdown-toggle"
-                                            style={{
-                                                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                                                border: 'none',
-                                                boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
-                                            }}>
-                                        <FontAwesomeIcon icon={faPlus} className="me-1" />
-                                        Nouveau
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -3162,6 +2620,7 @@ const Dashboard = () => {
                                 {activeTab === 'sounds' && renderSoundsManagement()}
                                 {activeTab === 'events' && renderEventsManagement()}
                                 {activeTab === 'users' && renderUsersManagement()}
+                                {activeTab === 'revenue' && renderRevenueManagement()}
                                 {activeTab === 'analytics' && renderAnalytics()}
                                 {activeTab === 'categories' && <CategoryManagement />}
                                 {activeTab === 'settings' && renderSettings()}
@@ -3170,232 +2629,6 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
-
-            {/* Modal de rejet de son */}
-            <Modal show={showSoundRejectModal} onHide={() => setShowSoundRejectModal(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>Rejeter le son</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Form>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Raison du rejet *</Form.Label>
-                            <Form.Control
-                                as="textarea"
-                                rows={4}
-                                value={rejectReason}
-                                onChange={(e) => setRejectReason(e.target.value)}
-                                placeholder="Expliquez pourquoi ce son est rejeté..."
-                                required
-                            />
-                            <Form.Text className="text-muted">
-                                Cette raison sera envoyée à l'artiste par email.
-                            </Form.Text>
-                        </Form.Group>
-                    </Form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowSoundRejectModal(false)}>
-                        Annuler
-                    </Button>
-                    <Button
-                        variant="danger"
-                        onClick={() => handleRejectSound(selectedSound?.id, rejectReason)}
-                        disabled={!rejectReason.trim() || rejectReason.length < 10 || actionLoading}
-                    >
-                        {actionLoading ? (
-                            <>
-                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
-                                Traitement...
-                            </>
-                        ) : (
-                            'Rejeter le son'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Lecteur audio flottant amélioré */}
-            {showAudioPlayer && currentlyPlaying && (
-                <div className="audio-player-floating position-fixed bottom-0 start-50 translate-middle-x mb-3"
-                     style={{
-                         zIndex: 1050,
-                         width: '400px',
-                         maxWidth: '90vw',
-                         animation: 'slideUp 0.3s ease-out'
-                     }}>
-                    <Card className="shadow-lg border-0" style={{
-                        background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)'
-                    }}>
-                        <Card.Body className="p-4">
-                            {/* Header du lecteur */}
-                            <div className="d-flex align-items-center mb-3">
-                                <div className="me-3 p-2 rounded-3 text-center" style={{
-                                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                                    color: 'white',
-                                    minWidth: '48px',
-                                    minHeight: '48px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <FontAwesomeIcon icon={faMusic} size="lg" />
-                                </div>
-                                <div className="flex-grow-1">
-                                    <div className="fw-bold text-dark mb-1" style={{ fontSize: '14px' }}>
-                                        {currentlyPlaying.title}
-                                    </div>
-                                    <small className="text-muted">
-                                        <FontAwesomeIcon icon={faUser} className="me-1" />
-                                        {typeof currentlyPlaying.artist === 'object' ?
-                                            currentlyPlaying.artist?.name || currentlyPlaying.user?.name || 'Artiste' :
-                                            currentlyPlaying.artist || currentlyPlaying.user?.name || 'Artiste'
-                                        }
-                                    </small>
-                                    {currentlyPlaying.genre && (
-                                        <div className="small text-info">
-                                            <FontAwesomeIcon icon={faTags} className="me-1" />
-                                            {currentlyPlaying.genre}
-                                        </div>
-                                    )}
-                                </div>
-                                <Button
-                                    variant="outline-secondary"
-                                    size="sm"
-                                    onClick={() => {
-                                        if (audioRef) {
-                                            audioRef.pause();
-                                        }
-                                        setCurrentlyPlaying(null);
-                                        setIsPlaying(false);
-                                        setShowAudioPlayer(false);
-                                        setCurrentTime(0);
-                                    }}
-                                    className="rounded-circle p-2"
-                                    style={{ width: '36px', height: '36px' }}
-                                >
-                                    <FontAwesomeIcon icon={faTimes} />
-                                </Button>
-                            </div>
-
-                            {/* Barre de progression interactive */}
-                            <div className="mb-3">
-                                <div className="d-flex justify-content-between small text-muted mb-2">
-                                    <span className="fw-medium">{formatTime(currentTime)}</span>
-                                    <span className="fw-medium">{formatTime(duration)}</span>
-                                </div>
-                                <div
-                                    className="progress"
-                                    style={{
-                                        height: '6px',
-                                        cursor: 'pointer',
-                                        borderRadius: '3px',
-                                        backgroundColor: '#e9ecef'
-                                    }}
-                                    onClick={(e) => {
-                                        if (audioRef && duration > 0) {
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const pos = (e.clientX - rect.left) / rect.width;
-                                            const newTime = pos * duration;
-                                            audioRef.currentTime = newTime;
-                                            setCurrentTime(newTime);
-                                        }
-                                    }}
-                                >
-                                    <div
-                                        className="progress-bar"
-                                        style={{
-                                            width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                                            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                                            transition: 'width 0.1s ease'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Contrôles de lecture */}
-                            <div className="d-flex align-items-center justify-content-between">
-                                {/* Bouton Play/Pause principal */}
-                                <Button
-                                    variant={isPlaying ? "danger" : "success"}
-                                    size="sm"
-                                    onClick={() => {
-                                        if (audioRef) {
-                                            if (isPlaying) {
-                                                audioRef.pause();
-                                                setIsPlaying(false);
-                                            } else {
-                                                audioRef.play();
-                                                setIsPlaying(true);
-                                            }
-                                        }
-                                    }}
-                                    className="d-flex align-items-center rounded-pill px-3"
-                                    style={{ minWidth: '80px' }}
-                                >
-                                    <FontAwesomeIcon
-                                        icon={isPlaying ? faPause : faPlay}
-                                        className="me-2"
-                                    />
-                                    {isPlaying ? "Pause" : "Play"}
-                                </Button>
-
-                                {/* Contrôles de volume */}
-                                <div className="d-flex align-items-center gap-2 flex-grow-1 ms-3">
-                                    <FontAwesomeIcon
-                                        icon={volume === 0 ? faVolumeMute : volume < 0.5 ? faVolumeDown : faVolumeUp}
-                                        className="small text-muted"
-                                        style={{ minWidth: '16px' }}
-                                    />
-                                    <Form.Range
-                                        min="0"
-                                        max="1"
-                                        step="0.1"
-                                        value={volume}
-                                        onChange={(e) => {
-                                            const newVolume = parseFloat(e.target.value);
-                                            setVolume(newVolume);
-                                            if (audioRef) {
-                                                audioRef.volume = newVolume;
-                                            }
-                                        }}
-                                        className="flex-grow-1"
-                                        style={{
-                                            height: '4px',
-                                            cursor: 'pointer'
-                                        }}
-                                    />
-                                    <small className="text-muted" style={{ minWidth: '35px', textAlign: 'right' }}>
-                                        {Math.round(volume * 100)}%
-                                    </small>
-                                </div>
-                            </div>
-
-                            {/* Informations supplémentaires */}
-                            {(currentlyPlaying.bpm || currentlyPlaying.key) && (
-                                <div className="mt-3 pt-3 border-top">
-                                    <div className="d-flex gap-3 small text-muted">
-                                        {currentlyPlaying.bpm && (
-                                            <span>
-                                                <FontAwesomeIcon icon={faMusic} className="me-1" />
-                                                {currentlyPlaying.bpm} BPM
-                                            </span>
-                                        )}
-                                        {currentlyPlaying.key && (
-                                            <span>
-                                                <FontAwesomeIcon icon={faTags} className="me-1" />
-                                                Clé: {currentlyPlaying.key}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </Card.Body>
-                    </Card>
-                </div>
-            )}
         </div>
     );
 };

@@ -459,4 +459,150 @@ class DashboardController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Obtenir les revenus par utilisateur
+     */
+    public function getUsersRevenue()
+    {
+        try {
+            // Récupérer les revenus des vendeurs (utilisateurs qui reçoivent des paiements)
+            $usersRevenue = User::leftJoin('payments', 'users.id', '=', 'payments.seller_id')
+                ->select([
+                    'users.id',
+                    'users.name',
+                    'users.email',
+                    'users.role',
+                    'users.avatar',
+                    'users.created_at as join_date',
+                    // Revenus totaux
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "completed" THEN payments.seller_amount END), 0) as total_earnings'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "completed" THEN payments.amount END), 0) as total_sales'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "completed" THEN payments.commission_amount END), 0) as total_commission_paid'),
+
+                    // Revenus par type
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.type = "sound" AND payments.status = "completed" THEN payments.seller_amount END), 0) as sound_earnings'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.type = "event" AND payments.status = "completed" THEN payments.seller_amount END), 0) as event_earnings'),
+
+                    // Statistiques de vente
+                    DB::raw('COUNT(CASE WHEN payments.status = "completed" THEN 1 END) as total_sales_count'),
+                    DB::raw('COUNT(CASE WHEN payments.type = "sound" AND payments.status = "completed" THEN 1 END) as sound_sales_count'),
+                    DB::raw('COUNT(CASE WHEN payments.type = "event" AND payments.status = "completed" THEN 1 END) as event_sales_count'),
+
+                    // Paiements en attente
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "pending" THEN payments.seller_amount END), 0) as pending_earnings'),
+                    DB::raw('COUNT(CASE WHEN payments.status = "pending" THEN 1 END) as pending_sales_count'),
+
+                    // Moyennes
+                    DB::raw('COALESCE(AVG(CASE WHEN payments.status = "completed" THEN payments.amount END), 0) as average_sale_amount'),
+
+                    // Date de la dernière vente
+                    DB::raw('MAX(CASE WHEN payments.status = "completed" THEN payments.created_at END) as last_sale_date')
+                ])
+                ->groupBy('users.id', 'users.name', 'users.email', 'users.role', 'users.avatar', 'users.created_at')
+                ->orderBy('total_earnings', 'desc')
+                ->get()
+                ->map(function ($user) {
+                    return [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                        'avatar' => $user->avatar,
+                        'join_date' => $user->join_date,
+                        'formatted_join_date' => Carbon::parse($user->join_date)->format('d/m/Y'),
+
+                        // Revenus
+                        'total_earnings' => (float) $user->total_earnings,
+                        'total_sales' => (float) $user->total_sales,
+                        'total_commission_paid' => (float) $user->total_commission_paid,
+                        'sound_earnings' => (float) $user->sound_earnings,
+                        'event_earnings' => (float) $user->event_earnings,
+                        'pending_earnings' => (float) $user->pending_earnings,
+                        'average_sale_amount' => (float) $user->average_sale_amount,
+
+                        // Statistiques de vente
+                        'total_sales_count' => (int) $user->total_sales_count,
+                        'sound_sales_count' => (int) $user->sound_sales_count,
+                        'event_sales_count' => (int) $user->event_sales_count,
+                        'pending_sales_count' => (int) $user->pending_sales_count,
+
+                        // Formatage
+                        'formatted_total_earnings' => number_format($user->total_earnings, 0, ',', ' ') . ' XAF',
+                        'formatted_total_sales' => number_format($user->total_sales, 0, ',', ' ') . ' XAF',
+                        'formatted_total_commission_paid' => number_format($user->total_commission_paid, 0, ',', ' ') . ' XAF',
+                        'formatted_sound_earnings' => number_format($user->sound_earnings, 0, ',', ' ') . ' XAF',
+                        'formatted_event_earnings' => number_format($user->event_earnings, 0, ',', ' ') . ' XAF',
+                        'formatted_pending_earnings' => number_format($user->pending_earnings, 0, ',', ' ') . ' XAF',
+                        'formatted_average_sale_amount' => number_format($user->average_sale_amount, 0, ',', ' ') . ' XAF',
+
+                        // Dates
+                        'last_sale_date' => $user->last_sale_date,
+                        'formatted_last_sale_date' => $user->last_sale_date ?
+                            Carbon::parse($user->last_sale_date)->format('d/m/Y') : 'Aucune vente',
+                        'days_since_last_sale' => $user->last_sale_date ?
+                            Carbon::parse($user->last_sale_date)->diffInDays(now()) : null,
+
+                        // Statut du vendeur
+                        'is_active_seller' => $user->total_sales_count > 0,
+                        'has_pending_sales' => $user->pending_sales_count > 0,
+                        'seller_category' => $this->getSellerCategory($user->total_earnings),
+                        'commission_rate' => $user->total_sales > 0 ?
+                            round(($user->total_commission_paid / $user->total_sales) * 100, 1) : 0,
+                    ];
+                });
+
+            // Calculer les statistiques globales
+            $totalEarnings = $usersRevenue->sum('total_earnings');
+            $totalCommissionPaid = $usersRevenue->sum('total_commission_paid');
+            $activeSellers = $usersRevenue->where('is_active_seller', true)->count();
+            $topEarner = $usersRevenue->first();
+
+            $summary = [
+                'total_users' => $usersRevenue->count(),
+                'active_sellers' => $activeSellers,
+                'total_earnings_all' => $totalEarnings,
+                'total_commission_paid_all' => $totalCommissionPaid,
+                'formatted_total_earnings_all' => number_format($totalEarnings, 0, ',', ' ') . ' XAF',
+                'formatted_total_commission_paid_all' => number_format($totalCommissionPaid, 0, ',', ' ') . ' XAF',
+                'average_earnings_per_seller' => $activeSellers > 0 ? $totalEarnings / $activeSellers : 0,
+                'formatted_average_earnings_per_seller' => $activeSellers > 0 ?
+                    number_format($totalEarnings / $activeSellers, 0, ',', ' ') . ' XAF' : '0 XAF',
+                'top_earner' => $topEarner ? [
+                    'name' => $topEarner['name'],
+                    'total_earnings' => $topEarner['total_earnings'],
+                    'formatted_total_earnings' => $topEarner['formatted_total_earnings']
+                ] : null,
+                'seller_categories' => [
+                    'platinum' => $usersRevenue->where('seller_category', 'platinum')->count(),
+                    'gold' => $usersRevenue->where('seller_category', 'gold')->count(),
+                    'silver' => $usersRevenue->where('seller_category', 'silver')->count(),
+                    'bronze' => $usersRevenue->where('seller_category', 'bronze')->count(),
+                    'rookie' => $usersRevenue->where('seller_category', 'rookie')->count(),
+                ]
+            ];
+
+            return response()->json([
+                'users_revenue' => $usersRevenue,
+                'summary' => $summary
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getUsersRevenue: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur chargement revenus utilisateurs', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Déterminer la catégorie du vendeur basée sur ses revenus
+     */
+    private function getSellerCategory(float $earnings): string
+    {
+        if ($earnings >= 500000) return 'platinum';  // 500k XAF+
+        if ($earnings >= 250000) return 'gold';     // 250k XAF+
+        if ($earnings >= 100000) return 'silver';   // 100k XAF+
+        if ($earnings >= 25000) return 'bronze';    // 25k XAF+
+        if ($earnings > 0) return 'rookie';         // Quelques ventes
+        return 'none';                              // Aucune vente
+    }
 }

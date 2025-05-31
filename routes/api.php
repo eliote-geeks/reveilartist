@@ -110,6 +110,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sounds', [DashboardController::class, 'getSounds']);
         Route::get('/events', [DashboardController::class, 'getEvents']);
         Route::get('/users', [DashboardController::class, 'getUsers']);
+        Route::get('/users-revenue', [DashboardController::class, 'getUsersRevenue']);
 
         // Routes commission simplifiées
         Route::get('/commission', [DashboardController::class, 'getCommission']);
