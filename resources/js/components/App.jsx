@@ -40,7 +40,7 @@ import EditSound from './pages/EditSound';
 import EditEvent from './pages/EditEvent';
 import Cart from './pages/Cart';
 import TicketPurchase from './pages/TicketPurchase';
-import Favorites from './pages/Favorites';
+import MyCreations from './pages/Favorites';
 
 function App() {
     return (
@@ -91,9 +91,15 @@ function App() {
                             </ProtectedRoute>
                         } />
 
+                        <Route path="/mes-creations" element={
+                            <ProtectedRoute>
+                                <MyCreations />
+                            </ProtectedRoute>
+                        } />
+
                         <Route path="/favorites" element={
                             <ProtectedRoute>
-                                <Favorites />
+                                <MyCreations />
                             </ProtectedRoute>
                         } />
 
