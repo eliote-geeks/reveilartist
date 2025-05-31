@@ -130,6 +130,14 @@ const Dashboard = () => {
     const [users, setUsers] = useState([]);
     const [usersRevenue, setUsersRevenue] = useState([]);
     const [revenueStats, setRevenueStats] = useState({});
+
+    // États pour la gestion des commissions
+    const [tempCommissionSettings, setTempCommissionSettings] = useState({
+        sound_commission: 15,
+        event_commission: 10
+    });
+    const [savingCommissions, setSavingCommissions] = useState(false);
+
     const [stats, setStats] = useState({
         // Statistiques principales
         totalSounds: 0,
@@ -160,10 +168,6 @@ const Dashboard = () => {
     const [dailyStats, setDailyStats] = useState([]);
     const [topSellers, setTopSellers] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
-    const [commissionSettings, setCommissionSettings] = useState({
-        sound_commission: 15,
-        event_commission: 10
-    });
 
     const { token, user } = useAuth();
     const toast = useToast();
@@ -194,6 +198,14 @@ const Dashboard = () => {
     // Fonction pour charger les paramètres de commission (simplifiée)
     const loadCommissionSettings = async () => {
         try {
+            // S'assurer que tempCommissionSettings a une valeur par défaut
+            if (!tempCommissionSettings) {
+                setTempCommissionSettings({
+                    sound_commission: 15,
+                    event_commission: 10
+                });
+            }
+
             const response = await fetch('/api/dashboard/commission', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -204,7 +216,7 @@ const Dashboard = () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.rates) {
-                    setCommissionSettings({
+                    setTempCommissionSettings({
                         sound_commission: data.rates.sound_commission || 15,
                         event_commission: data.rates.event_commission || 10
                     });
@@ -212,6 +224,11 @@ const Dashboard = () => {
             }
         } catch (error) {
             console.error('Erreur chargement commission:', error);
+            // Utiliser les valeurs par défaut en cas d'erreur
+            setTempCommissionSettings({
+                sound_commission: 15,
+                event_commission: 10
+            });
         }
     };
 
@@ -2109,22 +2126,263 @@ const Dashboard = () => {
 
     const renderAnalytics = () => (
         <div>
-            <div className="mb-4">
-                <h5 className="fw-bold mb-1">Analytics des Paiements</h5>
-                <p className="text-muted mb-0 small">Analysez les performances financières en temps réel</p>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h5 className="fw-bold mb-1">Analytics & Rapports Détaillés</h5>
+                    <p className="text-muted mb-0 small">Analysez les performances financières et exportez les données</p>
+                </div>
+                <div className="d-flex gap-2">
+                    <Button
+                        variant="outline-primary"
+                        onClick={loadStats}
+                        disabled={loading}
+                    >
+                        <FontAwesomeIcon icon={faSync} className="me-2" />
+                        Actualiser
+                    </Button>
+                    <Button
+                        variant="success"
+                        onClick={() => {
+                            // Export global des statistiques
+                            window.open('/api/dashboard/export-stats', '_blank');
+                        }}
+                    >
+                        <FontAwesomeIcon icon={faDownload} className="me-2" />
+                        Exporter Tout
+                    </Button>
+                </div>
             </div>
 
+            {/* Statistiques principales */}
+            <Row className="g-4 mb-4">
+                <Col xl={3} lg={6} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <div className="stat-icon bg-primary bg-opacity-10 mx-auto mb-3">
+                                <FontAwesomeIcon icon={faEuroSign} className="text-primary" />
+                            </div>
+                            <h3 className="fw-bold text-primary mb-1">{formatCurrency(stats.totalRevenue || 0)}</h3>
+                            <p className="text-muted mb-2">Revenus Totaux</p>
+                            <small className="text-success">
+                                <FontAwesomeIcon icon={faArrowUp} className="me-1" />
+                                {stats.completedPayments || 0} paiements validés
+                            </small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col xl={3} lg={6} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <div className="stat-icon bg-success bg-opacity-10 mx-auto mb-3">
+                                <FontAwesomeIcon icon={faPercentage} className="text-success" />
+                            </div>
+                            <h3 className="fw-bold text-success mb-1">{formatCurrency(stats.totalCommission || 0)}</h3>
+                            <p className="text-muted mb-2">Commissions Perçues</p>
+                            <small className="text-info">
+                                {stats.totalRevenue > 0 ?
+                                    Math.round((stats.totalCommission / stats.totalRevenue) * 100) : 0}% du total
+                            </small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col xl={3} lg={6} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <div className="stat-icon bg-info bg-opacity-10 mx-auto mb-3">
+                                <FontAwesomeIcon icon={faShoppingCart} className="text-info" />
+                            </div>
+                            <h3 className="fw-bold text-info mb-1">{(stats.totalPayments || 0).toLocaleString()}</h3>
+                            <p className="text-muted mb-2">Total Transactions</p>
+                            <small className="text-primary">
+                                Moyenne: {formatCurrency(stats.averagePayment || 0)}
+                            </small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col xl={3} lg={6} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <div className="stat-icon bg-warning bg-opacity-10 mx-auto mb-3">
+                                <FontAwesomeIcon icon={faClock} className="text-warning" />
+                            </div>
+                            <h3 className="fw-bold text-warning mb-1">{stats.pendingPayments || 0}</h3>
+                            <p className="text-muted mb-2">En Attente</p>
+                            <small className="text-danger">
+                                {stats.failedPayments || 0} échecs
+                            </small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Détail par type de contenu */}
+            <Row className="g-4 mb-4">
+                <Col lg={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom d-flex justify-content-between align-items-center">
+                            <h6 className="fw-bold mb-0">
+                                <FontAwesomeIcon icon={faMusic} className="text-primary me-2" />
+                                Revenus des Sons
+                            </h6>
+                            <Button variant="outline-primary" size="sm" onClick={exportSounds}>
+                                <FontAwesomeIcon icon={faDownload} />
+                            </Button>
+                        </Card.Header>
+                        <Card.Body>
+                            <div className="text-center mb-3">
+                                <h4 className="fw-bold text-primary">{(stats.soundPayments || 0).toLocaleString()}</h4>
+                                <p className="text-muted mb-0">Paiements pour les sons</p>
+                            </div>
+                            <div className="d-flex justify-content-between">
+                                <div className="text-center">
+                                    <div className="small text-muted">Total Sons</div>
+                                    <div className="fw-bold">{stats.totalSounds || 0}</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="small text-muted">Publiés</div>
+                                    <div className="fw-bold text-success">{stats.publishedSounds || 0}</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="small text-muted">En attente</div>
+                                    <div className="fw-bold text-warning">{stats.pendingSounds || 0}</div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col lg={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom d-flex justify-content-between align-items-center">
+                            <h6 className="fw-bold mb-0">
+                                <FontAwesomeIcon icon={faCalendarAlt} className="text-success me-2" />
+                                Revenus des Événements
+                            </h6>
+                            <Button variant="outline-success" size="sm" onClick={exportEvents}>
+                                <FontAwesomeIcon icon={faDownload} />
+                            </Button>
+                        </Card.Header>
+                        <Card.Body>
+                            <div className="text-center mb-3">
+                                <h4 className="fw-bold text-success">{(stats.eventPayments || 0).toLocaleString()}</h4>
+                                <p className="text-muted mb-0">Paiements pour les événements</p>
+                            </div>
+                            <div className="d-flex justify-content-between">
+                                <div className="text-center">
+                                    <div className="small text-muted">Total Events</div>
+                                    <div className="fw-bold">{stats.totalEvents || 0}</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="small text-muted">Actifs</div>
+                                    <div className="fw-bold text-success">{stats.activeEvents || 0}</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="small text-muted">Complétés</div>
+                                    <div className="fw-bold text-info">{stats.completedEvents || 0}</div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Statuts des paiements */}
+            <Row className="g-4 mb-4">
+                <Col lg={8}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Répartition des Paiements par Statut</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            <Row className="g-3">
+                                <Col md={3} className="text-center">
+                                    <div className="p-3 bg-success bg-opacity-10 rounded mb-2">
+                                        <FontAwesomeIcon icon={faCheckCircle} className="text-success mb-2" size="lg" />
+                                        <div className="fw-bold h5 text-success">{stats.completedPayments || 0}</div>
+                                        <small className="text-muted">Complétés</small>
+                                    </div>
+                                </Col>
+                                <Col md={3} className="text-center">
+                                    <div className="p-3 bg-warning bg-opacity-10 rounded mb-2">
+                                        <FontAwesomeIcon icon={faClock} className="text-warning mb-2" size="lg" />
+                                        <div className="fw-bold h5 text-warning">{stats.pendingPayments || 0}</div>
+                                        <small className="text-muted">En attente</small>
+                                    </div>
+                                </Col>
+                                <Col md={3} className="text-center">
+                                    <div className="p-3 bg-danger bg-opacity-10 rounded mb-2">
+                                        <FontAwesomeIcon icon={faTimesCircle} className="text-danger mb-2" size="lg" />
+                                        <div className="fw-bold h5 text-danger">{stats.failedPayments || 0}</div>
+                                        <small className="text-muted">Échecs</small>
+                                    </div>
+                                </Col>
+                                <Col md={3} className="text-center">
+                                    <div className="p-3 bg-secondary bg-opacity-10 rounded mb-2">
+                                        <FontAwesomeIcon icon={faUndo} className="text-secondary mb-2" size="lg" />
+                                        <div className="fw-bold h5 text-secondary">{stats.refundedPayments || 0}</div>
+                                        <small className="text-muted">Remboursés</small>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col lg={4}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Actions Rapides</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            <div className="d-grid gap-2">
+                                <Button variant="outline-primary" onClick={exportSounds}>
+                                    <FontAwesomeIcon icon={faMusic} className="me-2" />
+                                    Exporter Sons (CSV)
+                                </Button>
+                                <Button variant="outline-success" onClick={exportEvents}>
+                                    <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
+                                    Exporter Événements (CSV)
+                                </Button>
+                                <Button variant="outline-info" onClick={exportUsers}>
+                                    <FontAwesomeIcon icon={faUsers} className="me-2" />
+                                    Exporter Utilisateurs (CSV)
+                                </Button>
+                                <Button variant="outline-warning" onClick={exportRevenue}>
+                                    <FontAwesomeIcon icon={faEuroSign} className="me-2" />
+                                    Exporter Revenus (CSV)
+                                </Button>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Statistiques utilisateurs */}
             <Row className="g-4">
                 <Col lg={6}>
                     <Card className="border-0 shadow-sm">
                         <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Statistiques des Paiements</h6>
+                            <h6 className="fw-bold mb-0">Statistiques Utilisateurs</h6>
                         </Card.Header>
                         <Card.Body>
-                            <div className="text-center">
-                                <FontAwesomeIcon icon={faChartLine} size="3x" className="text-primary mb-3" />
-                                <h4 className="fw-bold text-primary">{formatCurrency(stats.totalRevenue || 0)}</h4>
-                                <p className="text-muted">Revenus totaux</p>
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <div className="h4 fw-bold text-primary">{stats.totalUsers || 0}</div>
+                                    <small className="text-muted">Total utilisateurs</small>
+                                </div>
+                                <FontAwesomeIcon icon={faUsers} size="2x" className="text-primary opacity-25" />
+                            </div>
+                            <div className="row g-3">
+                                <div className="col-6">
+                                    <div className="text-center p-2 bg-light rounded">
+                                        <div className="fw-bold text-success">{stats.activeUsers || 0}</div>
+                                        <small className="text-muted">Actifs</small>
+                                    </div>
+                                </div>
+                                <div className="col-6">
+                                    <div className="text-center p-2 bg-light rounded">
+                                        <div className="fw-bold text-info">{stats.artistsCount || 0}</div>
+                                        <small className="text-muted">Artistes</small>
+                                    </div>
+                                </div>
                             </div>
                         </Card.Body>
                     </Card>
@@ -2132,13 +2390,27 @@ const Dashboard = () => {
                 <Col lg={6}>
                     <Card className="border-0 shadow-sm">
                         <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Commissions</h6>
+                            <h6 className="fw-bold mb-0">Performance Globale</h6>
                         </Card.Header>
                         <Card.Body>
                             <div className="text-center">
-                                <FontAwesomeIcon icon={faPercentage} size="3x" className="text-success mb-3" />
-                                <h4 className="fw-bold text-success">{formatCurrency(stats.totalCommission || 0)}</h4>
-                                <p className="text-muted">Commissions perçues</p>
+                                <div className="h1 fw-bold text-success mb-2">
+                                    {stats.totalRevenue > 0 && stats.totalPayments > 0 ?
+                                        Math.round((stats.completedPayments / stats.totalPayments) * 100) : 0}%
+                                </div>
+                                <p className="text-muted mb-3">Taux de réussite des paiements</p>
+                                <div className="progress mb-3" style={{ height: '8px' }}>
+                                    <div
+                                        className="progress-bar bg-success"
+                                        style={{
+                                            width: `${stats.totalPayments > 0 ?
+                                                (stats.completedPayments / stats.totalPayments) * 100 : 0}%`
+                                        }}
+                                    />
+                                </div>
+                                <small className="text-muted">
+                                    {stats.completedPayments || 0} succès sur {stats.totalPayments || 0} tentatives
+                                </small>
                             </div>
                         </Card.Body>
                     </Card>
@@ -2147,27 +2419,272 @@ const Dashboard = () => {
         </div>
     );
 
-    const renderSettings = () => (
-        <div>
-            <div className="mb-4">
-                <h5 className="fw-bold mb-1">Paramètres</h5>
-                <p className="text-muted mb-0 small">Configurez les paramètres de la plateforme</p>
-            </div>
+    const renderSettings = () => {
+        // Vérification de sécurité pour éviter l'erreur d'initialisation
+        if (!tempCommissionSettings) {
+            return (
+                <div className="text-center py-5">
+                    <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-primary mb-3" />
+                    <p className="text-muted">Chargement des paramètres...</p>
+                </div>
+            );
+        }
 
-            <Card className="border-0 shadow-sm">
-                <Card.Header className="bg-white border-bottom">
-                    <h6 className="fw-bold mb-0">Configuration générale</h6>
-                </Card.Header>
-                <Card.Body>
-                    <div className="text-center py-5">
-                        <FontAwesomeIcon icon={faCog} size="3x" className="text-muted mb-3" />
-                        <h6 className="text-muted">Paramètres</h6>
-                        <p className="text-muted small">Configuration de la plateforme</p>
+        const handleUpdateCommissions = async () => {
+            setSavingCommissions(true);
+            try {
+                const response = await fetch('/api/dashboard/commission', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        rates: tempCommissionSettings
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    setTempCommissionSettings(data.rates);
+                    toast.success('Succès', 'Taux de commission mis à jour avec succès');
+                } else {
+                    toast.error('Erreur', data.message || 'Impossible de mettre à jour les commissions');
+                }
+            } catch (error) {
+                console.error('Erreur update commissions:', error);
+                toast.error('Erreur', 'Erreur de connexion au serveur');
+            } finally {
+                setSavingCommissions(false);
+            }
+        };
+
+        return (
+            <div>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h5 className="fw-bold mb-1">Paramètres de la Plateforme</h5>
+                        <p className="text-muted mb-0 small">Configurez les taux de commission et autres paramètres</p>
                     </div>
-                </Card.Body>
-            </Card>
-        </div>
-    );
+                </div>
+
+                {/* Configuration des Commissions */}
+                <Row className="g-4 mb-4">
+                    <Col lg={8}>
+                        <Card className="border-0 shadow-sm">
+                            <Card.Header className="bg-white border-bottom">
+                                <h6 className="fw-bold mb-0">
+                                    <FontAwesomeIcon icon={faPercentage} className="text-primary me-2" />
+                                    Taux de Commission
+                                </h6>
+                            </Card.Header>
+                            <Card.Body>
+                                <Row className="g-4">
+                                    <Col md={6}>
+                                        <div className="p-4 border rounded-3">
+                                            <div className="d-flex align-items-center mb-3">
+                                                <div className="me-3 p-2 bg-primary bg-opacity-10 rounded">
+                                                    <FontAwesomeIcon icon={faMusic} className="text-primary" />
+                                                </div>
+                                                <div>
+                                                    <h6 className="fw-bold mb-0">Commission Sons</h6>
+                                                    <small className="text-muted">Pourcentage prélevé sur les ventes de sons</small>
+                                                </div>
+                                            </div>
+                                            <Form.Group>
+                                                <Form.Label className="fw-medium">Taux de commission (%)</Form.Label>
+                                                <div className="input-group">
+                                                    <Form.Control
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.1"
+                                                        value={tempCommissionSettings?.sound_commission || 15}
+                                                        onChange={(e) => setTempCommissionSettings({
+                                                            ...tempCommissionSettings,
+                                                            sound_commission: parseFloat(e.target.value) || 0
+                                                        })}
+                                                    />
+                                                    <span className="input-group-text">%</span>
+                                                </div>
+                                                <Form.Text className="text-muted">
+                                                    Actuellement: {tempCommissionSettings?.sound_commission || 15}%
+                                                </Form.Text>
+                                            </Form.Group>
+                                            <div className="mt-3 p-3 bg-light rounded">
+                                                <small className="text-muted">
+                                                    <strong>Exemple:</strong> Pour une vente de 10 000 XAF<br/>
+                                                    Commission: {(((tempCommissionSettings?.sound_commission || 15) / 100) * 10000).toLocaleString()} XAF<br/>
+                                                    Artiste reçoit: {(10000 - ((tempCommissionSettings?.sound_commission || 15) / 100) * 10000).toLocaleString()} XAF
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </Col>
+                                    <Col md={6}>
+                                        <div className="p-4 border rounded-3">
+                                            <div className="d-flex align-items-center mb-3">
+                                                <div className="me-3 p-2 bg-success bg-opacity-10 rounded">
+                                                    <FontAwesomeIcon icon={faCalendarAlt} className="text-success" />
+                                                </div>
+                                                <div>
+                                                    <h6 className="fw-bold mb-0">Commission Événements</h6>
+                                                    <small className="text-muted">Pourcentage prélevé sur les ventes de tickets</small>
+                                                </div>
+                                            </div>
+                                            <Form.Group>
+                                                <Form.Label className="fw-medium">Taux de commission (%)</Form.Label>
+                                                <div className="input-group">
+                                                    <Form.Control
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.1"
+                                                        value={tempCommissionSettings?.event_commission || 10}
+                                                        onChange={(e) => setTempCommissionSettings({
+                                                            ...tempCommissionSettings,
+                                                            event_commission: parseFloat(e.target.value) || 0
+                                                        })}
+                                                    />
+                                                    <span className="input-group-text">%</span>
+                                                </div>
+                                                <Form.Text className="text-muted">
+                                                    Actuellement: {tempCommissionSettings?.event_commission || 10}%
+                                                </Form.Text>
+                                            </Form.Group>
+                                            <div className="mt-3 p-3 bg-light rounded">
+                                                <small className="text-muted">
+                                                    <strong>Exemple:</strong> Pour une vente de 5 000 XAF<br/>
+                                                    Commission: {(((tempCommissionSettings?.event_commission || 10) / 100) * 5000).toLocaleString()} XAF<br/>
+                                                    Organisateur reçoit: {(5000 - ((tempCommissionSettings?.event_commission || 10) / 100) * 5000).toLocaleString()} XAF
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </Col>
+                                </Row>
+                                <div className="d-flex justify-content-end gap-2 mt-4">
+                                    <Button
+                                        variant="outline-secondary"
+                                        onClick={() => loadCommissionSettings()}
+                                        disabled={savingCommissions}
+                                    >
+                                        <FontAwesomeIcon icon={faUndo} className="me-2" />
+                                        Annuler
+                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        onClick={handleUpdateCommissions}
+                                        disabled={savingCommissions}
+                                    >
+                                        {savingCommissions ? (
+                                            <>
+                                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                                Sauvegarde...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FontAwesomeIcon icon={faCheck} className="me-2" />
+                                                Sauvegarder
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                    <Col lg={4}>
+                        <Card className="border-0 shadow-sm">
+                            <Card.Header className="bg-white border-bottom">
+                                <h6 className="fw-bold mb-0">Statistiques des Commissions</h6>
+                            </Card.Header>
+                            <Card.Body>
+                                <div className="text-center mb-4">
+                                    <div className="h4 fw-bold text-success">{formatCurrency(stats.totalCommission || 0)}</div>
+                                    <small className="text-muted">Total commissions perçues</small>
+                                </div>
+
+                                <div className="mb-3">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="small text-muted">
+                                            <FontAwesomeIcon icon={faMusic} className="me-1 text-primary" />
+                                            Sons
+                                        </span>
+                                        <span className="fw-medium">{tempCommissionSettings?.sound_commission || 15}%</span>
+                                    </div>
+                                    <div className="progress" style={{ height: '4px' }}>
+                                        <div
+                                            className="progress-bar bg-primary"
+                                            style={{ width: `${((tempCommissionSettings?.sound_commission || 15) / 30) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mb-3">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="small text-muted">
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="me-1 text-success" />
+                                            Événements
+                                        </span>
+                                        <span className="fw-medium">{tempCommissionSettings?.event_commission || 10}%</span>
+                                    </div>
+                                    <div className="progress" style={{ height: '4px' }}>
+                                        <div
+                                            className="progress-bar bg-success"
+                                            style={{ width: `${((tempCommissionSettings?.event_commission || 10) / 30) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 p-3 bg-light rounded">
+                                    <small className="text-muted">
+                                        <strong>Note:</strong> Les modifications s'appliquent uniquement aux nouvelles transactions.
+                                    </small>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                </Row>
+
+                {/* Autres paramètres */}
+                <Row className="g-4">
+                    <Col lg={6}>
+                        <Card className="border-0 shadow-sm">
+                            <Card.Header className="bg-white border-bottom">
+                                <h6 className="fw-bold mb-0">
+                                    <FontAwesomeIcon icon={faCog} className="text-secondary me-2" />
+                                    Paramètres Généraux
+                                </h6>
+                            </Card.Header>
+                            <Card.Body>
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faCog} size="2x" className="text-muted mb-3" />
+                                    <p className="text-muted mb-0">Configuration générale de la plateforme</p>
+                                    <small className="text-muted">Fonctionnalité à venir</small>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                    <Col lg={6}>
+                        <Card className="border-0 shadow-sm">
+                            <Card.Header className="bg-white border-bottom">
+                                <h6 className="fw-bold mb-0">
+                                    <FontAwesomeIcon icon={faBell} className="text-warning me-2" />
+                                    Notifications
+                                </h6>
+                            </Card.Header>
+                            <Card.Body>
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faBell} size="2x" className="text-muted mb-3" />
+                                    <p className="text-muted mb-0">Paramètres de notification</p>
+                                    <small className="text-muted">Fonctionnalité à venir</small>
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                </Row>
+            </div>
+        );
+    };
 
     const renderRevenueManagement = () => (
         <div>
