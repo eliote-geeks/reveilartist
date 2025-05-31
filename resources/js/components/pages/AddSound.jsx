@@ -403,9 +403,9 @@ const AddSound = () => {
                 setSuccess('Son ajouté avec succès ! Il sera disponible après validation.');
                 console.log('✅ Succès!');
 
-            setTimeout(() => {
-                    navigate('/dashboard');
-            }, 2000);
+                setTimeout(() => {
+                    navigate('/profile');
+                }, 2000);
             } else {
                 console.log('❌ Erreur serveur:', data);
                 if (data.errors) {

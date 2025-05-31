@@ -589,7 +589,7 @@ class SoundController extends Controller
                 'file_path' => $audioPath,
                 'cover_image' => $coverPath,
                 'duration' => 0, // À calculer avec getID3 ou similar
-                'status' => 'published',
+                'status' => 'pending', // Nouveau statut par défaut : en attente d'approbation
                 'plays_count' => 0,
                 'downloads_count' => 0,
             ]);

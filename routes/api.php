@@ -8,6 +8,7 @@ use App\Http\Controllers\SoundController;
 use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\SoundController as ApiSoundController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\AdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +82,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('api.users.index');
         Route::get('/stats', [UserController::class, 'stats'])->name('api.users.stats');
         Route::delete('/{id}', [UserController::class, 'destroy'])->name('api.users.destroy')->where('id', '[0-9]+');
+    });
+
+    // Gestion des notifications utilisateur
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [UserController::class, 'getNotifications'])->name('api.notifications.index');
+        Route::patch('/{id}/read', [UserController::class, 'markNotificationAsRead'])->name('api.notifications.read')->where('id', '[0-9a-f\-]+');
+        Route::patch('/read-all', [UserController::class, 'markAllNotificationsAsRead'])->name('api.notifications.read-all');
+        Route::delete('/{id}', [UserController::class, 'deleteNotification'])->name('api.notifications.delete')->where('id', '[0-9a-f\-]+');
+    });
+
+    // Routes d'administration (admin uniquement)
+    Route::prefix('admin')->middleware('admin')->group(function () {
+        // Gestion des sons
+        Route::get('/sounds', [AdminController::class, 'getSounds'])->name('api.admin.sounds.index');
+        Route::patch('/sounds/{id}/approve', [AdminController::class, 'approveSound'])->name('api.admin.sounds.approve');
+        Route::patch('/sounds/{id}/reject', [AdminController::class, 'rejectSound'])->name('api.admin.sounds.reject');
+
+        // Notifications
+        Route::post('/send-notification', [AdminController::class, 'sendNotification'])->name('api.admin.notifications.send');
     });
 
     // Gestion des catégories (admin uniquement)

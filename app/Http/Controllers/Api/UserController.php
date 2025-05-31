@@ -337,4 +337,176 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Récupérer les notifications de l'utilisateur connecté
+     */
+    public function getNotifications(Request $request)
+    {
+        try {
+            if (!auth('sanctum')->check()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentification requise'
+                ], 401);
+            }
+
+            $user = auth('sanctum')->user();
+
+            // Récupérer les notifications avec pagination
+            $perPage = $request->get('per_page', 10);
+            $notifications = $user->notifications()
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage);
+
+            // Formater les notifications
+            $formattedNotifications = $notifications->getCollection()->map(function ($notification) {
+                $data = $notification->data;
+                return [
+                    'id' => $notification->id,
+                    'type' => $data['type'] ?? 'info',
+                    'title' => $data['title'] ?? 'Notification',
+                    'message' => $data['message'] ?? '',
+                    'icon' => $data['icon'] ?? 'fas fa-bell',
+                    'color' => $data['color'] ?? 'primary',
+                    'action_url' => $data['action_url'] ?? null,
+                    'sound_id' => $data['sound_id'] ?? null,
+                    'sound_title' => $data['sound_title'] ?? null,
+                    'reason' => $data['reason'] ?? null,
+                    'read_at' => $notification->read_at,
+                    'created_at' => $notification->created_at->toISOString(),
+                    'created_at_human' => $notification->created_at->diffForHumans(),
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'notifications' => $formattedNotifications,
+                'pagination' => [
+                    'current_page' => $notifications->currentPage(),
+                    'per_page' => $notifications->perPage(),
+                    'total' => $notifications->total(),
+                    'last_page' => $notifications->lastPage(),
+                ],
+                'unread_count' => $user->unreadNotifications->count()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des notifications',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Marquer une notification comme lue
+     */
+    public function markNotificationAsRead(Request $request, $notificationId)
+    {
+        try {
+            if (!auth('sanctum')->check()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentification requise'
+                ], 401);
+            }
+
+            $user = auth('sanctum')->user();
+
+            $notification = $user->notifications()->where('id', $notificationId)->first();
+
+            if (!$notification) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Notification non trouvée'
+                ], 404);
+            }
+
+            $notification->markAsRead();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification marquée comme lue'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Marquer toutes les notifications comme lues
+     */
+    public function markAllNotificationsAsRead(Request $request)
+    {
+        try {
+            if (!auth('sanctum')->check()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentification requise'
+                ], 401);
+            }
+
+            $user = auth('sanctum')->user();
+            $user->unreadNotifications->markAsRead();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Toutes les notifications ont été marquées comme lues'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprimer une notification
+     */
+    public function deleteNotification(Request $request, $notificationId)
+    {
+        try {
+            if (!auth('sanctum')->check()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentification requise'
+                ], 401);
+            }
+
+            $user = auth('sanctum')->user();
+
+            $notification = $user->notifications()->where('id', $notificationId)->first();
+
+            if (!$notification) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Notification non trouvée'
+                ], 404);
+            }
+
+            $notification->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification supprimée'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

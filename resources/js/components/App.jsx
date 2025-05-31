@@ -41,6 +41,7 @@ import EditEvent from './pages/EditEvent';
 import Cart from './pages/Cart';
 import TicketPurchase from './pages/TicketPurchase';
 import MyCreations from './pages/Favorites';
+import SoundManagement from './pages/SoundManagement';
 
 function App() {
     return (
@@ -70,6 +71,12 @@ function App() {
                         <Route path="/dashboard" element={
                             <ProtectedRoute requiredRoles={['admin']}>
                                 <Dashboard />
+                            </ProtectedRoute>
+                        } />
+
+                        <Route path="/admin/sounds" element={
+                            <ProtectedRoute requiredRoles={['admin']}>
+                                <SoundManagement />
                             </ProtectedRoute>
                         } />
 

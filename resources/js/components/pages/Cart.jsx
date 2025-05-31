@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Button, Table, Badge, Form, InputGroup, Alert } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Container, Row, Col, Card, Button, Table, Badge, Form, InputGroup, Alert, Modal, Spinner } from 'react-bootstrap';
+import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faTrash, faPlus, faMinus, faShoppingCart, faCreditCard,
     faLock, faEuroSign, faPlay, faTag, faCheck, faHeart,
     faArrowLeft, faShoppingBag, faMusic, faCalendarAlt,
-    faTicketAlt, faMapMarkerAlt, faDownload, faUsers
+    faTicketAlt, faMapMarkerAlt, faDownload, faUsers,
+    faPrint, faCheckCircle, faTimesCircle, faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 import FloatingActionButton from '../common/FloatingActionButton';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 const Cart = () => {
     const {
@@ -23,10 +25,18 @@ const Cart = () => {
         getItemsByType
     } = useCart();
     const toast = useToast();
+    const { user, token } = useAuth();
+    const navigate = useNavigate();
 
     const [promoCode, setPromoCode] = useState('');
     const [appliedPromo, setAppliedPromo] = useState(null);
     const [promoMessage, setPromoMessage] = useState('');
+
+    // États pour le checkout
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [orderSuccess, setOrderSuccess] = useState(false);
+    const [orderData, setOrderData] = useState(null);
 
     const validPromoCodes = {
         'REVEIL20': { discount: 0.20, description: '20% de réduction' },
@@ -92,6 +102,276 @@ const Cart = () => {
     const handleClearCart = () => {
         clearCart();
         toast.success('Panier vidé', 'Tous les articles ont été retirés du panier');
+    };
+
+    // Nouvelle fonction de checkout
+    const handleCheckout = () => {
+        if (!user) {
+            toast.error('Connexion requise', 'Veuillez vous connecter pour effectuer un achat');
+            navigate('/login');
+            return;
+        }
+        setShowCheckoutModal(true);
+    };
+
+    const processTestPayment = async () => {
+        setIsProcessing(true);
+
+        try {
+            // Simuler un délai de traitement de paiement
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Générer un numéro de commande
+            const orderNumber = `RVL-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+
+            // Créer les données de commande
+            const order = {
+                orderNumber,
+                date: new Date().toISOString(),
+                user: {
+                    name: user.name,
+                    email: user.email,
+                    id: user.id
+                },
+                items: cartItems.map(item => ({
+                    ...item,
+                    purchasePrice: item.type === 'sound' ? item.price : item.ticket_price
+                })),
+                subtotal: getSubtotal(),
+                discount: getDiscount(),
+                promoCode: appliedPromo?.code || null,
+                total: getTotal(),
+                paymentMethod: 'Test Payment',
+                status: 'completed'
+            };
+
+            // Simuler l'enregistrement en base de données
+            await saveOrderToDatabase(order);
+
+            setOrderData(order);
+            setOrderSuccess(true);
+
+            // Vider le panier
+            clearCart();
+
+            // Notification de succès
+            toast.success('Commande confirmée !', `Votre commande ${orderNumber} a été traitée avec succès`);
+
+        } catch (error) {
+            toast.error('Erreur de paiement', 'Une erreur est survenue lors du traitement de votre commande');
+            console.error('Erreur checkout:', error);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const saveOrderToDatabase = async (order) => {
+        // Simuler un appel API pour sauvegarder la commande
+        try {
+            const response = await fetch('/api/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    order_number: order.orderNumber,
+                    user_id: order.user.id,
+                    items: order.items,
+                    subtotal: order.subtotal,
+                    discount: order.discount,
+                    promo_code: order.promoCode,
+                    total: order.total,
+                    payment_method: order.paymentMethod,
+                    status: order.status
+                })
+            });
+
+            if (!response.ok) {
+                console.warn('Erreur lors de la sauvegarde de la commande en BDD');
+            }
+        } catch (error) {
+            console.warn('Erreur de connexion à la BDD, commande sauvegardée localement');
+        }
+    };
+
+    const printReceipt = () => {
+        const printWindow = window.open('', '_blank');
+        const receiptHtml = generateReceiptHTML(orderData);
+
+        printWindow.document.write(receiptHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+    };
+
+    const downloadPurchasedItem = (item) => {
+        if (item.type === 'sound') {
+            // Simuler le téléchargement d'un fichier audio
+            const link = document.createElement('a');
+            link.href = item.audio_file_url || '#';
+            link.download = `${item.title}.mp3`;
+            link.click();
+
+            toast.success('Téléchargement', `${item.title} est en cours de téléchargement`);
+        } else {
+            // Pour les événements, générer un ticket PDF
+            generateEventTicket(item);
+        }
+    };
+
+    const generateEventTicket = (event) => {
+        const ticketWindow = window.open('', '_blank');
+        const ticketHtml = generateTicketHTML(event, orderData);
+
+        ticketWindow.document.write(ticketHtml);
+        ticketWindow.document.close();
+        ticketWindow.focus();
+        ticketWindow.print();
+
+        toast.success('Ticket généré', `Votre ticket pour ${event.title} est prêt à imprimer`);
+    };
+
+    const generateReceiptHTML = (order) => {
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Reçu - ${order.orderNumber}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+                    .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
+                    .logo { font-size: 24px; font-weight: bold; color: #667eea; }
+                    .order-info { margin-bottom: 30px; }
+                    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    .items-table th { background-color: #f2f2f2; }
+                    .total-section { border-top: 2px solid #333; padding-top: 15px; }
+                    .total-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                    .final-total { font-weight: bold; font-size: 18px; }
+                    .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+                    @media print { body { margin: 0; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="logo">🎵 Reveil4artist</div>
+                    <h2>Reçu de commande</h2>
+                </div>
+
+                <div class="order-info">
+                    <p><strong>Numéro de commande:</strong> ${order.orderNumber}</p>
+                    <p><strong>Date:</strong> ${new Date(order.date).toLocaleString('fr-FR')}</p>
+                    <p><strong>Client:</strong> ${order.user.name}</p>
+                    <p><strong>Email:</strong> ${order.user.email}</p>
+                </div>
+
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th>Article</th>
+                            <th>Type</th>
+                            <th>Quantité</th>
+                            <th>Prix unitaire</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${order.items.map(item => `
+                            <tr>
+                                <td>${item.title}</td>
+                                <td>${item.type === 'sound' ? 'Son' : 'Ticket événement'}</td>
+                                <td>${item.quantity}</td>
+                                <td>${formatCurrency(item.purchasePrice)}</td>
+                                <td>${formatCurrency(item.purchasePrice * item.quantity)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+
+                <div class="total-section">
+                    <div class="total-line">
+                        <span>Sous-total:</span>
+                        <span>${formatCurrency(order.subtotal)}</span>
+                    </div>
+                    ${order.discount > 0 ? `
+                        <div class="total-line">
+                            <span>Réduction (${order.promoCode}):</span>
+                            <span>-${formatCurrency(order.discount)}</span>
+                        </div>
+                    ` : ''}
+                    <div class="total-line final-total">
+                        <span>Total payé:</span>
+                        <span>${formatCurrency(order.total)}</span>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <p>Merci pour votre achat !</p>
+                    <p>Reveil4artist - Plateforme musicale camerounaise</p>
+                    <p>Ce reçu est généré automatiquement et valide sans signature.</p>
+                </div>
+            </body>
+            </html>
+        `;
+    };
+
+    const generateTicketHTML = (event, order) => {
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Ticket - ${event.title}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+                    .ticket { border: 2px dashed #333; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; }
+                    .ticket-header { text-align: center; margin-bottom: 20px; }
+                    .event-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+                    .ticket-info { margin-bottom: 15px; }
+                    .ticket-info div { margin-bottom: 8px; }
+                    .qr-placeholder { width: 80px; height: 80px; background: white; margin: 20px auto; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; }
+                    .ticket-number { text-align: center; font-family: monospace; font-size: 14px; letter-spacing: 2px; }
+                    @media print { body { margin: 0; } .ticket { border-color: #000; } }
+                </style>
+            </head>
+            <body>
+                <div class="ticket">
+                    <div class="ticket-header">
+                        <div style="font-size: 24px;">🎵</div>
+                        <div class="event-title">${event.title}</div>
+                    </div>
+
+                    <div class="ticket-info">
+                        <div><strong>📅 Date:</strong> ${new Date(event.event_date).toLocaleDateString('fr-FR')}</div>
+                        <div><strong>🕒 Heure:</strong> ${event.start_time || '20:00'}</div>
+                        <div><strong>📍 Lieu:</strong> ${event.venue}</div>
+                        <div><strong>🏙️ Ville:</strong> ${event.city}</div>
+                        <div><strong>🎫 Quantité:</strong> ${event.quantity} ticket(s)</div>
+                        <div><strong>👤 Titulaire:</strong> ${order.user.name}</div>
+                    </div>
+
+                    <div class="qr-placeholder">
+                        QR CODE
+                    </div>
+
+                    <div class="ticket-number">
+                        ${order.orderNumber}-${event.id}
+                    </div>
+
+                    <div style="text-align: center; margin-top: 15px; font-size: 12px;">
+                        <p>Ticket valide - Présenter à l'entrée</p>
+                        <p>Reveil4artist</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+    };
+
+    const closeModal = () => {
+        setShowCheckoutModal(false);
+        setOrderSuccess(false);
+        setOrderData(null);
     };
 
     if (cartItems.length === 0) {
@@ -493,6 +773,7 @@ const Cart = () => {
                                         variant="primary"
                                         size="lg"
                                         className="fw-bold"
+                                        onClick={handleCheckout}
                                     >
                                         <FontAwesomeIcon icon={faLock} className="me-2" />
                                         Procéder au paiement
@@ -546,6 +827,209 @@ const Cart = () => {
                     </Col>
                 </Row>
             </Container>
+
+            {/* Modal de Checkout */}
+            <Modal
+                show={showCheckoutModal}
+                onHide={closeModal}
+                size="lg"
+                centered
+                backdrop={isProcessing || orderSuccess ? "static" : true}
+                keyboard={!isProcessing && !orderSuccess}
+            >
+                <Modal.Header closeButton={!isProcessing && !orderSuccess}>
+                    <Modal.Title>
+                        {!orderSuccess ? (
+                            <>
+                                <FontAwesomeIcon icon={faCreditCard} className="me-2" />
+                                Finaliser votre commande
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faCheckCircle} className="me-2 text-success" />
+                                Commande confirmée !
+                            </>
+                        )}
+                    </Modal.Title>
+                </Modal.Header>
+
+                <Modal.Body>
+                    {!orderSuccess ? (
+                        <>
+                            {/* Résumé de commande */}
+                            <div className="mb-4">
+                                <h6 className="fw-bold mb-3">Résumé de votre commande</h6>
+
+                                {soundItems.length > 0 && (
+                                    <div className="mb-3">
+                                        <div className="d-flex align-items-center mb-2">
+                                            <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
+                                            <strong>Sons ({soundItems.length})</strong>
+                                        </div>
+                                        {soundItems.map(item => (
+                                            <div key={`checkout-sound-${item.id}`} className="d-flex justify-content-between align-items-center mb-1 ps-4">
+                                                <span className="small">{item.title} x{item.quantity}</span>
+                                                <span className="small fw-bold">{formatCurrency(item.price * item.quantity)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {eventItems.length > 0 && (
+                                    <div className="mb-3">
+                                        <div className="d-flex align-items-center mb-2">
+                                            <FontAwesomeIcon icon={faTicketAlt} className="me-2 text-success" />
+                                            <strong>Tickets ({eventItems.length})</strong>
+                                        </div>
+                                        {eventItems.map(item => (
+                                            <div key={`checkout-event-${item.id}`} className="d-flex justify-content-between align-items-center mb-1 ps-4">
+                                                <span className="small">{item.title} x{item.quantity}</span>
+                                                <span className="small fw-bold">{formatCurrency(item.ticket_price * item.quantity)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <hr />
+                                <div className="d-flex justify-content-between align-items-center">
+                                    <strong>Total à payer</strong>
+                                    <strong className="fs-5 text-primary">{formatCurrency(getTotal())}</strong>
+                                </div>
+                                {appliedPromo && (
+                                    <div className="text-success small">
+                                        Économie de {formatCurrency(getDiscount())} avec le code {appliedPromo.code}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Section paiement test */}
+                            <div className="alert alert-info">
+                                <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                                <strong>Mode Test :</strong> Cette transaction sera simulée à des fins de démonstration.
+                            </div>
+
+                            <div className="text-center">
+                                {isProcessing ? (
+                                    <div>
+                                        <Spinner animation="border" variant="primary" className="mb-3" />
+                                        <p>Traitement de votre paiement en cours...</p>
+                                        <small className="text-muted">Veuillez patienter, cela peut prendre quelques secondes.</small>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        variant="success"
+                                        size="lg"
+                                        onClick={processTestPayment}
+                                        className="px-5"
+                                    >
+                                        <FontAwesomeIcon icon={faCreditCard} className="me-2" />
+                                        Payer {formatCurrency(getTotal())} (Test)
+                                    </Button>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        /* Confirmation de commande */
+                        <div className="text-center">
+                            <div className="mb-4">
+                                <FontAwesomeIcon icon={faCheckCircle} size="4x" className="text-success mb-3" />
+                                <h4 className="fw-bold text-success">Commande réussie !</h4>
+                                <p className="text-muted">
+                                    Votre commande <strong>{orderData?.orderNumber}</strong> a été traitée avec succès.
+                                </p>
+                            </div>
+
+                            <div className="row g-3 mb-4">
+                                <div className="col-md-6">
+                                    <Button
+                                        variant="primary"
+                                        onClick={printReceipt}
+                                        className="w-100"
+                                    >
+                                        <FontAwesomeIcon icon={faPrint} className="me-2" />
+                                        Imprimer le reçu
+                                    </Button>
+                                </div>
+                                <div className="col-md-6">
+                                    <Button
+                                        variant="outline-primary"
+                                        onClick={closeModal}
+                                        className="w-100"
+                                    >
+                                        Fermer
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Actions par type d'achat */}
+                            {orderData && (
+                                <div>
+                                    <h6 className="fw-bold mb-3">Vos achats</h6>
+
+                                    {orderData.items.filter(item => item.type === 'sound').length > 0 && (
+                                        <div className="mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
+                                                <strong>Sons téléchargeables</strong>
+                                            </div>
+                                            {orderData.items.filter(item => item.type === 'sound').map(item => (
+                                                <div key={`download-${item.id}`} className="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                                                    <span className="small">{item.title}</span>
+                                                    <Button
+                                                        variant="outline-primary"
+                                                        size="sm"
+                                                        onClick={() => downloadPurchasedItem(item)}
+                                                    >
+                                                        <FontAwesomeIcon icon={faDownload} className="me-1" />
+                                                        Télécharger
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {orderData.items.filter(item => item.type === 'event').length > 0 && (
+                                        <div className="mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <FontAwesomeIcon icon={faTicketAlt} className="me-2 text-success" />
+                                                <strong>Tickets d'événements</strong>
+                                            </div>
+                                            {orderData.items.filter(item => item.type === 'event').map(item => (
+                                                <div key={`ticket-${item.id}`} className="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                                                    <span className="small">{item.title} x{item.quantity}</span>
+                                                    <Button
+                                                        variant="outline-success"
+                                                        size="sm"
+                                                        onClick={() => downloadPurchasedItem(item)}
+                                                    >
+                                                        <FontAwesomeIcon icon={faPrint} className="me-1" />
+                                                        Imprimer ticket
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <Alert variant="info" className="mt-4">
+                                <small>
+                                    <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                                    Un email de confirmation a été envoyé à <strong>{user?.email}</strong>
+                                </small>
+                            </Alert>
+                        </div>
+                    )}
+                </Modal.Body>
+
+                {!orderSuccess && !isProcessing && (
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={closeModal}>
+                            Annuler
+                        </Button>
+                    </Modal.Footer>
+                )}
+            </Modal>
 
             <FloatingActionButton />
         </div>

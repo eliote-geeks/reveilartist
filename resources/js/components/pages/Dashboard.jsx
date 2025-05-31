@@ -33,11 +33,22 @@ import {
     faClock,
     faTags,
     faSpinner,
-    faCheckCircle
+    faCheckCircle,
+    faTimesCircle,
+    faExclamationTriangle,
+    faPause,
+    faStop,
+    faStepForward,
+    faStepBackward,
+    faVolumeUp,
+    faVolumeDown,
+    faVolumeMute
 } from '@fortawesome/free-solid-svg-icons';
 import CategoryManagement from './CategoryManagement';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import DataTable from 'react-data-table-component';
+import styled from 'styled-components';
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -54,6 +65,26 @@ const Dashboard = () => {
     const [selectedEvent, setSelectedEvent] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [eventFilter, setEventFilter] = useState('all');
+
+    // États pour l'approbation/rejet des sons
+    const [showSoundApproveModal, setShowSoundApproveModal] = useState(false);
+    const [showSoundRejectModal, setShowSoundRejectModal] = useState(false);
+    const [selectedSound, setSelectedSound] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
+    const [soundFilter, setSoundFilter] = useState('all');
+
+    // États pour le lecteur audio
+    const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [audioRef, setAudioRef] = useState(null);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(1);
+
+    // États pour la recherche dans les DataTables
+    const [soundsSearchTerm, setSoundsSearchTerm] = useState('');
+    const [eventsSearchTerm, setEventsSearchTerm] = useState('');
+    const [usersSearchTerm, setUsersSearchTerm] = useState('');
 
     // États pour les données API
     const [sounds, setSounds] = useState([]);
@@ -111,18 +142,33 @@ const Dashboard = () => {
 
     const loadSounds = async () => {
         try {
-            const response = await fetch('/api/sounds?per_page=50', {
+            const response = await fetch('/api/admin/sounds', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
-            const data = await response.json();
 
-            if (data.success) {
-                setSounds(data.sounds);
+            if (response.ok) {
+                const data = await response.json();
+                // L'API admin/sounds retourne directement un tableau
+                const soundsArray = Array.isArray(data) ? data : data.data || [];
+                setSounds(soundsArray);
             } else {
-                setSounds([]);
+                console.error('Erreur API admin/sounds:', response.status);
+                // Fallback vers l'API publique si l'API admin échoue
+                const publicResponse = await fetch('/api/sounds?per_page=50', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const publicData = await publicResponse.json();
+                if (publicData.success) {
+                    setSounds(publicData.sounds);
+                } else {
+                    setSounds([]);
+                }
             }
         } catch (error) {
             console.error('Erreur lors du chargement des sons:', error);
@@ -272,6 +318,9 @@ const Dashboard = () => {
                   ).artist || "Aucun")
                 : "Aucun";
 
+            // S'assurer que topArtist est une chaîne
+            const topArtistName = typeof topArtist === 'object' ? topArtist?.name || 'Aucun' : topArtist || 'Aucun';
+
             // Calculer la croissance mensuelle (simulation)
             const monthlyGrowth = totalSounds > 0 ? Math.round(((totalPlays / totalSounds) / 100) * 100) / 100 : 0;
 
@@ -297,7 +346,7 @@ const Dashboard = () => {
 
                 // Croissance et tendances
                 monthlyGrowth: monthlyGrowth || 18.5,
-                topArtist
+                topArtist: topArtistName
             }));
 
         } catch (error) {
@@ -370,9 +419,7 @@ const Dashboard = () => {
     };
 
     const handleDeleteUser = async (userId) => {
-        if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-            return;
-        }
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
 
         try {
             const response = await fetch(`/api/users/${userId}`, {
@@ -383,17 +430,15 @@ const Dashboard = () => {
                 }
             });
 
-            const data = await response.json();
-
-            if (data.success) {
-                toast.success('Succès', 'Utilisateur supprimé avec succès');
-                loadUsers(); // Recharger la liste
+            if (response.ok) {
+                toast.success('Succès', 'Utilisateur supprimé');
+                loadUsers();
             } else {
-                toast.error('Erreur', data.message || 'Impossible de supprimer l\'utilisateur');
+                toast.error('Erreur', 'Impossible de supprimer l\'utilisateur');
             }
         } catch (error) {
-            console.error('Erreur lors de la suppression:', error);
-            toast.error('Erreur', 'Erreur de connexion au serveur');
+            console.error('Erreur suppression utilisateur:', error);
+            toast.error('Erreur', 'Erreur de connexion');
         }
     };
 
@@ -516,7 +561,7 @@ const Dashboard = () => {
             id: 1,
             type: 'sound',
             title: 'Nouveau son ajouté',
-            description: sounds.length > 0 ? `"${sounds[0].title}" par ${sounds[0].artist}` : 'Aucun son récent',
+            description: sounds.length > 0 ? `"${sounds[0].title}" par ${typeof sounds[0].artist === 'object' ? sounds[0].artist?.name || sounds[0].user?.name || 'Artiste' : sounds[0].artist || 'Artiste'}` : 'Aucun son récent',
             time: 'Il y a 2 heures',
             icon: faMusic,
             color: 'primary'
@@ -715,6 +760,48 @@ const Dashboard = () => {
             description: 'Configuration'
         }
     ];
+
+    // Fonctions de filtrage pour les DataTables
+    const getFilteredSounds = () => {
+        return sounds
+            .filter(sound => soundFilter === 'all' || sound.status === soundFilter)
+            .filter(sound => {
+                if (!soundsSearchTerm) return true;
+                const searchLower = soundsSearchTerm.toLowerCase();
+                const artistName = typeof sound.artist === 'object' ?
+                    sound.artist?.name || sound.user?.name || '' :
+                    sound.artist || sound.user?.name || '';
+
+                return sound.title?.toLowerCase().includes(searchLower) ||
+                       artistName.toLowerCase().includes(searchLower) ||
+                       (sound.category || '').toLowerCase().includes(searchLower);
+            });
+    };
+
+    const getFilteredEvents = () => {
+        return events
+            .filter(event => eventFilter === 'all' || event.status === eventFilter)
+            .filter(event => {
+                if (!eventsSearchTerm) return true;
+                const searchLower = eventsSearchTerm.toLowerCase();
+
+                return event.title?.toLowerCase().includes(searchLower) ||
+                       (event.venue || '').toLowerCase().includes(searchLower) ||
+                       (event.city || '').toLowerCase().includes(searchLower) ||
+                       (event.location || '').toLowerCase().includes(searchLower);
+            });
+    };
+
+    const getFilteredUsers = () => {
+        return users.filter(user => {
+            if (!usersSearchTerm) return true;
+            const searchLower = usersSearchTerm.toLowerCase();
+
+            return user.name?.toLowerCase().includes(searchLower) ||
+                   user.email?.toLowerCase().includes(searchLower) ||
+                   user.role?.toLowerCase().includes(searchLower);
+        });
+    };
 
     const renderOverview = () => (
         <div>
@@ -977,7 +1064,7 @@ const Dashboard = () => {
                                     />
                                     <div className="flex-grow-1">
                                         <div className="fw-medium small">{sound.title}</div>
-                                        <div className="text-muted small">{sound.artist}</div>
+                                        <div className="text-muted small">{typeof sound.artist === 'object' ? sound.artist?.name || sound.user?.name || 'Artiste' : sound.artist || sound.user?.name || 'Artiste'}</div>
                                         <div className="d-flex align-items-center gap-3 mt-1">
                                             <small className="text-primary">
                                                 <FontAwesomeIcon icon={faPlay} className="me-1" />
@@ -990,6 +1077,17 @@ const Dashboard = () => {
                                         </div>
                                     </div>
                                     <div className="text-end">
+                                        <Button
+                                            variant={currentlyPlaying?.id === sound.id && isPlaying ? "warning" : "outline-primary"}
+                                            size="sm"
+                                            onClick={() => playSound(sound)}
+                                            className="mb-2"
+                                            title={currentlyPlaying?.id === sound.id && isPlaying ? "Pause" : "Lire"}
+                                        >
+                                            <FontAwesomeIcon
+                                                icon={currentlyPlaying?.id === sound.id && isPlaying ? faPause : faPlay}
+                                            />
+                                        </Button>
                                         {getStatusBadge(sound.status)}
                                         <div className="fw-bold small text-primary mt-1">
                                             {formatCurrency(sound.revenue || sound.price || 0)}
@@ -1064,10 +1162,16 @@ const Dashboard = () => {
                     <div className="d-flex justify-content-between align-items-center">
                         <h6 className="fw-bold mb-0">Tous les sons</h6>
                         <div className="d-flex gap-2">
-                            <Form.Select size="sm" style={{ width: 'auto' }}>
-                                <option>Tous les statuts</option>
-                                <option value="published">Publié</option>
+                            <Form.Select
+                                size="sm"
+                                style={{ width: 'auto' }}
+                                value={soundFilter}
+                                onChange={(e) => setSoundFilter(e.target.value)}
+                            >
+                                <option value="all">Tous les statuts</option>
                                 <option value="pending">En attente</option>
+                                <option value="published">Publié</option>
+                                <option value="rejected">Rejeté</option>
                                 <option value="draft">Brouillon</option>
                             </Form.Select>
                         </div>
@@ -1085,89 +1189,40 @@ const Dashboard = () => {
                             </Button>
                         </div>
                     ) : (
-                        (sounds || []).map((sound) => (
-                        <div key={sound.id} className="border-bottom p-3">
-                            <Row className="align-items-center">
-                                <Col md={5}>
-                                    <div className="d-flex align-items-center">
-                                        <img
-                                                src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop`}
-                                            alt={sound.title}
-                                            className="rounded me-3"
-                                            style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                        <CustomDataTable
+                            columns={soundsColumns}
+                            data={getFilteredSounds()}
+                            {...dataTableConfig}
+                            subHeader
+                            subHeaderComponent={
+                                <div className="d-flex justify-content-between align-items-center w-100 p-3">
+                                    <div>
+                                        <strong>{getFilteredSounds().length}</strong> son(s) affiché(s)
+                                    </div>
+                                    <div className="d-flex gap-2">
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Rechercher par titre, artiste..."
+                                            size="sm"
+                                            style={{ width: '250px' }}
+                                            value={soundsSearchTerm}
+                                            onChange={(e) => setSoundsSearchTerm(e.target.value)}
                                         />
-                                        <div>
-                                            <h6 className="fw-bold mb-1">{sound.title}</h6>
-                                            <div className="d-flex align-items-center gap-2 mb-1">
-                                                <Badge bg="light" text="dark">{sound.category}</Badge>
-                                                    {getStatusBadge('published')}
-                                                    {sound.is_featured && (
-                                                        <Badge bg="warning" text="dark">
-                                                            <FontAwesomeIcon icon={faStar} className="me-1" />
-                                                            Featured
-                                                        </Badge>
-                                                    )}
-                                                    {sound.is_free && (
-                                                        <Badge bg="success">Gratuit</Badge>
-                                                    )}
-                                            </div>
-                                                <small className="text-muted">
-                                                    par {sound.artist} • {sound.duration || '0:00'}
-                                                    {sound.genre && ` • ${sound.genre}`}
-                                                </small>
-                                        </div>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="small">
-                                        <FontAwesomeIcon icon={faPlay} className="text-primary me-1" />
-                                            <div className="fw-bold">{sound.plays || 0}</div>
-                                        <small className="text-muted">Écoutes</small>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="small">
-                                        <FontAwesomeIcon icon={faDownload} className="text-success me-1" />
-                                            <div className="fw-bold">{sound.downloads || 0}</div>
-                                        <small className="text-muted">DL</small>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                        <div className="fw-bold text-success">
-                                            {sound.is_free ? 'Gratuit' : formatCurrency(sound.price || 0)}
-                                        </div>
-                                        <small className="text-muted">Prix</small>
-                                </Col>
-                                <Col md={1} className="text-end">
-                                    <div className="d-flex gap-1">
-                                            <Button
-                                                as={Link}
-                                                to={`/sound/${sound.id}`}
-                                                variant="outline-primary"
-                                                size="sm"
-                                            >
-                                                <FontAwesomeIcon icon={faEye} />
-                                            </Button>
-                                            <Button
-                                                as={Link}
-                                                to={`/edit-sound/${sound.id}`}
-                                                variant="outline-secondary"
-                                                size="sm"
-                                            >
-                                            <FontAwesomeIcon icon={faEdit} />
+                                        <Button variant="outline-secondary" size="sm">
+                                            <FontAwesomeIcon icon={faSearch} />
                                         </Button>
-                                            <Button
-                                                variant="outline-danger"
-                                                size="sm"
-                                                onClick={() => handleDeleteSound(sound.id)}
-                                            >
-                                            <FontAwesomeIcon icon={faTrash} />
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={exportSounds}
+                                            title="Exporter en CSV"
+                                        >
+                                            <FontAwesomeIcon icon={faDownload} />
                                         </Button>
                                     </div>
-                                </Col>
-                            </Row>
-                        </div>
-                        ))
+                                </div>
+                            }
+                        />
                     )}
                 </Card.Body>
             </Card>
@@ -1258,115 +1313,40 @@ const Dashboard = () => {
                             </Button>
                         </div>
                     ) : (
-                        (events || [])
-                            .filter(event => eventFilter === 'all' || event.status === eventFilter)
-                            .map((event) => (
-                        <div key={event.id} className="border-bottom p-3">
-                            <Row className="align-items-center">
-                                <Col md={4}>
-                                        <div className="d-flex align-items-center">
-                                            <img
-                                                src={event.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=50&h=50&fit=crop`}
-                                                alt={event.title}
-                                                className="rounded me-3"
-                                                style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                            />
+                        <CustomDataTable
+                            columns={eventsColumns}
+                            data={getFilteredEvents()}
+                            {...dataTableConfig}
+                            subHeader
+                            subHeaderComponent={
+                                <div className="d-flex justify-content-between align-items-center w-100 p-3">
                                     <div>
-                                        <h6 className="fw-bold mb-1">{event.title}</h6>
-                                        <div className="d-flex align-items-center gap-2 mb-1">
-                                            <Badge bg="light" text="dark">{event.category}</Badge>
-                                            {getStatusBadge(event.status)}
-                                                    {event.is_featured && (
-                                                        <Badge bg="warning" text="dark">
-                                                            <FontAwesomeIcon icon={faStar} className="me-1" />
-                                                            Featured
-                                                        </Badge>
-                                                    )}
-                                        </div>
-                                        <small className="text-muted">
-                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                                                    {event.venue || event.location}, {event.city}
-                                                </small>
-                                                {user && (
-                                                    <div className="mt-1">
-                                                        <small className="text-info">
-                                                            par {event.user_name || 'Utilisateur'}
-                                        </small>
-                                                    </div>
-                                                )}
-                                            </div>
+                                        <strong>{getFilteredEvents().length}</strong> événement(s) affiché(s)
                                     </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="small">
-                                            <div className="fw-bold">{new Date(event.event_date).toLocaleDateString('fr-FR')}</div>
-                                            <small className="text-muted">{event.start_time}</small>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="small">
-                                            <div className="fw-bold">{event.current_attendees || 0}/{event.max_attendees || 'Illimité'}</div>
-                                            <small className="text-muted">Participants</small>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                        <div className="fw-bold text-success">
-                                            {event.is_free ? 'Gratuit' :
-                                             event.ticket_price ?
-                                             formatCurrency(event.ticket_price) :
-                                             'À définir'}
-                                        </div>
-                                        <small className="text-muted">Prix</small>
-                                </Col>
-                                <Col md={2} className="text-end">
-                                        <div className="d-flex gap-1 flex-wrap">
-                                            <Button
-                                                as={Link}
-                                                to={`/event/${event.id}`}
-                                                variant="outline-info"
-                                                size="sm"
-                                                title="Voir les détails"
-                                            >
-                                            <FontAwesomeIcon icon={faEye} />
+                                    <div className="d-flex gap-2">
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Rechercher par titre, lieu..."
+                                            size="sm"
+                                            style={{ width: '250px' }}
+                                            value={eventsSearchTerm}
+                                            onChange={(e) => setEventsSearchTerm(e.target.value)}
+                                        />
+                                        <Button variant="outline-secondary" size="sm">
+                                            <FontAwesomeIcon icon={faSearch} />
                                         </Button>
-
-                                            {event.status === 'pending' && user?.role === 'admin' && (
-                                                <Button
-                                                    variant="outline-success"
-                                                    size="sm"
-                                                    onClick={() => openApproveModal(event)}
-                                                    title="Approuver l'événement"
-                                                >
-                                                    <FontAwesomeIcon icon={faCheckCircle} />
-                                                </Button>
-                                            )}
-
-                                            {canManageEvent(event, user) && (
-                                                <>
-                                                    <Button
-                                                        as={Link}
-                                                        to={`/edit-event/${event.id}`}
-                                                        variant="outline-secondary"
-                                                        size="sm"
-                                                        title="Modifier l'événement"
-                                                    >
-                                            <FontAwesomeIcon icon={faEdit} />
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={exportEvents}
+                                            title="Exporter en CSV"
+                                        >
+                                            <FontAwesomeIcon icon={faDownload} />
                                         </Button>
-                                                    <Button
-                                                        variant="outline-danger"
-                                                        size="sm"
-                                                        onClick={() => openDeleteModal(event)}
-                                                        title="Supprimer l'événement"
-                                                    >
-                                                        <FontAwesomeIcon icon={faTrash} />
-                                                    </Button>
-                                                </>
-                                            )}
                                     </div>
-                                </Col>
-                            </Row>
-                        </div>
-                        ))
+                                </div>
+                            }
+                        />
                     )}
                 </Card.Body>
             </Card>
@@ -1448,59 +1428,40 @@ const Dashboard = () => {
                     </div>
                 </Card.Header>
                 <Card.Body className="p-0">
-                    {users.map((user) => (
-                        <div key={user.id} className="border-bottom p-3">
-                            <Row className="align-items-center">
-                                <Col md={4}>
-                                    <div className="d-flex align-items-center">
-                                        <img
-                                            src={user.avatar}
-                                            alt={user.name}
-                                            className="rounded-circle me-3"
-                                            style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                        />
-                                        <div>
-                                            <h6 className="fw-bold mb-1">{user.name}</h6>
-                                            <div className="d-flex align-items-center gap-2 mb-1">
-                                                <Badge bg="light" text="dark">{user.role}</Badge>
-                                                {getStatusBadge(user.status)}
-                                            </div>
-                                            <small className="text-muted">{user.email}</small>
-                                        </div>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="small">
-                                        <div className="fw-bold">{new Date(user.join_date).toLocaleDateString('fr-FR')}</div>
-                                        <small className="text-muted">Inscription</small>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="small">
-                                        <div className="fw-bold">{user.sounds_count}</div>
-                                        <small className="text-muted">Sons</small>
-                                    </div>
-                                </Col>
-                                <Col md={2} className="text-center">
-                                    <div className="fw-bold text-success">{formatCurrency(user.revenue)}</div>
-                                    <small className="text-muted">Revenus</small>
-                                </Col>
-                                <Col md={2} className="text-end">
-                                    <div className="d-flex gap-1">
-                                        <Button variant="outline-primary" size="sm">
-                                            <FontAwesomeIcon icon={faEye} />
-                                        </Button>
-                                        <Button variant="outline-secondary" size="sm">
-                                            <FontAwesomeIcon icon={faEdit} />
-                                        </Button>
-                                        <Button variant="outline-danger" size="sm" onClick={() => handleDeleteUser(user.id)}>
-                                            <FontAwesomeIcon icon={faTrash} />
-                                        </Button>
-                                    </div>
-                                </Col>
-                            </Row>
-                        </div>
-                    ))}
+                    <CustomDataTable
+                        columns={usersColumns}
+                        data={getFilteredUsers()}
+                        {...dataTableConfig}
+                        subHeader
+                        subHeaderComponent={
+                            <div className="d-flex justify-content-between align-items-center w-100 p-3">
+                                <div>
+                                    <strong>{getFilteredUsers().length}</strong> utilisateur(s) affiché(s)
+                                </div>
+                                <div className="d-flex gap-2">
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Rechercher par nom, email..."
+                                        size="sm"
+                                        style={{ width: '250px' }}
+                                        value={usersSearchTerm}
+                                        onChange={(e) => setUsersSearchTerm(e.target.value)}
+                                    />
+                                    <Button variant="outline-secondary" size="sm">
+                                        <FontAwesomeIcon icon={faSearch} />
+                                    </Button>
+                                    <Button
+                                        variant="outline-primary"
+                                        size="sm"
+                                        onClick={exportUsers}
+                                        title="Exporter en CSV"
+                                    >
+                                        <FontAwesomeIcon icon={faDownload} />
+                                    </Button>
+                                </div>
+                            </div>
+                        }
+                    />
                 </Card.Body>
             </Card>
         </div>
@@ -1781,6 +1742,663 @@ const Dashboard = () => {
         }
     };
 
+    // Fonctions pour l'approbation/rejet des sons
+    const handleApproveSoundAdmin = async (soundId) => {
+        setActionLoading(true);
+        try {
+            const response = await fetch(`/api/admin/sounds/${soundId}/approve`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                toast.success('Son approuvé', 'Le son a été approuvé avec succès');
+                loadSounds(); // Recharger les sons
+                setShowSoundApproveModal(false);
+                setSelectedSound(null);
+            } else {
+                const errorData = await response.json();
+                toast.error('Erreur', errorData.message || 'Impossible d\'approuver le son');
+            }
+        } catch (error) {
+            console.error('Erreur lors de l\'approbation:', error);
+            toast.error('Erreur', 'Erreur de connexion lors de l\'approbation');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleRejectSoundAdmin = async () => {
+        if (!rejectReason.trim()) {
+            toast.error('Erreur', 'La raison du rejet est obligatoire');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            const response = await fetch(`/api/admin/sounds/${selectedSound.id}/reject`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reason: rejectReason.trim() })
+            });
+
+            if (response.ok) {
+                toast.success('Son rejeté', 'Le son a été rejeté');
+                loadSounds(); // Recharger les sons
+                setShowSoundRejectModal(false);
+                setRejectReason('');
+                setSelectedSound(null);
+            } else {
+                const errorData = await response.json();
+                toast.error('Erreur', errorData.message || 'Impossible de rejeter le son');
+            }
+        } catch (error) {
+            console.error('Erreur lors du rejet:', error);
+            toast.error('Erreur', 'Erreur de connexion lors du rejet');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const openSoundApproveModal = (sound) => {
+        setSelectedSound(sound);
+        setShowSoundApproveModal(true);
+    };
+
+    const openSoundRejectModal = (sound) => {
+        setSelectedSound(sound);
+        setShowSoundRejectModal(true);
+    };
+
+    const closeSoundModals = () => {
+        setShowSoundApproveModal(false);
+        setShowSoundRejectModal(false);
+        setSelectedSound(null);
+        setRejectReason('');
+    };
+
+    // Fonctions pour le lecteur audio
+    const playSound = (sound) => {
+        if (currentlyPlaying?.id === sound.id) {
+            // Si c'est déjà le son en cours, toggle play/pause
+            if (isPlaying) {
+                pauseSound();
+            } else {
+                resumeSound();
+            }
+        } else {
+            // Nouveau son à jouer
+            if (audioRef) {
+                audioRef.pause();
+            }
+
+            const audio = new Audio();
+            // Utiliser l'URL du fichier audio du son
+            audio.src = sound.file_url || sound.audio_file_url || `/storage/sounds/${sound.file_name}`;
+
+            audio.addEventListener('loadedmetadata', () => {
+                setDuration(audio.duration);
+            });
+
+            audio.addEventListener('timeupdate', () => {
+                setCurrentTime(audio.currentTime);
+            });
+
+            audio.addEventListener('ended', () => {
+                setIsPlaying(false);
+                setCurrentTime(0);
+                // Optionnel: passer au son suivant
+                playNextSound();
+            });
+
+            audio.addEventListener('error', (e) => {
+                console.error('Erreur de lecture audio:', e);
+                toast.error('Erreur', 'Impossible de lire ce fichier audio');
+            });
+
+            setAudioRef(audio);
+            setCurrentlyPlaying(sound);
+            setIsPlaying(true);
+
+            audio.play().catch(error => {
+                console.error('Erreur lors de la lecture:', error);
+                toast.error('Erreur', 'Impossible de lire ce son');
+                setIsPlaying(false);
+            });
+        }
+    };
+
+    const pauseSound = () => {
+        if (audioRef) {
+            audioRef.pause();
+            setIsPlaying(false);
+        }
+    };
+
+    const resumeSound = () => {
+        if (audioRef) {
+            audioRef.play().then(() => {
+                setIsPlaying(true);
+            }).catch(error => {
+                console.error('Erreur lors de la reprise:', error);
+                setIsPlaying(false);
+            });
+        }
+    };
+
+    const stopSound = () => {
+        if (audioRef) {
+            audioRef.pause();
+            audioRef.currentTime = 0;
+            setCurrentTime(0);
+            setIsPlaying(false);
+        }
+    };
+
+    const playNextSound = () => {
+        if (!currentlyPlaying || !sounds.length) return;
+
+        const currentIndex = sounds.findIndex(s => s.id === currentlyPlaying.id);
+        const nextIndex = (currentIndex + 1) % sounds.length;
+        playSound(sounds[nextIndex]);
+    };
+
+    const playPrevSound = () => {
+        if (!currentlyPlaying || !sounds.length) return;
+
+        const currentIndex = sounds.findIndex(s => s.id === currentlyPlaying.id);
+        const prevIndex = (currentIndex - 1 + sounds.length) % sounds.length;
+        playSound(sounds[prevIndex]);
+    };
+
+    const seekTo = (time) => {
+        if (audioRef) {
+            audioRef.currentTime = time;
+            setCurrentTime(time);
+        }
+    };
+
+    const changeVolume = (newVolume) => {
+        if (audioRef) {
+            audioRef.volume = newVolume;
+            setVolume(newVolume);
+        }
+    };
+
+    const formatTime = (seconds) => {
+        if (isNaN(seconds)) return '0:00';
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
+    // Nettoyer l'audio au démontage du composant
+    useEffect(() => {
+        return () => {
+            if (audioRef) {
+                audioRef.pause();
+                audioRef.src = '';
+            }
+        };
+    }, [audioRef]);
+
+    // Styles personnalisés pour DataTable
+    const CustomDataTable = styled(DataTable)`
+        .rdt_TableHead {
+            .rdt_TableHeadRow {
+                background-color: #f8f9fa;
+                border-bottom: 2px solid #dee2e6;
+
+                .rdt_TableCol {
+                    font-weight: 600;
+                    color: #495057;
+                    padding: 16px 8px;
+                }
+            }
+        }
+
+        .rdt_TableBody {
+            .rdt_TableRow {
+                border-bottom: 1px solid #f1f3f4;
+                transition: background-color 0.2s ease;
+
+                &:hover {
+                    background-color: #f8f9fa;
+                }
+
+                .rdt_TableCell {
+                    padding: 12px 8px;
+                }
+            }
+        }
+
+        .rdt_Pagination {
+            border-top: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+        }
+    `;
+
+    // Configuration générale pour les DataTables
+    const dataTableConfig = {
+        pagination: true,
+        paginationPerPage: 10,
+        paginationRowsPerPageOptions: [5, 10, 15, 20, 25],
+        responsive: true,
+        highlightOnHover: true,
+        striped: false,
+        noDataComponent: "Aucune donnée à afficher",
+        paginationComponentOptions: {
+            rowsPerPageText: 'Lignes par page:',
+            rangeSeparatorText: 'de',
+            selectAllRowsItem: true,
+            selectAllRowsItemText: 'Tous',
+        }
+    };
+
+    // Colonnes pour la table des sons
+    const soundsColumns = [
+        {
+            name: 'Son',
+            cell: row => (
+                <div className="d-flex align-items-center">
+                    <img
+                        src={row.cover_image || row.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=40&h=40&fit=crop`}
+                        alt={row.title}
+                        className="rounded me-2"
+                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                    />
+                    <div>
+                        <div className="fw-bold small">{row.title}</div>
+                        <small className="text-muted">
+                            {typeof row.artist === 'object' ?
+                                row.artist?.name || row.user?.name || 'Artiste' :
+                                row.artist || row.user?.name || 'Artiste'
+                            }
+                        </small>
+                    </div>
+                </div>
+            ),
+            sortable: true,
+            sortFunction: (a, b) => a.title.localeCompare(b.title),
+            minWidth: '250px'
+        },
+        {
+            name: 'Catégorie',
+            selector: row => row.category || 'Non classé',
+            sortable: true,
+            cell: row => <Badge bg="light" text="dark">{row.category || 'Non classé'}</Badge>,
+            width: '120px'
+        },
+        {
+            name: 'Statut',
+            selector: row => row.status || 'pending',
+            sortable: true,
+            cell: row => getStatusBadge(row.status || 'pending'),
+            width: '100px'
+        },
+        {
+            name: 'Écoutes',
+            selector: row => row.plays_count || row.plays || 0,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold">{(row.plays_count || row.plays || 0).toLocaleString()}</div>
+                </div>
+            ),
+            width: '100px'
+        },
+        {
+            name: 'DL',
+            selector: row => row.downloads_count || row.downloads || 0,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold">{(row.downloads_count || row.downloads || 0).toLocaleString()}</div>
+                </div>
+            ),
+            width: '80px'
+        },
+        {
+            name: 'Prix',
+            selector: row => row.price || 0,
+            sortable: true,
+            cell: row => (
+                <div className="fw-bold text-success">
+                    {row.is_free ? 'Gratuit' : formatCurrency(row.price || 0)}
+                </div>
+            ),
+            width: '100px'
+        },
+        {
+            name: 'Actions',
+            cell: row => (
+                <div className="d-flex gap-1">
+                    <Button
+                        variant={currentlyPlaying?.id === row.id && isPlaying ? "warning" : "primary"}
+                        size="sm"
+                        onClick={() => playSound(row)}
+                        title={currentlyPlaying?.id === row.id && isPlaying ? "Pause" : "Lire"}
+                    >
+                        <FontAwesomeIcon
+                            icon={currentlyPlaying?.id === row.id && isPlaying ? faPause : faPlay}
+                        />
+                    </Button>
+
+                    <Button
+                        as={Link}
+                        to={`/sound/${row.id}`}
+                        variant="outline-primary"
+                        size="sm"
+                        title="Voir"
+                    >
+                        <FontAwesomeIcon icon={faEye} />
+                    </Button>
+
+                    {row.status === 'pending' && (
+                        <>
+                            <Button
+                                variant="success"
+                                size="sm"
+                                onClick={() => openSoundApproveModal(row)}
+                                title="Approuver"
+                            >
+                                <FontAwesomeIcon icon={faCheckCircle} />
+                            </Button>
+                            <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => openSoundRejectModal(row)}
+                                title="Rejeter"
+                            >
+                                <FontAwesomeIcon icon={faTimesCircle} />
+                            </Button>
+                        </>
+                    )}
+
+                    <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => handleDeleteSound(row.id)}
+                        title="Supprimer"
+                    >
+                        <FontAwesomeIcon icon={faTrash} />
+                    </Button>
+                </div>
+            ),
+            ignoreRowClick: true,
+            allowOverflow: true,
+            button: true,
+            width: '200px'
+        }
+    ];
+
+    // Colonnes pour la table des événements
+    const eventsColumns = [
+        {
+            name: 'Événement',
+            cell: row => (
+                <div className="d-flex align-items-center">
+                    <img
+                        src={row.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=40&h=40&fit=crop`}
+                        alt={row.title}
+                        className="rounded me-2"
+                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                    />
+                    <div>
+                        <div className="fw-bold small">{row.title}</div>
+                        <small className="text-muted">
+                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
+                            {row.venue || row.location}, {row.city}
+                        </small>
+                    </div>
+                </div>
+            ),
+            sortable: true,
+            sortFunction: (a, b) => a.title.localeCompare(b.title),
+            minWidth: '250px'
+        },
+        {
+            name: 'Date',
+            selector: row => row.event_date,
+            sortable: true,
+            cell: row => (
+                <div>
+                    <div className="fw-bold small">{new Date(row.event_date).toLocaleDateString('fr-FR')}</div>
+                    <small className="text-muted">{row.start_time}</small>
+                </div>
+            ),
+            width: '120px'
+        },
+        {
+            name: 'Statut',
+            selector: row => row.status,
+            sortable: true,
+            cell: row => getStatusBadge(row.status),
+            width: '100px'
+        },
+        {
+            name: 'Participants',
+            selector: row => row.current_attendees || 0,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold">{row.current_attendees || 0}/{row.max_attendees || 'Illimité'}</div>
+                </div>
+            ),
+            width: '120px'
+        },
+        {
+            name: 'Prix',
+            selector: row => row.ticket_price || 0,
+            sortable: true,
+            cell: row => (
+                <div className="fw-bold text-success">
+                    {row.is_free ? 'Gratuit' :
+                     row.ticket_price ? formatCurrency(row.ticket_price) : 'À définir'}
+                </div>
+            ),
+            width: '100px'
+        },
+        {
+            name: 'Actions',
+            cell: row => (
+                <div className="d-flex gap-1">
+                    <Button
+                        as={Link}
+                        to={`/event/${row.id}`}
+                        variant="outline-info"
+                        size="sm"
+                        title="Voir"
+                    >
+                        <FontAwesomeIcon icon={faEye} />
+                    </Button>
+
+                    {row.status === 'pending' && user?.role === 'admin' && (
+                        <Button
+                            variant="outline-success"
+                            size="sm"
+                            onClick={() => openApproveModal(row)}
+                            title="Approuver"
+                        >
+                            <FontAwesomeIcon icon={faCheckCircle} />
+                        </Button>
+                    )}
+
+                    {canManageEvent(row, user) && (
+                        <>
+                            <Button
+                                as={Link}
+                                to={`/edit-event/${row.id}`}
+                                variant="outline-secondary"
+                                size="sm"
+                                title="Modifier"
+                            >
+                                <FontAwesomeIcon icon={faEdit} />
+                            </Button>
+                            <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => openDeleteModal(row)}
+                                title="Supprimer"
+                            >
+                                <FontAwesomeIcon icon={faTrash} />
+                            </Button>
+                        </>
+                    )}
+                </div>
+            ),
+            ignoreRowClick: true,
+            allowOverflow: true,
+            button: true,
+            width: '150px'
+        }
+    ];
+
+    // Colonnes pour la table des utilisateurs
+    const usersColumns = [
+        {
+            name: 'Utilisateur',
+            cell: row => (
+                <div className="d-flex align-items-center">
+                    <img
+                        src={row.avatar}
+                        alt={row.name}
+                        className="rounded-circle me-2"
+                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                    />
+                    <div>
+                        <div className="fw-bold small">{row.name}</div>
+                        <small className="text-muted">{row.email}</small>
+                    </div>
+                </div>
+            ),
+            sortable: true,
+            sortFunction: (a, b) => a.name.localeCompare(b.name),
+            minWidth: '250px'
+        },
+        {
+            name: 'Rôle',
+            selector: row => row.role,
+            sortable: true,
+            cell: row => <Badge bg="light" text="dark">{row.role}</Badge>,
+            width: '100px'
+        },
+        {
+            name: 'Statut',
+            selector: row => row.status,
+            sortable: true,
+            cell: row => getStatusBadge(row.status),
+            width: '100px'
+        },
+        {
+            name: 'Inscription',
+            selector: row => row.join_date,
+            sortable: true,
+            cell: row => new Date(row.join_date).toLocaleDateString('fr-FR'),
+            width: '120px'
+        },
+        {
+            name: 'Sons',
+            selector: row => row.sounds_count || 0,
+            sortable: true,
+            cell: row => <div className="text-center fw-bold">{row.sounds_count || 0}</div>,
+            width: '80px'
+        },
+        {
+            name: 'Revenus',
+            selector: row => row.revenue || 0,
+            sortable: true,
+            cell: row => <div className="fw-bold text-success">{formatCurrency(row.revenue || 0)}</div>,
+            width: '120px'
+        },
+        {
+            name: 'Actions',
+            cell: row => (
+                <div className="d-flex gap-1">
+                    <Button variant="outline-primary" size="sm" title="Voir">
+                        <FontAwesomeIcon icon={faEye} />
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" title="Modifier">
+                        <FontAwesomeIcon icon={faEdit} />
+                    </Button>
+                    <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => handleDeleteUser(row.id)}
+                        title="Supprimer"
+                    >
+                        <FontAwesomeIcon icon={faTrash} />
+                    </Button>
+                </div>
+            ),
+            ignoreRowClick: true,
+            allowOverflow: true,
+            button: true,
+            width: '120px'
+        }
+    ];
+
+    // Fonctions d'export CSV
+    const exportToCSV = (data, filename) => {
+        const csvContent = "data:text/csv;charset=utf-8,"
+            + data.map(row => Object.values(row).join(",")).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const exportSounds = () => {
+        const soundsData = getFilteredSounds().map(sound => ({
+            Titre: sound.title,
+            Artiste: typeof sound.artist === 'object' ?
+                sound.artist?.name || sound.user?.name || 'Artiste' :
+                sound.artist || sound.user?.name || 'Artiste',
+            Catégorie: sound.category || 'Non classé',
+            Statut: sound.status || 'pending',
+            Écoutes: sound.plays_count || sound.plays || 0,
+            Téléchargements: sound.downloads_count || sound.downloads || 0,
+            Prix: sound.is_free ? 'Gratuit' : (sound.price || 0) + ' XAF'
+        }));
+        exportToCSV(soundsData, 'sons_dashboard.csv');
+    };
+
+    const exportEvents = () => {
+        const eventsData = getFilteredEvents().map(event => ({
+            Titre: event.title,
+            Date: new Date(event.event_date).toLocaleDateString('fr-FR'),
+            Lieu: `${event.venue || event.location}, ${event.city}`,
+            Statut: event.status,
+            Participants: `${event.current_attendees || 0}/${event.max_attendees || 'Illimité'}`,
+            Prix: event.is_free ? 'Gratuit' :
+                  event.ticket_price ? event.ticket_price + ' XAF' : 'À définir'
+        }));
+        exportToCSV(eventsData, 'evenements_dashboard.csv');
+    };
+
+    const exportUsers = () => {
+        const usersData = getFilteredUsers().map(user => ({
+            Nom: user.name,
+            Email: user.email,
+            Rôle: user.role,
+            Statut: user.status,
+            Inscription: new Date(user.join_date).toLocaleDateString('fr-FR'),
+            Sons: user.sounds_count || 0,
+            Revenus: (user.revenue || 0) + ' XAF'
+        }));
+        exportToCSV(usersData, 'utilisateurs_dashboard.csv');
+    };
+
     return (
         <div className="min-vh-100 bg-light" style={{ paddingTop: '80px' }}>
             <div className="d-flex">
@@ -1991,6 +2609,35 @@ const Dashboard = () => {
                     z-index: 100;
                 }
 
+                .audio-player {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: white;
+                    border-top: 1px solid #dee2e6;
+                    z-index: 1000;
+                    transition: transform 0.3s ease;
+                }
+
+                .audio-player.hidden {
+                    transform: translateY(100%);
+                }
+
+                .progress-bar-custom {
+                    height: 4px;
+                    background: #e9ecef;
+                    border-radius: 2px;
+                    overflow: hidden;
+                    cursor: pointer;
+                }
+
+                .progress-fill {
+                    height: 100%;
+                    background: #007bff;
+                    transition: width 0.1s ease;
+                }
+
                 @media (max-width: 1200px) {
                     .dashboard-sidebar {
                         width: 280px;
@@ -2023,8 +2670,118 @@ const Dashboard = () => {
                     .dashboard-sidebar.show {
                         left: 0;
                     }
+
+                    .audio-player {
+                        padding: 8px 12px;
+                    }
                 }
             `}</style>
+
+            {/* Lecteur audio fixe */}
+            {currentlyPlaying && (
+                <div className={`audio-player p-3 ${!currentlyPlaying ? 'hidden' : ''}`}>
+                    <Container fluid>
+                        <Row className="align-items-center">
+                            <Col md={3}>
+                                <div className="d-flex align-items-center">
+                                    <img
+                                        src={currentlyPlaying.cover_image || currentlyPlaying.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop`}
+                                        alt={currentlyPlaying.title}
+                                        className="rounded me-3"
+                                        style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                                    />
+                                    <div>
+                                        <div className="fw-bold small">{currentlyPlaying.title}</div>
+                                        <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                            {typeof currentlyPlaying.artist === 'object' ?
+                                                currentlyPlaying.artist?.name || currentlyPlaying.user?.name || 'Artiste' :
+                                                currentlyPlaying.artist || currentlyPlaying.user?.name || 'Artiste'
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </Col>
+
+                            <Col md={6}>
+                                <div className="text-center">
+                                    {/* Contrôles de lecture */}
+                                    <div className="d-flex justify-content-center align-items-center gap-2 mb-2">
+                                        <Button variant="outline-secondary" size="sm" onClick={playPrevSound}>
+                                            <FontAwesomeIcon icon={faStepBackward} />
+                                        </Button>
+
+                                        <Button
+                                            variant={isPlaying ? "warning" : "primary"}
+                                            onClick={() => isPlaying ? pauseSound() : resumeSound()}
+                                        >
+                                            <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
+                                        </Button>
+
+                                        <Button variant="outline-secondary" size="sm" onClick={stopSound}>
+                                            <FontAwesomeIcon icon={faStop} />
+                                        </Button>
+
+                                        <Button variant="outline-secondary" size="sm" onClick={playNextSound}>
+                                            <FontAwesomeIcon icon={faStepForward} />
+                                        </Button>
+                                    </div>
+
+                                    {/* Barre de progression */}
+                                    <div className="d-flex align-items-center gap-2">
+                                        <small className="text-muted">{formatTime(currentTime)}</small>
+                                        <div
+                                            className="progress-bar-custom flex-grow-1"
+                                            onClick={(e) => {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const percent = (e.clientX - rect.left) / rect.width;
+                                                seekTo(percent * duration);
+                                            }}
+                                        >
+                                            <div
+                                                className="progress-fill"
+                                                style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
+                                            />
+                                        </div>
+                                        <small className="text-muted">{formatTime(duration)}</small>
+                                    </div>
+                                </div>
+                            </Col>
+
+                            <Col md={3}>
+                                <div className="d-flex align-items-center justify-content-end gap-2">
+                                    {/* Contrôle de volume */}
+                                    <FontAwesomeIcon
+                                        icon={volume === 0 ? faVolumeMute : volume < 0.5 ? faVolumeDown : faVolumeUp}
+                                        className="text-muted"
+                                    />
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={volume}
+                                        onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                                        className="form-range"
+                                        style={{ width: '80px' }}
+                                    />
+
+                                    {/* Bouton fermer */}
+                                    <Button
+                                        variant="outline-secondary"
+                                        size="sm"
+                                        onClick={() => {
+                                            stopSound();
+                                            setCurrentlyPlaying(null);
+                                        }}
+                                    >
+                                        <FontAwesomeIcon icon={faTimesCircle} />
+                                    </Button>
+                                </div>
+                            </Col>
+                        </Row>
+                    </Container>
+                </div>
+            )}
 
             {/* Modal de confirmation de suppression */}
             <Modal show={showDeleteModal} onHide={closeModals} centered>
@@ -2145,6 +2902,152 @@ const Dashboard = () => {
                             <>
                                 <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
                                 Approuver l'événement
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modales pour l'approbation/rejet des sons */}
+            <Modal show={showSoundApproveModal} onHide={closeSoundModals} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-success">
+                        <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                        Approuver le son
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedSound && (
+                        <div>
+                            <div className="text-center mb-3">
+                                <FontAwesomeIcon icon={faCheckCircle} size="3x" className="text-success mb-3" />
+                                <h5>Approuver ce son ?</h5>
+                                <p className="text-muted">Le son sera publié et visible par tous les utilisateurs. L'artiste recevra une notification.</p>
+                            </div>
+                            <Card className="bg-light">
+                                <Card.Body>
+                                    <div className="d-flex align-items-center">
+                                        <img
+                                            src={selectedSound.cover_image || selectedSound.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop`}
+                                            alt={selectedSound.title}
+                                            className="rounded me-3"
+                                            style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                        />
+                                        <div>
+                                            <h6 className="fw-bold mb-1">{selectedSound.title}</h6>
+                                            <small className="text-muted">
+                                                par {typeof selectedSound.artist === 'object' ? selectedSound.artist?.name || selectedSound.user?.name || 'Artiste' : selectedSound.artist || selectedSound.user?.name || 'Artiste'}
+                                            </small>
+                                            <div className="mt-1">
+                                                <Badge bg="warning">En attente d'approbation</Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closeSoundModals} disabled={actionLoading}>
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="success"
+                        onClick={() => handleApproveSoundAdmin(selectedSound?.id)}
+                        disabled={actionLoading}
+                    >
+                        {actionLoading ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Approbation...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                                Approuver le son
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal de rejet des sons */}
+            <Modal show={showSoundRejectModal} onHide={closeSoundModals} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-warning">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="me-2" />
+                        Rejeter le son
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant="warning">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="me-2" />
+                        <strong>Attention !</strong> L'artiste sera automatiquement notifié par email avec la raison du rejet.
+                    </Alert>
+
+                    {selectedSound && (
+                        <div className="mb-3">
+                            <Card className="bg-light">
+                                <Card.Body>
+                                    <div className="d-flex align-items-center">
+                                        <img
+                                            src={selectedSound.cover_image || selectedSound.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop`}
+                                            alt={selectedSound.title}
+                                            className="rounded me-3"
+                                            style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                        />
+                                        <div>
+                                            <h6 className="fw-bold mb-1">{selectedSound.title}</h6>
+                                            <small className="text-muted">
+                                                par {typeof selectedSound.artist === 'object' ? selectedSound.artist?.name || selectedSound.user?.name || 'Artiste' : selectedSound.artist || selectedSound.user?.name || 'Artiste'}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </div>
+                    )}
+
+                    <Form.Group className="mb-3">
+                        <Form.Label className="fw-bold">
+                            Raison du rejet <span className="text-danger">*</span>
+                        </Form.Label>
+                        <Form.Control
+                            as="textarea"
+                            rows={4}
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Expliquez clairement pourquoi ce son est rejeté (qualité audio, droits d'auteur, contenu inapproprié, etc.)..."
+                            required
+                        />
+                        <Form.Text className="text-muted">
+                            Cette raison sera envoyée à l'artiste. Soyez constructif et précis.
+                        </Form.Text>
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={closeSoundModals}
+                        disabled={actionLoading}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="danger"
+                        onClick={handleRejectSoundAdmin}
+                        disabled={!rejectReason.trim() || actionLoading}
+                    >
+                        {actionLoading ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Rejet en cours...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faTimesCircle} className="me-2" />
+                                Confirmer le rejet
                             </>
                         )}
                     </Button>
