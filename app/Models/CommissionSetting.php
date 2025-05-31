@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class CommissionSetting extends Model
 {
@@ -34,23 +35,54 @@ class CommissionSetting extends Model
     }
 
     /**
-     * Mettre à jour un taux de commission
+     * Mettre à jour ou créer un taux de commission
      */
-    public static function updateRate(string $key, float $value, string $description = null): bool
+    public static function updateRate(string $key, float $rate): bool
     {
-        $setting = self::updateOrCreate(
-            ['key' => $key],
-            [
-                'value' => $value,
-                'description' => $description,
-                'is_active' => true,
-            ]
-        );
+        try {
+            self::updateOrCreate(
+                ['key' => $key],
+                [
+                    'value' => $rate,
+                    'is_active' => true,
+                    'updated_at' => now()
+                ]
+            );
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de la mise à jour du taux {$key}: " . $e->getMessage());
+            return false;
+        }
+    }
 
-        // Vider le cache
-        Cache::forget("commission_rate_{$key}");
+    /**
+     * Méthode simplifiée pour obtenir une valeur
+     */
+    public static function getValue(string $key, $default = null)
+    {
+        $setting = self::where('key', $key)->where('is_active', true)->first();
+        return $setting ? $setting->value : $default;
+    }
 
-        return $setting->wasRecentlyCreated || $setting->wasChanged();
+    /**
+     * Méthode simplifiée pour définir une valeur
+     */
+    public static function setValue(string $key, $value): bool
+    {
+        try {
+            self::updateOrCreate(
+                ['key' => $key],
+                [
+                    'value' => $value,
+                    'is_active' => true,
+                    'updated_at' => now()
+                ]
+            );
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de la définition de {$key}: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**

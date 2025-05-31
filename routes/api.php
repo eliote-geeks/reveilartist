@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\SoundController as ApiSoundController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -101,6 +102,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Notifications
         Route::post('/send-notification', [AdminController::class, 'sendNotification'])->name('api.admin.notifications.send');
+    });
+
+    // Routes pour le dashboard admin
+    Route::middleware(['auth:sanctum', 'admin'])->prefix('dashboard')->group(function () {
+        Route::get('/stats', [DashboardController::class, 'getStats']);
+        Route::get('/sounds', [DashboardController::class, 'getSounds']);
+        Route::get('/events', [DashboardController::class, 'getEvents']);
+        Route::get('/users', [DashboardController::class, 'getUsers']);
+
+        // Routes commission simplifiées
+        Route::get('/commission', [DashboardController::class, 'getCommission']);
+        Route::post('/commission', [DashboardController::class, 'updateCommission']);
     });
 
     // Gestion des catégories (admin uniquement)

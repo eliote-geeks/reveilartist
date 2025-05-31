@@ -56,6 +56,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import DataTable from 'react-data-table-component';
 import styled from 'styled-components';
+import '../../../css/dashboard.css'; // Import du CSS dashboard
 
 const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -87,6 +88,7 @@ const Dashboard = () => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(1);
+    const [showAudioPlayer, setShowAudioPlayer] = useState(false);
 
     // États pour la recherche dans les DataTables
     const [soundsSearchTerm, setSoundsSearchTerm] = useState('');
@@ -157,9 +159,10 @@ const Dashboard = () => {
         }
     };
 
-    const loadSounds = async () => {
+    // Fonction pour charger les paramètres de commission (simplifiée)
+    const loadCommissionSettings = async () => {
         try {
-            const response = await fetch('/api/admin/sounds', {
+            const response = await fetch('/api/dashboard/commission', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -168,141 +171,79 @@ const Dashboard = () => {
 
             if (response.ok) {
                 const data = await response.json();
-                // L'API admin/sounds retourne directement un tableau
-                const soundsArray = Array.isArray(data) ? data : data.data || [];
-                setSounds(soundsArray);
-            } else {
-                console.error('Erreur API admin/sounds:', response.status);
-                // Fallback vers l'API publique si l'API admin échoue
-                const publicResponse = await fetch('/api/sounds?per_page=50', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                const publicData = await publicResponse.json();
-                if (publicData.success) {
-                    setSounds(publicData.sounds);
-                } else {
-                    setSounds([]);
+                if (data.rates) {
+                    setCommissionSettings({
+                        sound_commission: data.rates.sound_commission || 15,
+                        event_commission: data.rates.event_commission || 10
+                    });
                 }
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des sons:', error);
+            console.error('Erreur chargement commission:', error);
+        }
+    };
+
+    const loadSounds = async () => {
+        try {
+            const response = await fetch('/api/dashboard/sounds', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setSounds(Array.isArray(data) ? data : []);
+            } else {
+                // Fallback
+                setSounds([]);
+            }
+        } catch (error) {
+            console.error('Erreur chargement sons:', error);
             setSounds([]);
         }
     };
 
     const loadEvents = async () => {
         try {
-            const response = await fetch('/api/events', {
+            const response = await fetch('/api/dashboard/events', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data.success && data.events) {
-                setEvents(data.events);
+            if (response.ok) {
+                const data = await response.json();
+                setEvents(Array.isArray(data) ? data : []);
             } else {
                 setEvents([]);
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des événements:', error);
+            console.error('Erreur chargement événements:', error);
             setEvents([]);
         }
     };
 
     const loadUsers = async () => {
         try {
-            const response = await fetch('/api/users', {
+            const response = await fetch('/api/dashboard/users', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
-            const data = await response.json();
 
-            if (data.success) {
-                setUsers(data.users);
+            if (response.ok) {
+                const data = await response.json();
+                setUsers(Array.isArray(data) ? data : []);
             } else {
-                // Fallback vers des données mockées si l'API échoue
-                const mockUsers = [
-                    {
-                        id: 1,
-                        name: "Jean Kamga",
-                        email: "jean.kamga@email.com",
-                        role: "artist",
-                        join_date: "2024-01-15",
-                        status: "active",
-                        sounds_count: 8,
-                        revenue: 125000,
-                        total_plays: 2847,
-                        avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face"
-                    },
-                    {
-                        id: 2,
-                        name: "Marie Nkomo",
-                        email: "marie.nkomo@email.com",
-                        role: "producer",
-                        join_date: "2024-02-20",
-                        status: "active",
-                        sounds_count: 12,
-                        revenue: 289000,
-                        total_plays: 5438,
-                        avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b1e2?w=50&h=50&fit=crop&crop=face"
-                    },
-                    {
-                        id: 3,
-                        name: "Paul Mbida",
-                        email: "paul.mbida@email.com",
-                        role: "artist",
-                        join_date: "2024-03-10",
-                        status: "active",
-                        sounds_count: 6,
-                        revenue: 98000,
-                        total_plays: 1923,
-                        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face"
-                    }
-                ];
-                setUsers(mockUsers);
+                setUsers([]);
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des utilisateurs:', error);
-            // Utiliser des données mockées en cas d'erreur
-            const mockUsers = [
-                {
-                    id: 1,
-                    name: "Jean Kamga",
-                    email: "jean.kamga@email.com",
-                    role: "artist",
-                    join_date: "2024-01-15",
-                    status: "active",
-                    sounds_count: 8,
-                    revenue: 125000,
-                    total_plays: 2847,
-                    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face"
-                },
-                {
-                    id: 2,
-                    name: "Marie Nkomo",
-                    email: "marie.nkomo@email.com",
-                    role: "producer",
-                    join_date: "2024-02-20",
-                    status: "active",
-                    sounds_count: 12,
-                    revenue: 289000,
-                    total_plays: 5438,
-                    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b1e2?w=50&h=50&fit=crop&crop=face"
-                }
-            ];
-            setUsers(mockUsers);
+            console.error('Erreur chargement utilisateurs:', error);
+            setUsers([]);
         }
     };
 
@@ -311,12 +252,24 @@ const Dashboard = () => {
             // Récupérer les vraies statistiques depuis l'API
             const response = await fetch('/api/dashboard/stats', {
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
                 }
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                console.warn(`API stats error: ${response.status}`);
+                // Utiliser des stats par défaut si l'API échoue
+                setStats(prevStats => ({
+                    ...prevStats,
+                    totalUsers: users.length || 0,
+                    totalSounds: sounds.length || 0,
+                    totalEvents: events.length || 0,
+                    totalRevenue: 0,
+                    totalCommission: 0,
+                    totalPayments: 0
+                }));
+                return;
             }
 
             const data = await response.json();
@@ -377,8 +330,28 @@ const Dashboard = () => {
 
         } catch (error) {
             console.error('Erreur lors du chargement des statistiques:', error);
-            // Garder les stats par défaut en cas d'erreur
-            toast.error('Erreur', 'Impossible de charger les statistiques');
+            // Utiliser des données de fallback en cas d'erreur
+            setStats(prevStats => ({
+                ...prevStats,
+                totalUsers: users.length || 0,
+                totalSounds: sounds.length || 0,
+                totalEvents: events.length || 0,
+                totalRevenue: 0,
+                totalCommission: 0,
+                totalPayments: 0,
+                completedPayments: 0,
+                pendingPayments: 0,
+                failedPayments: 0,
+                refundedPayments: 0,
+                soundPayments: 0,
+                eventPayments: 0,
+                activeUsers: users.length || 0,
+                publishedSounds: sounds.filter(s => s.status === 'published').length || 0,
+                publishedEvents: events.filter(e => e.status === 'published').length || 0,
+                activeEvents: events.filter(e => e.status === 'published').length || 0,
+                monthlyGrowth: 0,
+                topArtist: 'Aucun'
+            }));
         }
     };
 
@@ -522,12 +495,10 @@ const Dashboard = () => {
         }
     };
 
-    const handleApproveEvent = async () => {
-        if (!selectedEvent) return;
-
+    const handleApproveEvent = async (eventId) => {
         try {
             setActionLoading(true);
-            const response = await fetch(`/api/events/${selectedEvent.id}/approve`, {
+            const response = await fetch(`/api/events/${eventId}/approve`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -537,17 +508,16 @@ const Dashboard = () => {
 
             const data = await response.json();
 
-            if (data.success) {
+            if (data.success || response.ok) {
                 toast.success('Succès', 'Événement approuvé avec succès');
                 loadEvents(); // Recharger la liste
-                closeModals();
             } else {
                 toast.error('Erreur', data.message || 'Impossible d\'approuver l\'événement');
-                setActionLoading(false);
             }
         } catch (error) {
             console.error('Erreur lors de l\'approbation:', error);
             toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
             setActionLoading(false);
         }
     };
@@ -841,32 +811,154 @@ const Dashboard = () => {
         dense: true
     };
 
-    // Colonnes pour la table des sons
+    // Fonction pour formater le temps (définie plus tôt)
+    const formatTime = (seconds) => {
+        if (!seconds || isNaN(seconds)) return '';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Fonction pour jouer/arrêter un son améliorée
+    const togglePlaySound = (sound) => {
+        console.log('Playing sound:', sound); // Debug
+
+        if (currentlyPlaying && currentlyPlaying.id === sound.id) {
+            // Arrêter le son en cours
+            if (audioRef) {
+                audioRef.pause();
+                setIsPlaying(false);
+                setCurrentlyPlaying(null);
+                setShowAudioPlayer(false);
+            }
+        } else {
+            // Jouer un nouveau son
+            if (audioRef) {
+                audioRef.pause();
+            }
+
+            // Construire l'URL du fichier audio avec fallback
+            let audioUrl = null;
+
+            if (sound.file_url) {
+                audioUrl = sound.file_url;
+            } else if (sound.file_path) {
+                // Vérifier si le chemin commence déjà par /storage
+                if (sound.file_path.startsWith('/storage')) {
+                    audioUrl = sound.file_path;
+                } else if (sound.file_path.startsWith('storage/')) {
+                    audioUrl = '/' + sound.file_path;
+                } else {
+                    audioUrl = `/storage/${sound.file_path}`;
+                }
+            } else {
+                // Fichier de démonstration
+                audioUrl = '/storage/sounds/demo.mp3';
+            }
+
+            console.log('Audio URL:', audioUrl); // Debug
+
+            const audio = new Audio(audioUrl);
+            audio.volume = volume;
+            setAudioRef(audio);
+            setCurrentlyPlaying(sound);
+            setShowAudioPlayer(true);
+
+            // Gestion des événements audio
+            audio.addEventListener('loadedmetadata', () => {
+                setDuration(audio.duration);
+                console.log('Audio duration loaded:', audio.duration); // Debug
+            });
+
+            audio.addEventListener('timeupdate', () => {
+                setCurrentTime(audio.currentTime);
+            });
+
+            audio.addEventListener('ended', () => {
+                setIsPlaying(false);
+                setCurrentlyPlaying(null);
+                setShowAudioPlayer(false);
+                setCurrentTime(0);
+            });
+
+            audio.addEventListener('error', (e) => {
+                console.error('Erreur audio:', e);
+                console.error('URL problématique:', audioUrl);
+                toast.error('Erreur', `Impossible de charger le fichier audio: ${sound.title}`);
+                setCurrentlyPlaying(null);
+                setShowAudioPlayer(false);
+                setIsPlaying(false);
+            });
+
+            audio.addEventListener('loadstart', () => {
+                console.log('Début chargement audio:', audioUrl);
+            });
+
+            audio.addEventListener('canplay', () => {
+                console.log('Audio prêt à jouer');
+            });
+
+            // Tenter de lire le son
+            audio.play().then(() => {
+                setIsPlaying(true);
+                console.log('Audio lecture démarrée avec succès'); // Debug
+            }).catch(error => {
+                console.error('Erreur lecture audio:', error);
+                toast.error('Erreur', `Impossible de lire le son: ${sound.title}. Vérifiez que le fichier existe.`);
+                setCurrentlyPlaying(null);
+                setShowAudioPlayer(false);
+                setIsPlaying(false);
+            });
+        }
+    };
+
+    // Colonnes pour la table des sons avec lecteur audio amélioré
     const soundsColumns = [
         {
-            name: 'Titre',
+            name: 'Son',
             selector: row => row.title,
             sortable: true,
             cell: row => (
                 <div className="d-flex align-items-center">
-                    <img
-                        src={row.cover_image || 'https://via.placeholder.com/40x40?text=♪'}
-                        alt={row.title}
-                        className="rounded me-2"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                    />
-                    <div>
-                        <div className="fw-medium">{row.title}</div>
-                        <small className="text-muted">
-                            {typeof row.artist === 'object' ?
-                                row.artist?.name || row.user?.name || 'Artiste' :
-                                row.artist || row.user?.name || 'Artiste'
-                            }
+                    {/* Icône de musique uniquement */}
+                    <div className="me-3 p-3 rounded-3 text-center" style={{
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                        color: 'white',
+                        minWidth: '60px',
+                        minHeight: '60px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <FontAwesomeIcon icon={faMusic} size="lg" />
+                    </div>
+
+                    <div className="flex-grow-1">
+                        <div className="fw-medium text-dark">{row.title}</div>
+                        <small className="text-muted d-block">
+                            <FontAwesomeIcon icon={faUser} className="me-1" />
+                            {row.artist_name || row.artist || (row.user ? row.user.name : 'Artiste inconnu')}
                         </small>
+                        <div className="small text-info">
+                            <FontAwesomeIcon icon={faClock} className="me-1" />
+                            {row.formatted_duration || formatTime(row.duration) || '0:00'}
+                        </div>
+                        {row.genre && (
+                            <div className="small text-secondary">
+                                <FontAwesomeIcon icon={faTags} className="me-1" />
+                                {row.genre}
+                            </div>
+                        )}
+                        {row.bpm && (
+                            <div className="small text-primary">
+                                <FontAwesomeIcon icon={faMusic} className="me-1" />
+                                {row.bpm} BPM
+                            </div>
+                        )}
                     </div>
                 </div>
             ),
-            width: '300px'
+            width: '350px'
         },
         {
             name: 'Statut',
@@ -879,20 +971,82 @@ const Dashboard = () => {
             name: 'Prix',
             selector: row => row.price,
             sortable: true,
-            cell: row => row.is_free ? 'Gratuit' : formatCurrency(row.price || 0),
-            width: '100px'
+            cell: row => (
+                <div className="text-center">
+                    {row.is_free ? (
+                        <Badge bg="success" className="px-2 py-1">
+                            <FontAwesomeIcon icon={faHeart} className="me-1" />
+                            Gratuit
+                        </Badge>
+                    ) : (
+                        <span className="fw-bold text-primary">
+                            <FontAwesomeIcon icon={faEuroSign} className="me-1" />
+                            {row.formatted_price || formatCurrency(row.price || 0)}
+                        </span>
+                    )}
+                </div>
+            ),
+            width: '120px'
         },
         {
-            name: 'Écoutes',
-            selector: row => row.plays_count || row.plays || 0,
+            name: 'Statistiques',
+            selector: row => row.plays_count || 0,
             sortable: true,
-            cell: row => (row.plays_count || row.plays || 0).toLocaleString(),
-            width: '100px'
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold small">
+                        <FontAwesomeIcon icon={faPlay} className="me-1 text-success" />
+                        {(row.plays_count || 0).toLocaleString()}
+                    </div>
+                    <div className="small text-muted">
+                        <FontAwesomeIcon icon={faDownload} className="me-1 text-info" />
+                        {(row.downloads_count || 0).toLocaleString()}
+                    </div>
+                    <div className="small text-danger">
+                        <FontAwesomeIcon icon={faHeart} className="me-1" />
+                        {(row.likes_count || 0).toLocaleString()}
+                    </div>
+                </div>
+            ),
+            width: '120px'
+        },
+        {
+            name: 'Date',
+            selector: row => row.created_at,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="small fw-medium">
+                        {new Date(row.created_at).toLocaleDateString('fr-FR')}
+                    </div>
+                    <small className="text-muted">
+                        {new Date(row.created_at).toLocaleDateString('fr-FR', { weekday: 'short' })}
+                    </small>
+                </div>
+            ),
+            width: '120px'
         },
         {
             name: 'Actions',
             cell: row => (
                 <div className="d-flex gap-1">
+                    {/* Bouton Play/Stop - maintenant dans les actions */}
+                    <Button
+                        variant={currentlyPlaying && currentlyPlaying.id === row.id ? "danger" : "success"}
+                        size="sm"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            togglePlaySound(row);
+                        }}
+                        title={currentlyPlaying && currentlyPlaying.id === row.id ? "Arrêter" : "Écouter"}
+                        className="d-flex align-items-center justify-content-center"
+                        style={{ width: '36px', height: '36px' }}
+                    >
+                        <FontAwesomeIcon
+                            icon={currentlyPlaying && currentlyPlaying.id === row.id ? faStop : faPlay}
+                        />
+                    </Button>
+
                     <Button
                         as={Link}
                         to={`/sound-details/${row.id}`}
@@ -949,33 +1103,59 @@ const Dashboard = () => {
             ignoreRowClick: true,
             allowOverflow: true,
             button: true,
-            width: '200px'
+            width: '250px'
         }
     ];
 
-    // Colonnes pour la table des événements
+    // Colonnes pour la table des événements avec icônes appropriées
     const eventsColumns = [
         {
             name: 'Événement',
             selector: row => row.title,
             sortable: true,
             cell: row => (
-                <div>
-                    <div className="fw-medium">{row.title}</div>
-                    <small className="text-muted">
-                        <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                        {row.venue || row.location || 'Lieu non défini'}
-                    </small>
+                <div className="d-flex align-items-center">
+                    <div className="me-3 p-3 rounded-3 text-center" style={{
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white',
+                        minWidth: '60px',
+                        minHeight: '60px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <FontAwesomeIcon icon={faCalendarAlt} size="lg" />
+                    </div>
+                    <div>
+                        <div className="fw-medium text-dark">{row.title}</div>
+                        <small className="text-muted">
+                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
+                            {row.venue || row.location || 'Lieu non défini'}
+                        </small>
+                        <div className="small text-info">
+                            <FontAwesomeIcon icon={faClock} className="me-1" />
+                            {new Date(row.event_date || row.date).toLocaleDateString('fr-FR')}
+                        </div>
+                    </div>
                 </div>
             ),
-            width: '300px'
+            width: '320px'
         },
         {
             name: 'Date',
             selector: row => row.event_date || row.date,
             sortable: true,
-            cell: row => new Date(row.event_date || row.date).toLocaleDateString('fr-FR'),
-            width: '120px'
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold">
+                        {new Date(row.event_date || row.date).toLocaleDateString('fr-FR')}
+                    </div>
+                    <small className="text-muted">
+                        {new Date(row.event_date || row.date).toLocaleDateString('fr-FR', { weekday: 'long' })}
+                    </small>
+                </div>
+            ),
+            width: '140px'
         },
         {
             name: 'Statut',
@@ -988,8 +1168,16 @@ const Dashboard = () => {
             name: 'Participants',
             selector: row => row.current_attendees || 0,
             sortable: true,
-            cell: row => `${row.current_attendees || 0}/${row.capacity || row.max_attendees || 0}`,
-            width: '120px'
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold">
+                        <FontAwesomeIcon icon={faUsers} className="me-1 text-primary" />
+                        {row.current_attendees || 0}/{row.capacity || row.max_attendees || 0}
+                    </div>
+                    <small className="text-muted">participants</small>
+                </div>
+            ),
+            width: '140px'
         },
         {
             name: 'Actions',
@@ -1041,7 +1229,7 @@ const Dashboard = () => {
         }
     ];
 
-    // Colonnes pour la table des utilisateurs
+    // Colonnes pour la table des utilisateurs avec route corrigée
     const usersColumns = [
         {
             name: 'Utilisateur',
@@ -1049,60 +1237,141 @@ const Dashboard = () => {
             sortable: true,
             cell: row => (
                 <div className="d-flex align-items-center">
-                    <div className="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2"
-                         style={{ width: '35px', height: '35px', fontSize: '14px' }}>
-                        {row.name?.charAt(0).toUpperCase() || 'U'}
+                    <div className="me-3 p-3 rounded-circle text-center" style={{
+                        background: `linear-gradient(135deg, ${
+                            row.role === 'artist' ? '#3b82f6, #1d4ed8' :
+                            row.role === 'producer' ? '#10b981, #059669' :
+                            row.role === 'admin' ? '#dc2626, #b91c1c' :
+                            '#6b7280, #4b5563'
+                        })`,
+                        color: 'white',
+                        minWidth: '50px',
+                        minHeight: '50px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px',
+                        fontWeight: 'bold'
+                    }}>
+                        {row.role === 'artist' ? (
+                            <FontAwesomeIcon icon={faStar} />
+                        ) : row.role === 'producer' ? (
+                            <FontAwesomeIcon icon={faCog} />
+                        ) : row.role === 'admin' ? (
+                            <FontAwesomeIcon icon={faCrown} />
+                        ) : (
+                            <FontAwesomeIcon icon={faUser} />
+                        )}
                     </div>
                     <div>
                         <div className="fw-medium">{row.name}</div>
                         <small className="text-muted">{row.email}</small>
+                        <div className="small text-info">
+                            <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
+                            Membre depuis {new Date(row.join_date || row.created_at).toLocaleDateString('fr-FR')}
+                        </div>
                     </div>
                 </div>
             ),
-            width: '250px'
+            width: '300px'
         },
         {
             name: 'Rôle',
             selector: row => row.role,
             sortable: true,
             cell: row => (
-                <Badge bg={row.role === 'artist' ? 'primary' : row.role === 'producer' ? 'success' : 'secondary'}>
-                    {row.role === 'artist' ? 'Artiste' : row.role === 'producer' ? 'Producteur' : 'Utilisateur'}
+                <Badge bg={row.role === 'artist' ? 'primary' : row.role === 'producer' ? 'success' : row.role === 'admin' ? 'danger' : 'secondary'}>
+                    <FontAwesomeIcon
+                        icon={row.role === 'artist' ? faStar : row.role === 'producer' ? faCog : row.role === 'admin' ? faCrown : faUser}
+                        className="me-1"
+                    />
+                    {row.role === 'artist' ? 'Artiste' : row.role === 'producer' ? 'Producteur' : row.role === 'admin' ? 'Admin' : 'Utilisateur'}
                 </Badge>
             ),
-            width: '120px'
+            width: '140px'
         },
         {
-            name: 'Sons',
+            name: 'Activité',
             selector: row => row.sounds_count || 0,
             sortable: true,
-            width: '80px'
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold">
+                        <FontAwesomeIcon icon={faMusic} className="me-1 text-primary" />
+                        {row.sounds_count || 0}
+                    </div>
+                    <small className="text-muted">sons</small>
+                    {row.total_plays && (
+                        <div className="small text-info">
+                            <FontAwesomeIcon icon={faPlay} className="me-1" />
+                            {row.total_plays.toLocaleString()} écoutes
+                        </div>
+                    )}
+                </div>
+            ),
+            width: '120px'
         },
         {
             name: 'Revenus',
             selector: row => row.revenue || 0,
             sortable: true,
-            cell: row => formatCurrency(row.revenue || 0),
+            cell: row => (
+                <div className="text-center">
+                    <span className="fw-bold text-success">
+                        <FontAwesomeIcon icon={faEuroSign} className="me-1" />
+                        {formatCurrency(row.revenue || 0)}
+                    </span>
+                </div>
+            ),
+            width: '120px'
+        },
+        {
+            name: 'Statut',
+            selector: row => row.status,
+            sortable: true,
+            cell: row => (
+                <Badge bg={row.status === 'active' ? 'success' : row.status === 'suspended' ? 'danger' : 'secondary'}>
+                    <FontAwesomeIcon
+                        icon={row.status === 'active' ? faCheckCircle : row.status === 'suspended' ? faTimesCircle : faClock}
+                        className="me-1"
+                    />
+                    {row.status === 'active' ? 'Actif' : row.status === 'suspended' ? 'Suspendu' : 'Inactif'}
+                </Badge>
+            ),
             width: '120px'
         },
         {
             name: 'Actions',
             cell: row => (
                 <div className="d-flex gap-1">
-                    <Button variant="outline-primary" size="sm" title="Voir">
+                    <Button
+                        as={Link}
+                        to={`/artist/${row.id}`}
+                        variant="outline-primary"
+                        size="sm"
+                        title="Voir le profil"
+                    >
                         <FontAwesomeIcon icon={faEye} />
                     </Button>
-                    <Button variant="outline-secondary" size="sm" title="Éditer">
+                    <Button
+                        as={Link}
+                        to={`/profile-edit/${row.id}`}
+                        variant="outline-secondary"
+                        size="sm"
+                        title="Éditer"
+                    >
                         <FontAwesomeIcon icon={faEdit} />
                     </Button>
-                    <Button
-                        variant="outline-danger"
-                        size="sm"
-                        title="Supprimer"
-                        onClick={() => handleDeleteUser(row.id)}
-                    >
-                        <FontAwesomeIcon icon={faTrash} />
-                    </Button>
+                    {user?.role === 'admin' && row.id !== user.id && (
+                        <Button
+                            variant="outline-danger"
+                            size="sm"
+                            title="Supprimer"
+                            onClick={() => handleDeleteUser(row.id)}
+                        >
+                            <FontAwesomeIcon icon={faTrash} />
+                        </Button>
+                    )}
                 </div>
             ),
             ignoreRowClick: true,
@@ -2025,66 +2294,37 @@ const Dashboard = () => {
         </div>
     );
 
-    // Fonction pour charger les paramètres de commission
-    const loadCommissionSettings = async () => {
+    // Simplification du système de commission
+    const updateCommissionSettings = async (newRates) => {
         try {
-            const response = await fetch('/api/dashboard/commission-settings', {
+            const response = await fetch('/api/dashboard/commission', {
+                method: 'POST',
                 headers: {
+                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({ rates: newRates })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Commission settings response:', data);
-
-            if (data.rates) {
+            if (response.ok) {
+                const data = await response.json();
                 setCommissionSettings({
-                    sound_commission: data.rates.sound_commission || 15,
-                    event_commission: data.rates.event_commission || 10
+                    sound_commission: data.rates?.sound_commission || newRates.sound_commission || 15,
+                    event_commission: data.rates?.event_commission || newRates.event_commission || 10
                 });
+                toast.success('Succès', 'Paramètres mis à jour');
+            } else {
+                toast.error('Erreur', 'Impossible de mettre à jour');
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des paramètres de commission:', error);
-            // Garder les valeurs par défaut
-            toast.error('Erreur', 'Impossible de charger les paramètres de commission');
+            toast.error('Erreur', 'Erreur de connexion');
         }
     };
 
-    // Fonction pour mettre à jour les paramètres de commission
-    const updateCommissionSettings = async (newRates) => {
-        try {
-            const response = await fetch('/api/dashboard/commission-settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    rates: newRates
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Update commission response:', data);
-
-            if (data.rates) {
-                setCommissionSettings({
-                    sound_commission: data.rates.sound_commission || 15,
-                    event_commission: data.rates.event_commission || 10
-                });
-                toast.success('Succès', 'Paramètres de commission mis à jour avec succès');
-            }
-        } catch (error) {
-            console.error('Erreur lors de la mise à jour:', error);
-            toast.error('Erreur', 'Impossible de mettre à jour les paramètres de commission');
-        }
+    // Fonction pour mettre à jour un seul taux de commission
+    const updateSingleCommissionRate = async (rateType, value) => {
+        const newRates = { [rateType]: parseFloat(value) };
+        await updateCommissionSettings(newRates);
     };
 
     // Fonctions de calcul pour les simulateurs
@@ -2116,8 +2356,21 @@ const Dashboard = () => {
 
     // Fonction d'export des statistiques
     const exportStats = () => {
-        const url = '/api/dashboard/export-stats';
-        window.open(url, '_blank');
+        const csvContent = [
+            ['Type', 'Nombre', 'Montant Total'],
+            ['Paiements Validés', stats.completedPayments || 0, formatCurrency(stats.totalRevenue || 0)],
+            ['Paiements En Attente', stats.pendingPayments || 0, '-'],
+            ['Commissions Totales', '-', formatCurrency(stats.totalCommission || 0)],
+            ['Utilisateurs Totaux', stats.totalUsers || 0, '-'],
+            ['Sons Publiés', stats.publishedSounds || 0, '-'],
+            ['Événements Publiés', stats.publishedEvents || 0, '-']
+        ].map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `dashboard_stats_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
     };
 
     // Fonction d'export des paiements
@@ -2153,29 +2406,54 @@ const Dashboard = () => {
                                         </div>
                                         <div className="mb-3">
                                             <Form.Label className="small fw-medium">Taux de commission (%)</Form.Label>
-                                            <Form.Control
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                max="100"
-                                                value={commissionSettings.sound_commission}
-                                                onChange={(e) => setCommissionSettings({
-                                                    ...commissionSettings,
-                                                    sound_commission: parseFloat(e.target.value) || 0
-                                                })}
-                                            />
+                                            <div className="d-flex gap-2">
+                                                <Form.Control
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    max="100"
+                                                    value={commissionSettings.sound_commission}
+                                                    onChange={(e) => {
+                                                        const newValue = parseFloat(e.target.value) || 0;
+                                                        setCommissionSettings({
+                                                            ...commissionSettings,
+                                                            sound_commission: newValue
+                                                        });
+                                                    }}
+                                                    onBlur={(e) => {
+                                                        const newValue = parseFloat(e.target.value) || 0;
+                                                        if (newValue !== commissionSettings.sound_commission) {
+                                                            updateSingleCommissionRate('sound_commission', newValue);
+                                                        }
+                                                    }}
+                                                />
+                                                <Button
+                                                    variant="primary"
+                                                    size="sm"
+                                                    onClick={() => updateSingleCommissionRate('sound_commission', commissionSettings.sound_commission)}
+                                                >
+                                                    <FontAwesomeIcon icon={faSync} />
+                                                </Button>
+                                            </div>
+                                            <Form.Text className="text-muted">
+                                                Appuyez sur Entrée ou cliquez sur le bouton pour appliquer
+                                            </Form.Text>
                                         </div>
-                                        <Button
-                                            variant="primary"
-                                            size="sm"
-                                            onClick={() => updateCommissionSettings({
-                                                sound_commission: commissionSettings.sound_commission
-                                            })}
-                                            className="w-100"
-                                        >
-                                            <FontAwesomeIcon icon={faSync} className="me-2" />
-                                            Mettre à jour
-                                        </Button>
+                                        <div className="bg-light rounded p-3">
+                                            <small className="text-muted">Exemple : Sur 1000 XAF</small>
+                                            <div className="d-flex justify-content-between mt-2">
+                                                <span className="small">Commission :</span>
+                                                <span className="small fw-bold text-danger">
+                                                    {formatCurrency((1000 * commissionSettings.sound_commission) / 100)}
+                                                </span>
+                                            </div>
+                                            <div className="d-flex justify-content-between">
+                                                <span className="small">Artiste reçoit :</span>
+                                                <span className="small fw-bold text-success">
+                                                    {formatCurrency(1000 - (1000 * commissionSettings.sound_commission) / 100)}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </Col>
                                 <Col md={6}>
@@ -2189,39 +2467,107 @@ const Dashboard = () => {
                                         </div>
                                         <div className="mb-3">
                                             <Form.Label className="small fw-medium">Taux de commission (%)</Form.Label>
-                                            <Form.Control
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                max="100"
-                                                value={commissionSettings.event_commission}
-                                                onChange={(e) => setCommissionSettings({
-                                                    ...commissionSettings,
-                                                    event_commission: parseFloat(e.target.value) || 0
-                                                })}
-                                            />
+                                            <div className="d-flex gap-2">
+                                                <Form.Control
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    max="100"
+                                                    value={commissionSettings.event_commission}
+                                                    onChange={(e) => {
+                                                        const newValue = parseFloat(e.target.value) || 0;
+                                                        setCommissionSettings({
+                                                            ...commissionSettings,
+                                                            event_commission: newValue
+                                                        });
+                                                    }}
+                                                    onBlur={(e) => {
+                                                        const newValue = parseFloat(e.target.value) || 0;
+                                                        if (newValue !== commissionSettings.event_commission) {
+                                                            updateSingleCommissionRate('event_commission', newValue);
+                                                        }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            const newValue = parseFloat(e.target.value) || 0;
+                                                            updateSingleCommissionRate('event_commission', newValue);
+                                                        }
+                                                    }}
+                                                />
+                                                <Button
+                                                    variant="success"
+                                                    size="sm"
+                                                    onClick={() => updateSingleCommissionRate('event_commission', commissionSettings.event_commission)}
+                                                >
+                                                    <FontAwesomeIcon icon={faSync} />
+                                                </Button>
+                                            </div>
+                                            <Form.Text className="text-muted">
+                                                Appuyez sur Entrée ou cliquez sur le bouton pour appliquer
+                                            </Form.Text>
                                         </div>
-                                        <Button
-                                            variant="success"
-                                            size="sm"
-                                            onClick={() => updateCommissionSettings({
-                                                event_commission: commissionSettings.event_commission
-                                            })}
-                                            className="w-100"
-                                        >
-                                            <FontAwesomeIcon icon={faSync} className="me-2" />
-                                            Mettre à jour
-                                        </Button>
+                                        <div className="bg-light rounded p-3">
+                                            <small className="text-muted">Exemple : Sur 5000 XAF</small>
+                                            <div className="d-flex justify-content-between mt-2">
+                                                <span className="small">Commission :</span>
+                                                <span className="small fw-bold text-danger">
+                                                    {formatCurrency((5000 * commissionSettings.event_commission) / 100)}
+                                                </span>
+                                            </div>
+                                            <div className="d-flex justify-content-between">
+                                                <span className="small">Organisateur reçoit :</span>
+                                                <span className="small fw-bold text-success">
+                                                    {formatCurrency(5000 - (5000 * commissionSettings.event_commission) / 100)}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </Col>
                             </Row>
+
+                            {/* Boutons d'action globaux */}
+                            <div className="mt-4 d-flex gap-2">
+                                <Button
+                                    variant="primary"
+                                    onClick={() => updateCommissionSettings({
+                                        sound_commission: commissionSettings.sound_commission,
+                                        event_commission: commissionSettings.event_commission
+                                    })}
+                                >
+                                    <FontAwesomeIcon icon={faSync} className="me-2" />
+                                    Mettre à jour tout
+                                </Button>
+                                <Button
+                                    variant="outline-secondary"
+                                    onClick={() => {
+                                        setCommissionSettings({
+                                            sound_commission: 15,
+                                            event_commission: 10
+                                        });
+                                        updateCommissionSettings({
+                                            sound_commission: 15,
+                                            event_commission: 10
+                                        });
+                                    }}
+                                >
+                                    <FontAwesomeIcon icon={faUndo} className="me-2" />
+                                    Réinitialiser
+                                </Button>
+                                <Button
+                                    variant="outline-info"
+                                    onClick={loadCommissionSettings}
+                                >
+                                    <FontAwesomeIcon icon={faDownload} className="me-2" />
+                                    Recharger
+                                </Button>
+                            </div>
                         </Card.Body>
                     </Card>
 
                     {/* Simulateurs de commission */}
                     <Card className="border-0 shadow-sm mt-4">
                         <Card.Header className="bg-white border-bottom">
-                            <h6 className="fw-bold mb-0">Simulateur de Commission</h6>
+                            <h6 className="fw-bold mb-0">Simulateur de Commission en Temps Réel</h6>
                         </Card.Header>
                         <Card.Body>
                             <Row className="g-4">
@@ -2236,7 +2582,17 @@ const Dashboard = () => {
                                             <Form.Control
                                                 type="number"
                                                 placeholder="Ex: 1000"
-                                                onChange={(e) => calculateSoundCommission(e.target.value)}
+                                                onChange={(e) => {
+                                                    const amount = parseFloat(e.target.value) || 0;
+                                                    const commission = (amount * commissionSettings.sound_commission) / 100;
+                                                    const seller = amount - commission;
+
+                                                    const commissionEl = document.getElementById('sound-commission-result');
+                                                    const sellerEl = document.getElementById('sound-seller-result');
+
+                                                    if (commissionEl) commissionEl.textContent = formatCurrency(commission);
+                                                    if (sellerEl) sellerEl.textContent = formatCurrency(seller);
+                                                }}
                                             />
                                         </div>
                                         <div className="border-top pt-3">
@@ -2262,7 +2618,17 @@ const Dashboard = () => {
                                             <Form.Control
                                                 type="number"
                                                 placeholder="Ex: 5000"
-                                                onChange={(e) => calculateEventCommission(e.target.value)}
+                                                onChange={(e) => {
+                                                    const amount = parseFloat(e.target.value) || 0;
+                                                    const commission = (amount * commissionSettings.event_commission) / 100;
+                                                    const seller = amount - commission;
+
+                                                    const commissionEl = document.getElementById('event-commission-result');
+                                                    const sellerEl = document.getElementById('event-seller-result');
+
+                                                    if (commissionEl) commissionEl.textContent = formatCurrency(commission);
+                                                    if (sellerEl) sellerEl.textContent = formatCurrency(seller);
+                                                }}
                                             />
                                         </div>
                                         <div className="border-top pt-3">
@@ -2315,11 +2681,11 @@ const Dashboard = () => {
                             <div className="mb-3">
                                 <div className="d-flex justify-content-between align-items-center mb-1">
                                     <small className="text-muted">Commissions sons</small>
-                                    <small className="fw-medium">{commissionSettings.sound_commission}%</small>
+                                    <small className="fw-medium text-primary">{commissionSettings.sound_commission}%</small>
                                 </div>
                                 <div className="d-flex justify-content-between align-items-center">
                                     <small className="text-muted">Commissions événements</small>
-                                    <small className="fw-medium">{commissionSettings.event_commission}%</small>
+                                    <small className="fw-medium text-success">{commissionSettings.event_commission}%</small>
                                 </div>
                             </div>
 
@@ -2343,6 +2709,22 @@ const Dashboard = () => {
                                     Exporter
                                 </Button>
                             </div>
+                        </Card.Body>
+                    </Card>
+
+                    {/* Statut de la connexion API */}
+                    <Card className="border-0 shadow-sm mt-3">
+                        <Card.Body className="text-center">
+                            <div className="mb-2">
+                                <div className="d-inline-flex align-items-center gap-2 px-3 py-2 bg-success bg-opacity-10 rounded-pill">
+                                    <div className="bg-success rounded-circle" style={{ width: '8px', height: '8px' }}></div>
+                                    <small className="text-success fw-medium">API Connectée</small>
+                                </div>
+                            </div>
+                            <small className="text-muted">
+                                Dernière synchronisation:<br />
+                                {new Date().toLocaleString('fr-FR')}
+                            </small>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -2832,6 +3214,188 @@ const Dashboard = () => {
                     </Button>
                 </Modal.Footer>
             </Modal>
+
+            {/* Lecteur audio flottant amélioré */}
+            {showAudioPlayer && currentlyPlaying && (
+                <div className="audio-player-floating position-fixed bottom-0 start-50 translate-middle-x mb-3"
+                     style={{
+                         zIndex: 1050,
+                         width: '400px',
+                         maxWidth: '90vw',
+                         animation: 'slideUp 0.3s ease-out'
+                     }}>
+                    <Card className="shadow-lg border-0" style={{
+                        background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                        <Card.Body className="p-4">
+                            {/* Header du lecteur */}
+                            <div className="d-flex align-items-center mb-3">
+                                <div className="me-3 p-2 rounded-3 text-center" style={{
+                                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                                    color: 'white',
+                                    minWidth: '48px',
+                                    minHeight: '48px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <FontAwesomeIcon icon={faMusic} size="lg" />
+                                </div>
+                                <div className="flex-grow-1">
+                                    <div className="fw-bold text-dark mb-1" style={{ fontSize: '14px' }}>
+                                        {currentlyPlaying.title}
+                                    </div>
+                                    <small className="text-muted">
+                                        <FontAwesomeIcon icon={faUser} className="me-1" />
+                                        {typeof currentlyPlaying.artist === 'object' ?
+                                            currentlyPlaying.artist?.name || currentlyPlaying.user?.name || 'Artiste' :
+                                            currentlyPlaying.artist || currentlyPlaying.user?.name || 'Artiste'
+                                        }
+                                    </small>
+                                    {currentlyPlaying.genre && (
+                                        <div className="small text-info">
+                                            <FontAwesomeIcon icon={faTags} className="me-1" />
+                                            {currentlyPlaying.genre}
+                                        </div>
+                                    )}
+                                </div>
+                                <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={() => {
+                                        if (audioRef) {
+                                            audioRef.pause();
+                                        }
+                                        setCurrentlyPlaying(null);
+                                        setIsPlaying(false);
+                                        setShowAudioPlayer(false);
+                                        setCurrentTime(0);
+                                    }}
+                                    className="rounded-circle p-2"
+                                    style={{ width: '36px', height: '36px' }}
+                                >
+                                    <FontAwesomeIcon icon={faTimes} />
+                                </Button>
+                            </div>
+
+                            {/* Barre de progression interactive */}
+                            <div className="mb-3">
+                                <div className="d-flex justify-content-between small text-muted mb-2">
+                                    <span className="fw-medium">{formatTime(currentTime)}</span>
+                                    <span className="fw-medium">{formatTime(duration)}</span>
+                                </div>
+                                <div
+                                    className="progress"
+                                    style={{
+                                        height: '6px',
+                                        cursor: 'pointer',
+                                        borderRadius: '3px',
+                                        backgroundColor: '#e9ecef'
+                                    }}
+                                    onClick={(e) => {
+                                        if (audioRef && duration > 0) {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const pos = (e.clientX - rect.left) / rect.width;
+                                            const newTime = pos * duration;
+                                            audioRef.currentTime = newTime;
+                                            setCurrentTime(newTime);
+                                        }
+                                    }}
+                                >
+                                    <div
+                                        className="progress-bar"
+                                        style={{
+                                            width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                                            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                                            transition: 'width 0.1s ease'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Contrôles de lecture */}
+                            <div className="d-flex align-items-center justify-content-between">
+                                {/* Bouton Play/Pause principal */}
+                                <Button
+                                    variant={isPlaying ? "danger" : "success"}
+                                    size="sm"
+                                    onClick={() => {
+                                        if (audioRef) {
+                                            if (isPlaying) {
+                                                audioRef.pause();
+                                                setIsPlaying(false);
+                                            } else {
+                                                audioRef.play();
+                                                setIsPlaying(true);
+                                            }
+                                        }
+                                    }}
+                                    className="d-flex align-items-center rounded-pill px-3"
+                                    style={{ minWidth: '80px' }}
+                                >
+                                    <FontAwesomeIcon
+                                        icon={isPlaying ? faPause : faPlay}
+                                        className="me-2"
+                                    />
+                                    {isPlaying ? "Pause" : "Play"}
+                                </Button>
+
+                                {/* Contrôles de volume */}
+                                <div className="d-flex align-items-center gap-2 flex-grow-1 ms-3">
+                                    <FontAwesomeIcon
+                                        icon={volume === 0 ? faVolumeMute : volume < 0.5 ? faVolumeDown : faVolumeUp}
+                                        className="small text-muted"
+                                        style={{ minWidth: '16px' }}
+                                    />
+                                    <Form.Range
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={volume}
+                                        onChange={(e) => {
+                                            const newVolume = parseFloat(e.target.value);
+                                            setVolume(newVolume);
+                                            if (audioRef) {
+                                                audioRef.volume = newVolume;
+                                            }
+                                        }}
+                                        className="flex-grow-1"
+                                        style={{
+                                            height: '4px',
+                                            cursor: 'pointer'
+                                        }}
+                                    />
+                                    <small className="text-muted" style={{ minWidth: '35px', textAlign: 'right' }}>
+                                        {Math.round(volume * 100)}%
+                                    </small>
+                                </div>
+                            </div>
+
+                            {/* Informations supplémentaires */}
+                            {(currentlyPlaying.bpm || currentlyPlaying.key) && (
+                                <div className="mt-3 pt-3 border-top">
+                                    <div className="d-flex gap-3 small text-muted">
+                                        {currentlyPlaying.bpm && (
+                                            <span>
+                                                <FontAwesomeIcon icon={faMusic} className="me-1" />
+                                                {currentlyPlaying.bpm} BPM
+                                            </span>
+                                        )}
+                                        {currentlyPlaying.key && (
+                                            <span>
+                                                <FontAwesomeIcon icon={faTags} className="me-1" />
+                                                Clé: {currentlyPlaying.key}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 };

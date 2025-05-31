@@ -10,6 +10,7 @@ use App\Models\Event;
 use App\Models\User;
 use App\Models\CommissionSetting;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -25,234 +26,330 @@ class DashboardController extends Controller
     /**
      * Obtenir les statistiques générales
      */
-    public function getStats(Request $request): JsonResponse
+    public function getStats()
     {
-        $startDate = $request->get('start_date', now()->startOfMonth());
-        $endDate = $request->get('end_date', now()->endOfMonth());
+        try {
+            // Statistiques utilisateurs (basées sur la vraie migration)
+            $totalUsers = User::count();
+            $activeUsers = User::where('status', 'active')->count();
+            $artistsCount = User::where('role', 'artist')->count();
+            $producersCount = User::where('role', 'producer')->count();
 
-        // Statistiques des paiements
-        $paymentStats = Payment::selectRaw('
-            COUNT(*) as total_payments,
-            COALESCE(SUM(amount), 0) as total_amount,
-            COALESCE(SUM(commission_amount), 0) as total_commission,
-            COALESCE(SUM(seller_amount), 0) as total_seller_amount,
-            COALESCE(AVG(amount), 0) as average_amount,
-            COUNT(CASE WHEN status = \'completed\' THEN 1 END) as completed_payments,
-            COUNT(CASE WHEN status = \'pending\' THEN 1 END) as pending_payments,
-            COUNT(CASE WHEN status = \'failed\' THEN 1 END) as failed_payments,
-            COUNT(CASE WHEN status = \'refunded\' THEN 1 END) as refunded_payments,
-            COUNT(CASE WHEN type = \'sound\' THEN 1 END) as sound_payments,
-            COUNT(CASE WHEN type = \'event\' THEN 1 END) as event_payments
-        ')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->first();
+            // Statistiques sons (basées sur la vraie migration)
+            $totalSounds = Sound::count();
+            $publishedSounds = Sound::where('status', 'published')->count();
+            $draftSounds = Sound::where('status', 'draft')->count();
+            $pendingSounds = Sound::where('status', 'pending')->count();
 
-        // Statistiques générales
-        $generalStats = [
-            'total_users' => User::count(),
-            'total_sounds' => Sound::count(),
-            'total_events' => Event::count(),
-            'active_users' => User::where('status', 'active')->count(),
-            'published_sounds' => Sound::where('status', 'published')->count(),
-            'published_events' => Event::where('status', 'published')->count(),
-        ];
+            // Compter les écoutes et likes totaux
+            $totalPlays = Sound::sum('plays_count') ?? 0;
+            $totalDownloads = Sound::sum('downloads_count') ?? 0;
+            $totalLikes = Sound::sum('likes_count') ?? 0;
 
-        // Évolution quotidienne des paiements (7 derniers jours)
-        $dailyStats = Payment::selectRaw('
-            DATE(created_at) as date,
-            COUNT(*) as count,
-            COALESCE(SUM(amount), 0) as amount,
-            COALESCE(SUM(commission_amount), 0) as commission
-        ')
-        ->where('created_at', '>=', now()->subDays(7))
-        ->groupBy('date')
-        ->orderBy('date')
-        ->get();
+            // Statistiques événements (basées sur la vraie migration)
+            $totalEvents = Event::count();
+            $publishedEvents = Event::where('status', 'published')->count();
+            $activeEvents = Event::where('status', 'active')->count();
+            $pendingEvents = Event::where('status', 'pending')->count();
+            $draftEvents = Event::where('status', 'draft')->count();
+            $completedEvents = Event::where('status', 'completed')->count();
+            $cancelledEvents = Event::where('status', 'cancelled')->count();
+            $totalTicketsSold = Event::sum('current_attendees') ?? 0;
+            $totalEventRevenue = Payment::where('type', 'event')->where('status', 'completed')->sum('amount') ?? 0;
 
-        // Top vendeurs (artistes/organisateurs)
-        $topSellers = Payment::selectRaw('
-            seller_id,
-            users.name as seller_name,
-            users.role as seller_role,
-            COUNT(*) as sales_count,
-            COALESCE(SUM(seller_amount), 0) as total_earnings
-        ')
-        ->join('users', 'payments.seller_id', '=', 'users.id')
-        ->where('payments.status', 'completed')
-        ->whereBetween('payments.created_at', [$startDate, $endDate])
-        ->groupBy('seller_id', 'users.name', 'users.role')
-        ->orderBy('total_earnings', 'desc')
-        ->limit(10)
-        ->get();
+            // Statistiques de paiement basées sur le vrai modèle Payment
+            $paymentStats = [
+                'total_amount' => Payment::sum('amount') ?? 0,
+                'total_payments' => Payment::count() ?? 0,
+                'total_commission' => Payment::sum('commission_amount') ?? 0,
+                'average_amount' => Payment::avg('amount') ?? 0,
+                'completed_payments' => Payment::where('status', 'completed')->count() ?? 0,
+                'pending_payments' => Payment::where('status', 'pending')->count() ?? 0,
+                'failed_payments' => Payment::where('status', 'failed')->count() ?? 0,
+                'refunded_payments' => Payment::where('status', 'refunded')->count() ?? 0,
+                'cancelled_payments' => Payment::where('status', 'cancelled')->count() ?? 0,
+                'sound_payments' => Payment::where('type', 'sound')->count() ?? 0,
+                'event_payments' => Payment::where('type', 'event')->count() ?? 0,
+                'seller_amount' => Payment::sum('seller_amount') ?? 0,
+            ];
 
-        // Répartition par méthode de paiement
-        $paymentMethods = Payment::selectRaw('
-            payment_method,
-            COUNT(*) as count,
-            COALESCE(SUM(amount), 0) as total_amount
-        ')
-        ->where('status', 'completed')
-        ->whereBetween('created_at', [$startDate, $endDate])
-        ->groupBy('payment_method')
-        ->get();
+            // Calculer les revenus par type
+            $soundRevenue = Payment::where('type', 'sound')->where('status', 'completed')->sum('amount') ?? 0;
+            $eventRevenue = Payment::where('type', 'event')->where('status', 'completed')->sum('amount') ?? 0;
 
-        return response()->json([
-            'payment_stats' => $paymentStats,
-            'general_stats' => $generalStats,
-            'daily_stats' => $dailyStats,
-            'top_sellers' => $topSellers,
-            'payment_methods' => $paymentMethods,
-            'period' => [
-                'start_date' => $startDate,
-                'end_date' => $endDate
-            ]
-        ]);
+            $stats = [
+                'payment_stats' => $paymentStats,
+                'general_stats' => [
+                    'total_users' => $totalUsers,
+                    'total_sounds' => $totalSounds,
+                    'total_events' => $totalEvents,
+                    'active_users' => $activeUsers,
+                    'published_sounds' => $publishedSounds,
+                    'published_events' => $publishedEvents,
+                    'active_events' => $activeEvents,
+                    'pending_events' => $pendingEvents,
+                    'draft_events' => $draftEvents,
+                    'completed_events' => $completedEvents,
+                    'cancelled_events' => $cancelledEvents,
+                    'artists_count' => $artistsCount,
+                    'producers_count' => $producersCount,
+                    'draft_sounds' => $draftSounds,
+                    'pending_sounds' => $pendingSounds,
+                    'total_plays' => $totalPlays,
+                    'total_downloads' => $totalDownloads,
+                    'total_likes' => $totalLikes,
+                    'total_tickets_sold' => $totalTicketsSold,
+                    'total_event_revenue' => $totalEventRevenue,
+                    'sound_revenue' => $soundRevenue,
+                    'event_revenue' => $eventRevenue,
+                ]
+            ];
+
+            return response()->json($stats);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getStats: ' . $e->getMessage());
+
+            // Retourner des statistiques par défaut en cas d'erreur
+            return response()->json([
+                'payment_stats' => [
+                    'total_amount' => 0,
+                    'total_payments' => 0,
+                    'total_commission' => 0,
+                    'average_amount' => 0,
+                    'completed_payments' => 0,
+                    'pending_payments' => 0,
+                    'failed_payments' => 0,
+                    'refunded_payments' => 0,
+                    'cancelled_payments' => 0,
+                    'sound_payments' => 0,
+                    'event_payments' => 0,
+                    'seller_amount' => 0,
+                ],
+                'general_stats' => [
+                    'total_users' => 0,
+                    'total_sounds' => 0,
+                    'total_events' => 0,
+                    'active_users' => 0,
+                    'published_sounds' => 0,
+                    'published_events' => 0,
+                    'active_events' => 0,
+                    'pending_events' => 0,
+                    'draft_events' => 0,
+                    'completed_events' => 0,
+                    'cancelled_events' => 0,
+                    'artists_count' => 0,
+                    'producers_count' => 0,
+                    'draft_sounds' => 0,
+                    'pending_sounds' => 0,
+                    'total_plays' => 0,
+                    'total_downloads' => 0,
+                    'total_likes' => 0,
+                    'total_tickets_sold' => 0,
+                    'total_event_revenue' => 0,
+                    'sound_revenue' => 0,
+                    'event_revenue' => 0,
+                ]
+            ]);
+        }
     }
 
     /**
      * Obtenir les données pour les sons
      */
-    public function getSounds(Request $request): JsonResponse
+    public function getSounds()
     {
-        $query = Sound::with(['user', 'payments'])
-            ->withCount(['payments as total_sales' => function($query) {
-                $query->where('status', 'completed');
-            }])
-            ->withSum(['payments as total_revenue' => function($query) {
-                $query->where('status', 'completed');
-            }], 'amount');
+        try {
+            // Utiliser les vraies colonnes basées sur la migration
+            $sounds = Sound::with(['user', 'category'])
+                ->select([
+                    'id', 'title', 'slug', 'description', 'user_id', 'category_id',
+                    'file_path', 'cover_image', 'duration', 'genre', 'price',
+                    'is_free', 'is_featured', 'status', 'plays_count', 'downloads_count',
+                    'likes_count', 'tags', 'bpm', 'key', 'credits', 'created_at', 'updated_at'
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($sound) {
+                    return [
+                        'id' => $sound->id,
+                        'title' => $sound->title,
+                        'slug' => $sound->slug,
+                        'description' => $sound->description,
+                        'user_id' => $sound->user_id,
+                        'category_id' => $sound->category_id,
+                        'file_path' => $sound->file_path,
+                        'file_url' => $sound->file_url, // Utilise l'accesseur du modèle
+                        'cover_image' => $sound->cover_image,
+                        'cover_image_url' => $sound->cover_image_url, // Utilise l'accesseur du modèle
+                        'duration' => $sound->duration,
+                        'formatted_duration' => $sound->formatted_duration, // Utilise l'accesseur du modèle
+                        'genre' => $sound->genre,
+                        'price' => $sound->price,
+                        'formatted_price' => $sound->formatted_price, // Utilise l'accesseur du modèle
+                        'is_free' => $sound->is_free,
+                        'is_featured' => $sound->is_featured,
+                        'status' => $sound->status,
+                        'plays_count' => $sound->plays_count ?? 0,
+                        'downloads_count' => $sound->downloads_count ?? 0,
+                        'likes_count' => $sound->likes_count ?? 0,
+                        'tags' => $sound->tags,
+                        'bpm' => $sound->bpm,
+                        'key' => $sound->key,
+                        'credits' => $sound->credits,
+                        'created_at' => $sound->created_at,
+                        'updated_at' => $sound->updated_at,
+                        // Relations
+                        'user' => $sound->user ? [
+                            'id' => $sound->user->id,
+                            'name' => $sound->user->name,
+                            'email' => $sound->user->email,
+                            'role' => $sound->user->role ?? 'user',
+                        ] : null,
+                        'category' => $sound->category ? [
+                            'id' => $sound->category->id,
+                            'name' => $sound->category->name,
+                        ] : null,
+                        // Données pour l'affichage compatibles avec l'ancien format
+                        'artist' => $sound->user ? $sound->user->name : 'Artiste inconnu',
+                        'artist_name' => $sound->user ? $sound->user->name : 'Artiste inconnu',
+                    ];
+                });
 
-        // Filtres
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+            return response()->json($sounds);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getSounds: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur chargement sons', 'message' => $e->getMessage()], 500);
         }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQuery) use ($search) {
-                      $userQuery->where('name', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $sounds = $query->orderBy('created_at', 'desc')
-                       ->paginate($request->get('per_page', 15));
-
-        return response()->json($sounds);
     }
 
     /**
      * Obtenir les données pour les événements
      */
-    public function getEvents(Request $request): JsonResponse
+    public function getEvents()
     {
-        $query = Event::with(['user', 'payments'])
-            ->withCount(['payments as total_sales' => function($query) {
-                $query->where('status', 'completed');
-            }])
-            ->withSum(['payments as total_revenue' => function($query) {
-                $query->where('status', 'completed');
-            }], 'amount');
+        try {
+            $events = Event::with(['user'])
+                ->select([
+                    'id', 'title', 'slug', 'description', 'user_id', 'venue',
+                    'address', 'city', 'country', 'event_date', 'start_time', 'end_time',
+                    'poster_image', 'category', 'status', 'is_featured',
+                    'is_free', 'ticket_price', 'max_attendees', 'current_attendees',
+                    'created_at', 'updated_at'
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($event) {
+                    return [
+                        'id' => $event->id,
+                        'title' => $event->title,
+                        'slug' => $event->slug,
+                        'description' => $event->description,
+                        'user_id' => $event->user_id,
+                        'venue' => $event->venue,
+                        'location' => $event->venue,
+                        'address' => $event->address,
+                        'city' => $event->city,
+                        'country' => $event->country,
+                        'event_date' => $event->event_date ? $event->event_date->format('Y-m-d') : null,
+                        'date' => $event->event_date ? $event->event_date->format('Y-m-d') : null,
+                        'start_time' => $event->start_time,
+                        'end_time' => $event->end_time,
+                        'poster_image' => $event->poster_image,
+                        'poster_image_url' => $event->poster_image ? asset('storage/' . $event->poster_image) : null,
+                        'featured_image' => $event->poster_image,
+                        'featured_image_url' => $event->poster_image ? asset('storage/' . $event->poster_image) : null,
+                        'category' => $event->category,
+                        'status' => $event->status,
+                        'is_featured' => $event->is_featured,
+                        'is_free' => $event->is_free,
+                        'ticket_price' => $event->ticket_price,
+                        'price_min' => $event->ticket_price,
+                        'price_max' => $event->ticket_price,
+                        'max_attendees' => $event->max_attendees,
+                        'capacity' => $event->max_attendees,
+                        'current_attendees' => $event->current_attendees ?? 0,
+                        'views_count' => 0,
+                        'artist' => null,
+                        'artists' => null,
+                        'formatted_date' => $event->event_date ? $event->event_date->format('d/m/Y') : null,
+                        'formatted_time' => $event->start_time ? date('H:i', strtotime($event->start_time)) : null,
+                        'formatted_price' => $event->is_free ? 'Gratuit' : ($event->ticket_price ? number_format($event->ticket_price, 0, ',', ' ') . ' XAF' : 'Prix non défini'),
+                        'availability_status' => 'available',
+                        'tickets_sold_percentage' => $event->max_attendees ? round(($event->current_attendees / $event->max_attendees) * 100, 1) : 0,
+                        'created_at' => $event->created_at,
+                        'updated_at' => $event->updated_at,
+                        // Relations
+                        'user' => $event->user ? [
+                            'id' => $event->user->id,
+                            'name' => $event->user->name,
+                            'email' => $event->user->email,
+                            'role' => $event->user->role ?? 'user',
+                        ] : null,
+                    ];
+                });
 
-        // Filtres
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+            return response()->json($events);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getEvents: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur chargement événements', 'message' => $e->getMessage()], 500);
         }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('venue', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQuery) use ($search) {
-                      $userQuery->where('name', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $events = $query->orderBy('created_at', 'desc')
-                       ->paginate($request->get('per_page', 15));
-
-        return response()->json($events);
     }
 
     /**
      * Obtenir les données pour les utilisateurs
      */
-    public function getUsers(Request $request): JsonResponse
+    public function getUsers()
     {
-        $query = User::withCount(['sounds', 'events'])
-            ->withSum(['sales as total_revenue' => function($query) {
-                $query->where('status', 'completed');
-            }], 'seller_amount');
-
-        // Filtres
-        if ($request->has('role')) {
-            $query->where('role', $request->role);
-        }
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        $users = $query->orderBy('created_at', 'desc')
-                      ->paginate($request->get('per_page', 15));
-
-        return response()->json($users);
-    }
-
-    /**
-     * Obtenir les paramètres de commission
-     */
-    public function getCommissionSettings(): JsonResponse
-    {
-        $settings = CommissionSetting::active()->orderBy('key')->get();
-
-        return response()->json([
-            'settings' => $settings,
-            'rates' => CommissionSetting::getAllRates()
-        ]);
-    }
-
-    /**
-     * Mettre à jour les paramètres de commission
-     */
-    public function updateCommissionSettings(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'rates' => 'required|array',
-            'rates.*' => 'numeric|min:0|max:100',
-        ]);
-
         try {
-            $updated = [];
+            $users = User::orderBy('created_at', 'desc')->get();
 
-            foreach ($validated['rates'] as $key => $value) {
-                if (CommissionSetting::updateRate($key, $value)) {
-                    $updated[] = $key;
-                }
+            return response()->json($users);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Erreur chargement utilisateurs'], 500);
+        }
+    }
+
+    /**
+     * Obtenir les paramètres de commission (simplifié)
+     */
+    public function getCommission()
+    {
+        try {
+            $rates = [
+                'sound_commission' => CommissionSetting::getValue('sound_commission', 15),
+                'event_commission' => CommissionSetting::getValue('event_commission', 10)
+            ];
+
+            return response()->json(['rates' => $rates]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Erreur'], 500);
+        }
+    }
+
+    /**
+     * Mettre à jour les commissions (simplifié)
+     */
+    public function updateCommission(Request $request)
+    {
+        try {
+            $rates = $request->input('rates', []);
+
+            if (isset($rates['sound_commission'])) {
+                CommissionSetting::setValue('sound_commission', $rates['sound_commission']);
             }
 
-            return response()->json([
-                'message' => 'Taux de commission mis à jour avec succès',
-                'updated_keys' => $updated,
-                'rates' => CommissionSetting::getAllRates()
-            ]);
+            if (isset($rates['event_commission'])) {
+                CommissionSetting::setValue('event_commission', $rates['event_commission']);
+            }
+
+            $updatedRates = [
+                'sound_commission' => CommissionSetting::getValue('sound_commission', 15),
+                'event_commission' => CommissionSetting::getValue('event_commission', 10)
+            ];
+
+            return response()->json(['rates' => $updatedRates, 'message' => 'Mis à jour']);
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de la mise à jour des taux de commission',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['error' => 'Erreur mise à jour'], 500);
         }
     }
 

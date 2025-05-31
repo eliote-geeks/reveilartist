@@ -13,32 +13,19 @@ class Payment extends Model
     protected $fillable = [
         'user_id',
         'seller_id',
-        'type',
         'sound_id',
         'event_id',
         'amount',
-        'seller_amount',
-        'commission_amount',
-        'commission_rate',
-        'payment_method',
-        'payment_provider',
-        'transaction_id',
-        'external_payment_id',
+        'commission',
+        'type',
         'status',
-        'failure_reason',
-        'metadata',
-        'paid_at',
-        'refunded_at',
+        'payment_method',
+        'transaction_id'
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'seller_amount' => 'decimal:2',
-        'commission_amount' => 'decimal:2',
-        'commission_rate' => 'decimal:2',
-        'metadata' => 'array',
-        'paid_at' => 'datetime',
-        'refunded_at' => 'datetime',
+        'commission' => 'decimal:2',
     ];
 
     /**
@@ -143,6 +130,21 @@ class Payment extends Model
         return $query->where('status', 'completed');
     }
 
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeFailed($query)
+    {
+        return $query->where('status', 'failed');
+    }
+
+    public function scopeRefunded($query)
+    {
+        return $query->where('status', 'refunded');
+    }
+
     public function scopeSounds($query)
     {
         return $query->where('type', 'sound');
@@ -151,11 +153,6 @@ class Payment extends Model
     public function scopeEvents($query)
     {
         return $query->where('type', 'event');
-    }
-
-    public function scopeForSeller($query, $sellerId)
-    {
-        return $query->where('seller_id', $sellerId);
     }
 
     /**
