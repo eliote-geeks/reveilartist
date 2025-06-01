@@ -27,6 +27,7 @@ import Events from './pages/Events';
 import EventDetails from './pages/EventDetails';
 import Categories from './pages/Categories';
 import CategoryDetail from './pages/CategoryDetail';
+import About from './pages/About';
 
 // Import des pages de détails
 import SoundDetails from './pages/SoundDetails';
@@ -41,7 +42,7 @@ import EditSound from './pages/EditSound';
 import EditEvent from './pages/EditEvent';
 import Cart from './pages/Cart';
 import TicketPurchase from './pages/TicketPurchase';
-import MyCreations from './pages/Favorites';
+import Favorites from './pages/Favorites';
 import SoundManagement from './pages/SoundManagement';
 
 function App() {
@@ -61,13 +62,14 @@ function App() {
 
                         {/* Pages de contenu publiques */}
                                     <Route path="/catalog" element={<Catalog />} />
+                                    <Route path="/sounds/:id" element={<SoundDetails />} />
                                     <Route path="/artists" element={<Artists />} />
-                                    <Route path="/artist/:id" element={<ArtistProfile />} />
+                                    <Route path="/artists/:id" element={<ArtistProfile />} />
                                     <Route path="/events" element={<Events />} />
-                                    <Route path="/event/:id" element={<EventDetails />} />
-                        <Route path="/categories" element={<Categories />} />
-                        <Route path="/category/:id" element={<CategoryDetail />} />
-                        <Route path="/sound/:id" element={<SoundDetails />} />
+                                    <Route path="/events/:id" element={<EventDetails />} />
+                                    <Route path="/about" element={<About />} />
+                                    <Route path="/categories" element={<Categories />} />
+                                    <Route path="/category/:id" element={<CategoryDetail />} />
 
                         {/* Pages protégées - nécessitent une authentification */}
                         <Route path="/dashboard" element={
@@ -102,13 +104,13 @@ function App() {
 
                         <Route path="/mes-creations" element={
                             <ProtectedRoute>
-                                <MyCreations />
+                                <Favorites />
                             </ProtectedRoute>
                         } />
 
                         <Route path="/favorites" element={
                             <ProtectedRoute>
-                                <MyCreations />
+                                <Favorites />
                             </ProtectedRoute>
                         } />
 

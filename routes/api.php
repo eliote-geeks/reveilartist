@@ -38,6 +38,7 @@ Route::get('/stats', [ApiSoundController::class, 'getGlobalStats']);
 // Routes publiques pour les sons - NOUVELLE API
 Route::prefix('sounds')->group(function () {
     Route::get('/', [ApiSoundController::class, 'index'])->name('api.sounds.index');
+    Route::get('/featured', [ApiSoundController::class, 'featured'])->name('api.sounds.featured');
     Route::get('/popular', [ApiSoundController::class, 'popular'])->name('api.sounds.popular');
     Route::get('/recent', [ApiSoundController::class, 'recent'])->name('api.sounds.recent');
     Route::get('/search', [ApiSoundController::class, 'search'])->name('api.sounds.search');

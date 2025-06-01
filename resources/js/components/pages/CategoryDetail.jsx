@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Spinner, Alert, Form, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Badge, Spinner, Alert, Form, InputGroup, ProgressBar } from 'react-bootstrap';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -26,6 +26,8 @@ import LoadingScreen from '../common/LoadingScreen';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import SoundDetailsModal from '../common/SoundDetailsModal';
+import { usePurchasedSounds } from '../../hooks/usePurchasedSounds';
 
 const CategoryDetail = () => {
     const { id } = useParams();
@@ -33,17 +35,25 @@ const CategoryDetail = () => {
     const [loading, setLoading] = useState(true);
     const [category, setCategory] = useState(null);
     const [sounds, setSounds] = useState([]);
-    const [filteredSounds, setFilteredSounds] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState('recent');
     const [viewMode, setViewMode] = useState('grid');
-    const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
-    const [isPlaying, setIsPlaying] = useState(false);
     const [likedSounds, setLikedSounds] = useState(new Set());
+    const [downloadingTracks, setDownloadingTracks] = useState(new Map());
+    const [showModal, setShowModal] = useState(false);
+    const [selectedSound, setSelectedSound] = useState(null);
+    const [pagination, setPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+        per_page: 20,
+        total: 0,
+        has_more: false
+    });
 
     const { addToCart } = useCart();
     const toast = useToast();
     const { token, user } = useAuth();
+    const { purchasedSounds, checkIfPurchased } = usePurchasedSounds();
 
     const sortOptions = [
         { value: 'recent', label: 'Plus récents', icon: faStopwatch },
@@ -59,14 +69,23 @@ const CategoryDetail = () => {
     }, [id]);
 
     useEffect(() => {
-        if (token) {
+        if (token && sounds.length > 0) {
             loadLikesStatus();
         }
     }, [sounds, token]);
 
     useEffect(() => {
-        filterAndSortSounds();
-    }, [sounds, searchTerm, sortBy]);
+        if (category) {
+            loadCategorySounds();
+        }
+    }, [searchTerm, sortBy]);
+
+    // Nouveau useEffect pour recharger quand la catégorie change
+    useEffect(() => {
+        if (category) {
+            loadCategorySounds();
+        }
+    }, [category]);
 
     const loadCategoryData = async () => {
         try {
@@ -84,19 +103,9 @@ const CategoryDetail = () => {
 
             setCategory(categoryData.category);
 
-            // Charger les sons de cette catégorie
-            const soundsResponse = await fetch(`/api/sounds?category=${id}&limit=50`, {
-                headers: {
-                    ...(token && { 'Authorization': `Bearer ${token}` }),
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const soundsData = await soundsResponse.json();
-
-            if (soundsData.success) {
-                setSounds(soundsData.sounds || []);
-            }
+            // Charger les sons de cette catégorie avec les vraies données
+            // Passer directement les données de la catégorie pour éviter le problème d'état asynchrone
+            await loadCategorySounds(1, categoryData.category);
 
         } catch (error) {
             console.error('Erreur lors du chargement:', error);
@@ -106,8 +115,57 @@ const CategoryDetail = () => {
         }
     };
 
+    const loadCategorySounds = async (page = 1, categoryData = null) => {
+        try {
+            // Utiliser categoryData passé en paramètre ou la variable d'état category
+            const currentCategory = categoryData || category;
+
+            const params = new URLSearchParams({
+                page: page.toString(),
+                per_page: pagination.per_page.toString(),
+                sort: sortBy
+            });
+
+            // Utiliser le nom ou l'ID de la catégorie pour filtrer
+            if (currentCategory?.name) {
+                params.append('category', currentCategory.name);
+            } else if (currentCategory?.id) {
+                params.append('category_id', currentCategory.id);
+            } else if (id) {
+                // Fallback: utiliser l'ID de l'URL directement
+                params.append('category_id', id);
+            }
+
+            if (searchTerm.trim()) {
+                params.append('search', searchTerm.trim());
+            }
+
+            console.log('Loading sounds for category:', currentCategory, 'with params:', params.toString());
+
+            const response = await fetch(`/api/sounds?${params}`, {
+                headers: {
+                    ...(token && { 'Authorization': `Bearer ${token}` }),
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setSounds(data.sounds || []);
+                setPagination(data.pagination || pagination);
+            } else {
+                throw new Error(data.message || 'Erreur lors du chargement des sons');
+            }
+
+        } catch (error) {
+            console.error('Erreur lors du chargement des sons:', error);
+            toast.error('Erreur', 'Erreur lors du chargement des sons');
+        }
+    };
+
     const loadLikesStatus = async () => {
-        if (!sounds.length) return;
+        if (!sounds.length || !token) return;
 
         try {
             const response = await fetch('/api/sounds/likes/status', {
@@ -121,45 +179,13 @@ const CategoryDetail = () => {
 
             if (response.ok) {
                 const data = await response.json();
-                setLikedSounds(new Set(data.likes || []));
+                if (data.success) {
+                    setLikedSounds(new Set(data.likes || []));
+                }
             }
         } catch (error) {
             console.error('Erreur lors du chargement des likes:', error);
         }
-    };
-
-    const filterAndSortSounds = () => {
-        let filtered = [...sounds];
-
-        // Filtrer par terme de recherche
-        if (searchTerm) {
-            filtered = filtered.filter(sound =>
-                sound.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                sound.artist.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                sound.description.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-        }
-
-        // Trier
-        filtered.sort((a, b) => {
-            switch (sortBy) {
-                case 'popular':
-                    return (b.plays || 0) - (a.plays || 0);
-                case 'downloads':
-                    return (b.downloads || 0) - (a.downloads || 0);
-                case 'name':
-                    return a.title.localeCompare(b.title);
-                case 'price_asc':
-                    return (a.price || 0) - (b.price || 0);
-                case 'price_desc':
-                    return (b.price || 0) - (a.price || 0);
-                case 'recent':
-                default:
-                    return new Date(b.created_at) - new Date(a.created_at);
-            }
-        });
-
-        setFilteredSounds(filtered);
     };
 
     const handleLike = async (soundId) => {
@@ -195,7 +221,7 @@ const CategoryDetail = () => {
                         : sound
                 ));
 
-                toast.success('Succès', data.message);
+                toast.success('Succès', data.is_liked ? 'Son ajouté aux favoris' : 'Son retiré des favoris');
             }
         } catch (error) {
             console.error('Erreur lors du like:', error);
@@ -204,23 +230,115 @@ const CategoryDetail = () => {
     };
 
     const handleAddToCart = (sound) => {
-        if (!token) {
-            toast.warning('Connexion requise', 'Vous devez être connecté pour acheter');
+        // Si le son est gratuit, proposer le téléchargement direct
+        if (sound.is_free || sound.price === 0) {
+            handleDownload(sound);
             return;
         }
 
-        addToCart({
+        // Pour les sons payants, ajouter au panier
+        const success = addToCart({
             id: sound.id,
             type: 'sound',
             title: sound.title,
             artist: sound.artist,
             price: sound.price || 0,
-            cover: sound.cover_image,
+            cover: sound.cover || sound.cover_image,
             duration: sound.duration,
-            quantity: 1
+            category: sound.category
         });
 
-        toast.success('Ajouté au panier', `"${sound.title}" a été ajouté au panier`);
+        if (success) {
+            toast.success('Ajouté au panier', `"${sound.title}" a été ajouté au panier`);
+        }
+    };
+
+    const handleDownload = async (sound) => {
+        if (!token) {
+            toast.error('Connexion requise', 'Veuillez vous connecter pour télécharger');
+            return;
+        }
+
+        try {
+            setDownloadingTracks(prev => new Map(prev.set(sound.id, { progress: 0, status: 'starting' })));
+
+            // Utiliser l'endpoint correct qui incrémente automatiquement
+            const response = await fetch(`/api/sounds/${sound.id}/download`, {
+                method: 'POST', // POST pour incrémenter
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Erreur lors du téléchargement');
+            }
+
+            const contentLength = response.headers.get('content-length');
+            const reader = response.body.getReader();
+            const chunks = [];
+            let receivedLength = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                chunks.push(value);
+                receivedLength += value.length;
+
+                if (contentLength) {
+                    const progress = (receivedLength / contentLength) * 100;
+                    setDownloadingTracks(prev => new Map(prev.set(sound.id, {
+                        progress: Math.round(progress),
+                        status: 'downloading'
+                    })));
+                }
+            }
+
+            // Créer le blob et télécharger
+            const blob = new Blob(chunks);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${sound.title}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            // Marquer comme téléchargé
+            setDownloadingTracks(prev => new Map(prev.set(sound.id, {
+                progress: 100,
+                status: 'completed'
+            })));
+
+            toast.success('Téléchargement terminé', `"${sound.title}" a été téléchargé avec succès`);
+
+            // Nettoyer après 3 secondes
+            setTimeout(() => {
+                setDownloadingTracks(prev => {
+                    const newMap = new Map(prev);
+                    newMap.delete(sound.id);
+                    return newMap;
+                });
+            }, 3000);
+
+        } catch (error) {
+            console.error('Erreur téléchargement:', error);
+            toast.error('Erreur', 'Erreur lors du téléchargement');
+            setDownloadingTracks(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(sound.id);
+                return newMap;
+            });
+        }
+    };
+
+    const handleViewDetails = (sound) => {
+        setSelectedSound(sound);
+        setShowModal(true);
     };
 
     const formatCurrency = (amount) => {
@@ -238,6 +356,12 @@ const CategoryDetail = () => {
             return (num / 1000).toFixed(1) + 'K';
         }
         return num?.toString() || '0';
+    };
+
+    const loadMoreSounds = async () => {
+        if (pagination.has_more) {
+            await loadCategorySounds(pagination.current_page + 1);
+        }
     };
 
     if (loading) {
@@ -263,45 +387,61 @@ const CategoryDetail = () => {
                 <div className="position-relative">
                     <Card.Img
                         variant="top"
-                        src={sound.cover_image || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop`}
+                        src={sound.cover || sound.cover_image || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop`}
                         className="sound-image"
                         style={{ height: '180px', objectFit: 'cover' }}
                     />
+
+                    {/* Badges */}
+                    <div className="position-absolute top-0 start-0 m-2">
+                        {sound.is_free || sound.price === 0 ? (
+                            <Badge bg="success" className="badge-modern shadow-sm">
+                                Gratuit
+                            </Badge>
+                        ) : (
+                            <Badge bg="primary" className="badge-modern shadow-sm">
+                                {formatCurrency(sound.price)}
+                            </Badge>
+                        )}
+                    </div>
+
+                    {sound.is_featured && (
+                        <Badge bg="warning" className="position-absolute top-0 end-0 m-2 badge-modern shadow-sm">
+                            <FontAwesomeIcon icon={faFire} className="me-1" />
+                            Vedette
+                        </Badge>
+                    )}
 
                     {/* Play Overlay */}
                     <div className="sound-play-overlay">
                         <Button
                             className="play-button-modern"
-                            onClick={() => {
-                                setCurrentlyPlaying(sound);
-                                setIsPlaying(!isPlaying || currentlyPlaying?.id !== sound.id);
-                            }}
+                            onClick={() => handleViewDetails(sound)}
                         >
-                            <FontAwesomeIcon
-                                icon={currentlyPlaying?.id === sound.id && isPlaying ? faPause : faPlay}
-                            />
+                            <FontAwesomeIcon icon={faPlay} />
                         </Button>
                     </div>
-
-                    {/* Badges */}
-                    {sound.is_free && (
-                        <Badge bg="success" className="position-absolute top-0 start-0 m-3 badge-modern">
-                            Gratuit
-                        </Badge>
-                    )}
-                    {sound.is_featured && (
-                        <Badge bg="warning" className="position-absolute top-0 end-0 m-3 badge-modern">
-                            <FontAwesomeIcon icon={faFire} className="me-1" />
-                            Vedette
-                        </Badge>
-                    )}
                 </div>
 
                 <Card.Body className="p-3">
                     <div className="d-flex justify-content-between align-items-start mb-2">
                         <div className="flex-grow-1">
-                            <Card.Title className="h6 mb-1 text-truncate">{sound.title}</Card.Title>
-                            <Card.Text className="small text-muted mb-2">par {sound.artist}</Card.Text>
+                            <Card.Title className="h6 mb-1 text-truncate">
+                                <Link
+                                    to={`/sounds/${sound.id}`}
+                                    className="text-decoration-none text-dark"
+                                >
+                                    {sound.title}
+                                </Link>
+                            </Card.Title>
+                            <Card.Text className="small text-muted mb-2">
+                                par <Link
+                                    to={`/artists/${sound.artistId || sound.user_id}`}
+                                    className="text-decoration-none text-primary fw-medium"
+                                >
+                                    {sound.artist}
+                                </Link>
+                            </Card.Text>
                         </div>
                         <Button
                             variant={likedSounds.has(sound.id) ? "danger" : "outline-danger"}
@@ -313,52 +453,107 @@ const CategoryDetail = () => {
                         </Button>
                     </div>
 
+                    {/* Stats */}
                     <div className="d-flex justify-content-between align-items-center mb-3">
                         <div className="d-flex align-items-center gap-3">
-                            <small className="text-muted">
+                            <small className="text-muted d-flex align-items-center">
                                 <FontAwesomeIcon icon={faPlay} className="me-1 text-primary" />
                                 {formatNumber(sound.plays || 0)}
                             </small>
-                            <small className="text-muted">
+                            <small className="text-muted d-flex align-items-center">
                                 <FontAwesomeIcon icon={faDownload} className="me-1 text-success" />
                                 {formatNumber(sound.downloads || 0)}
                             </small>
                         </div>
-                        <small className="text-muted">
+                        <small className="text-muted d-flex align-items-center">
                             <FontAwesomeIcon icon={faClock} className="me-1" />
                             {sound.duration || '0:00'}
                         </small>
                     </div>
 
-                    <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                            {sound.is_free ? (
-                                <span className="fw-bold text-success">Gratuit</span>
-                            ) : (
-                                <span className="fw-bold text-primary">
-                                    {formatCurrency(sound.price || 0)}
-                                </span>
-                            )}
-                        </div>
-                        <div className="d-flex gap-1">
+                    {/* Actions */}
+                    <div className="d-flex gap-2 align-items-center">
+                        <Button
+                            variant="outline-info"
+                            size="sm"
+                            className="btn-action"
+                            onClick={() => handleViewDetails(sound)}
+                            title="Voir les détails"
+                        >
+                            <FontAwesomeIcon icon={faEye} />
+                        </Button>
+
+                        {sound.is_free || sound.price === 0 ? (
+                            // Son gratuit : bouton télécharger
                             <Button
-                                as={Link}
-                                to={`/sound/${sound.id}`}
-                                variant="outline-primary"
+                                variant="success"
                                 size="sm"
-                                className="btn-action"
+                                className="flex-grow-1"
+                                onClick={() => handleDownload(sound)}
+                                disabled={downloadingTracks.has(sound.id)}
+                                style={{ borderRadius: '20px' }}
                             >
-                                <FontAwesomeIcon icon={faEye} />
+                                {downloadingTracks.has(sound.id) ? (
+                                    <div className="w-100">
+                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                            <span className="small">Téléchargement...</span>
+                                            <span className="small">{downloadingTracks.get(sound.id)?.progress || 0}%</span>
+                                        </div>
+                                        <ProgressBar
+                                            now={downloadingTracks.get(sound.id)?.progress || 0}
+                                            size="sm"
+                                            style={{ height: '4px' }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <FontAwesomeIcon icon={faDownload} className="me-1" />
+                                        Télécharger
+                                    </>
+                                )}
                             </Button>
+                        ) : checkIfPurchased(sound.id) ? (
+                            // Son acheté : bouton télécharger
+                            <Button
+                                variant="outline-success"
+                                size="sm"
+                                className="flex-grow-1"
+                                onClick={() => handleDownload(sound)}
+                                disabled={downloadingTracks.has(sound.id)}
+                                style={{ borderRadius: '20px' }}
+                            >
+                                {downloadingTracks.has(sound.id) ? (
+                                    <div className="w-100">
+                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                            <span className="small">Téléchargement...</span>
+                                            <span className="small">{downloadingTracks.get(sound.id)?.progress || 0}%</span>
+                                        </div>
+                                        <ProgressBar
+                                            now={downloadingTracks.get(sound.id)?.progress || 0}
+                                            size="sm"
+                                            style={{ height: '4px' }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <FontAwesomeIcon icon={faDownload} className="me-1" />
+                                        Télécharger
+                                    </>
+                                )}
+                            </Button>
+                        ) : (
+                            // Son payant : bouton ajouter au panier
                             <Button
                                 variant="primary"
                                 size="sm"
-                                className="btn-action"
+                                className="flex-grow-1"
                                 onClick={() => handleAddToCart(sound)}
+                                style={{ borderRadius: '20px' }}
                             >
-                                <FontAwesomeIcon icon={faShoppingCart} />
+                                <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                                Ajouter au panier
                             </Button>
-                        </div>
+                        )}
                     </div>
                 </Card.Body>
             </Card>
@@ -486,7 +681,7 @@ const CategoryDetail = () => {
                         </Col>
                         <Col lg={2} md={6}>
                             <small className="text-muted">
-                                {filteredSounds.length} résultat{filteredSounds.length > 1 ? 's' : ''}
+                                {sounds.length} résultat{sounds.length > 1 ? 's' : ''}
                             </small>
                         </Col>
                     </Row>
@@ -496,7 +691,7 @@ const CategoryDetail = () => {
             {/* Sounds Section */}
             <section className="py-4">
                 <Container>
-                    {filteredSounds.length === 0 ? (
+                    {sounds.length === 0 ? (
                         <div className="text-center py-5">
                             <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
                             <h4 className="text-muted">Aucun son trouvé</h4>
@@ -513,21 +708,63 @@ const CategoryDetail = () => {
                             )}
                         </div>
                     ) : (
-                        <Row className="g-4">
-                            {filteredSounds.map((sound, index) => (
-                                <Col
-                                    key={sound.id}
-                                    lg={viewMode === 'grid' ? 3 : 12}
-                                    md={viewMode === 'grid' ? 4 : 12}
-                                    sm={viewMode === 'grid' ? 6 : 12}
-                                >
-                                    <SoundCard sound={sound} index={index} />
-                                </Col>
-                            ))}
-                        </Row>
+                        <>
+                            <Row className="g-4">
+                                {sounds.map((sound, index) => (
+                                    <Col
+                                        key={sound.id}
+                                        lg={viewMode === 'grid' ? 3 : 12}
+                                        md={viewMode === 'grid' ? 4 : 12}
+                                        sm={viewMode === 'grid' ? 6 : 12}
+                                    >
+                                        <SoundCard sound={sound} index={index} />
+                                    </Col>
+                                ))}
+                            </Row>
+
+                            {/* Pagination */}
+                            {pagination.has_more && (
+                                <div className="text-center mt-5">
+                                    <Button
+                                        variant="primary"
+                                        size="lg"
+                                        onClick={loadMoreSounds}
+                                        disabled={loading}
+                                        style={{ borderRadius: '12px', padding: '12px 30px' }}
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Spinner animation="border" size="sm" className="me-2" />
+                                                Chargement...
+                                            </>
+                                        ) : (
+                                            <>
+                                                Charger plus de sons
+                                                <Badge bg="light" text="dark" className="ms-2">
+                                                    {pagination.current_page} / {pagination.last_page}
+                                                </Badge>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </Container>
             </section>
+
+            {/* Modal de détails du son */}
+            {selectedSound && (
+                <SoundDetailsModal
+                    show={showModal}
+                    onHide={() => setShowModal(false)}
+                    sound={selectedSound}
+                    onLike={handleLike}
+                    onAddToCart={handleAddToCart}
+                    likedSounds={likedSounds}
+                    hasPurchased={checkIfPurchased(selectedSound.id)}
+                />
+            )}
 
             <style jsx>{`
                 .category-hero {
@@ -628,6 +865,10 @@ const CategoryDetail = () => {
 
                 .btn-action:hover {
                     transform: scale(1.1);
+                }
+
+                .avoid-header-overlap {
+                    padding-top: 80px;
                 }
 
                 @media (max-width: 768px) {

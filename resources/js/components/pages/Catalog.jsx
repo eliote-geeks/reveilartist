@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Dropdown, Spinner, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Dropdown, Spinner, Alert, ProgressBar } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort, faRefresh } from '@fortawesome/free-solid-svg-icons';
-import SoundCard from '../common/SoundCard';
+import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort, faRefresh, faPlay, faDownload, faEye, faUser } from '@fortawesome/free-solid-svg-icons';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import { useCart } from '../../context/CartContext';
+import SoundDetailsModal from '../common/SoundDetailsModal';
+import { usePurchasedSounds } from '../../hooks/usePurchasedSounds';
 
 const Catalog = () => {
     const { token } = useAuth();
+    const toast = useToast();
+    const { addToCart } = useCart();
+    const { purchasedSounds, checkIfPurchased } = usePurchasedSounds();
     const [sounds, setSounds] = useState([]);
     const [categories, setCategories] = useState([]);
     const [filteredSounds, setFilteredSounds] = useState([]);
@@ -18,6 +25,9 @@ const Catalog = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [likedSounds, setLikedSounds] = useState(new Set());
+    const [downloadingTracks, setDownloadingTracks] = useState(new Map());
+    const [showModal, setShowModal] = useState(false);
+    const [selectedSound, setSelectedSound] = useState(null);
     const [pagination, setPagination] = useState({
         current_page: 1,
         last_page: 1,
@@ -147,7 +157,7 @@ const Catalog = () => {
 
     const handleLike = async (soundId) => {
         if (!token) {
-            alert('Veuillez vous connecter pour liker des sons');
+            toast.warning('Connexion requise', 'Veuillez vous connecter pour liker des sons');
             return;
         }
 
@@ -180,19 +190,127 @@ const Catalog = () => {
                             : sound
                     )
                 );
+
+                toast.success('Succès', data.is_liked ? 'Son ajouté aux favoris' : 'Son retiré des favoris');
             } else {
-                alert(data.message || 'Erreur lors du like');
+                toast.error('Erreur', data.message || 'Erreur lors du like');
             }
         } catch (error) {
             console.error('Erreur lors du like:', error);
-            alert('Erreur lors du like. Veuillez réessayer.');
+            toast.error('Erreur', 'Erreur lors du like. Veuillez réessayer.');
         }
     };
 
     const handleAddToCart = (sound) => {
-        // TODO: Implémenter l'ajout au panier
-        console.log('Ajout au panier:', sound);
-        alert(`"${sound.title}" ajouté au panier !`);
+        // Si le son est gratuit, proposer le téléchargement direct
+        if (sound.is_free || sound.price === 0) {
+            handleDownload(sound);
+            return;
+        }
+
+        // Pour les sons payants, ajouter au panier
+        const success = addToCart({
+            id: sound.id,
+            type: 'sound',
+            title: sound.title,
+            artist: sound.artist || sound.user?.name,
+            price: sound.price,
+            cover: sound.cover,
+            duration: sound.duration,
+            category: sound.category
+        });
+
+        if (success) {
+            toast.success('Ajouté au panier', `"${sound.title}" a été ajouté à votre panier`);
+        }
+    };
+
+    const handleDownload = async (sound) => {
+        if (!token) {
+            toast.error('Connexion requise', 'Veuillez vous connecter pour télécharger');
+            return;
+        }
+
+        try {
+            setDownloadingTracks(prev => new Map(prev.set(sound.id, { progress: 0, status: 'starting' })));
+
+            // Utiliser l'endpoint correct qui incrémente automatiquement
+            const response = await fetch(`/api/sounds/${sound.id}/download`, {
+                method: 'POST', // Changé en POST pour incrémenter
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Erreur lors du téléchargement');
+            }
+
+            const contentLength = response.headers.get('content-length');
+            const reader = response.body.getReader();
+            const chunks = [];
+            let receivedLength = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                chunks.push(value);
+                receivedLength += value.length;
+
+                if (contentLength) {
+                    const progress = (receivedLength / contentLength) * 100;
+                    setDownloadingTracks(prev => new Map(prev.set(sound.id, {
+                        progress: Math.round(progress),
+                        status: 'downloading'
+                    })));
+                }
+            }
+
+            // Créer le blob et télécharger
+            const blob = new Blob(chunks);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${sound.title}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            // Marquer comme téléchargé
+            setDownloadingTracks(prev => new Map(prev.set(sound.id, {
+                progress: 100,
+                status: 'completed'
+            })));
+
+            toast.success('Téléchargement terminé', `"${sound.title}" a été téléchargé avec succès`);
+
+            // Nettoyer après 3 secondes
+            setTimeout(() => {
+                setDownloadingTracks(prev => {
+                    const newMap = new Map(prev);
+                    newMap.delete(sound.id);
+                    return newMap;
+                });
+            }, 3000);
+
+        } catch (error) {
+            console.error('Erreur téléchargement:', error);
+            toast.error('Erreur', 'Erreur lors du téléchargement');
+            setDownloadingTracks(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(sound.id);
+                return newMap;
+            });
+        }
+    };
+
+    const handleViewDetails = (sound) => {
+        setSelectedSound(sound);
+        setShowModal(true);
     };
 
     const handleRefresh = () => {
@@ -434,16 +552,200 @@ const Catalog = () => {
                                     md={viewMode === 'grid' ? 4 : 12}
                                     sm={viewMode === 'grid' ? 6 : 12}
                                 >
-                                    <SoundCard
-                                            sound={{
-                                                ...sound,
-                                                isLiked: likedSounds.has(sound.id)
-                                            }}
-                                        onLike={handleLike}
-                                        onAddToCart={handleAddToCart}
-                                        isCompact={viewMode === 'list'}
-                                        showPreview={true}
-                                    />
+                                    <Card className="h-100 shadow-sm border-0 sound-card" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+                                        {/* Cover Image */}
+                                        <div className="position-relative">
+                                            <img
+                                                src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop`}
+                                                alt={sound.title}
+                                                className="card-img-top"
+                                                style={{
+                                                    height: viewMode === 'grid' ? '200px' : '120px',
+                                                    objectFit: 'cover'
+                                                }}
+                                            />
+
+                                            {/* Prix ou Gratuit Badge */}
+                                            <div className="position-absolute top-0 start-0 m-2">
+                                                {sound.is_free || sound.price === 0 ? (
+                                                    <Badge bg="success" className="rounded-pill shadow-sm">
+                                                        Gratuit
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge bg="primary" className="rounded-pill shadow-sm">
+                                                        {new Intl.NumberFormat('fr-FR').format(sound.price)} XAF
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            {/* Overlay avec bouton play */}
+                                            <div className="sound-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+                                                <Button
+                                                    variant="primary"
+                                                    size="lg"
+                                                    className="rounded-circle shadow-lg"
+                                                    style={{ width: '60px', height: '60px' }}
+                                                    onClick={() => handleViewDetails(sound)}
+                                                >
+                                                    <FontAwesomeIcon icon={faPlay} />
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <Card.Body className="p-3">
+                                            {/* Titre avec lien vers détails */}
+                                            <Card.Title className="mb-2">
+                                                <Link
+                                                    to={`/sounds/${sound.id}`}
+                                                    className="text-decoration-none text-dark fw-bold"
+                                                    style={{ fontSize: '16px' }}
+                                                >
+                                                    {sound.title}
+                                                </Link>
+                                            </Card.Title>
+
+                                            {/* Artiste avec lien vers profil */}
+                                            <Card.Text className="text-muted mb-2 small">
+                                                par <Link
+                                                    to={`/artists/${sound.artistId || sound.user_id}`}
+                                                    className="text-decoration-none text-primary fw-medium"
+                                                >
+                                                    {sound.artist}
+                                                </Link>
+                                            </Card.Text>
+
+                                            {/* Catégorie et genre */}
+                                            <div className="mb-3">
+                                                {sound.category && (
+                                                    <Badge bg="light" text="dark" className="me-1 small">
+                                                        {sound.category}
+                                                    </Badge>
+                                                )}
+                                                {sound.genre && (
+                                                    <Badge bg="outline-secondary" className="small">
+                                                        {sound.genre}
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            {/* Stats */}
+                                            <div className="d-flex justify-content-between align-items-center mb-3 small text-muted">
+                                                <span className="d-flex align-items-center">
+                                                    <FontAwesomeIcon icon={faHeart} className="me-1 text-danger" />
+                                                    {sound.likes || 0}
+                                                </span>
+                                                <span className="d-flex align-items-center">
+                                                    <FontAwesomeIcon icon={faPlay} className="me-1 text-primary" />
+                                                    {sound.plays || 0}
+                                                </span>
+                                                <span className="d-flex align-items-center">
+                                                    <FontAwesomeIcon icon={faDownload} className="me-1 text-success" />
+                                                    {sound.downloads || 0}
+                                                </span>
+                                            </div>
+
+                                            {/* Actions améliorées */}
+                                            <div className="d-flex gap-2 align-items-center">
+                                                {/* Bouton Like */}
+                                                <Button
+                                                    variant={likedSounds.has(sound.id) ? "danger" : "outline-danger"}
+                                                    size="sm"
+                                                    className="action-btn rounded-circle"
+                                                    style={{ width: '38px', height: '38px', padding: 0 }}
+                                                    onClick={() => handleLike(sound.id)}
+                                                    disabled={!token}
+                                                    title="Aimer ce son"
+                                                >
+                                                    <FontAwesomeIcon icon={faHeart} />
+                                                </Button>
+
+                                                {/* Bouton Voir détails */}
+                                                <Button
+                                                    variant="outline-info"
+                                                    size="sm"
+                                                    className="action-btn rounded-circle"
+                                                    style={{ width: '38px', height: '38px', padding: 0 }}
+                                                    onClick={() => handleViewDetails(sound)}
+                                                    title="Voir les détails"
+                                                >
+                                                    <FontAwesomeIcon icon={faEye} />
+                                                </Button>
+
+                                                {/* Bouton principal selon le statut */}
+                                                {sound.is_free || sound.price === 0 ? (
+                                                    // Son gratuit : bouton télécharger
+                                                    <Button
+                                                        variant="success"
+                                                        size="sm"
+                                                        className="flex-grow-1"
+                                                        onClick={() => handleDownload(sound)}
+                                                        disabled={downloadingTracks.has(sound.id)}
+                                                        style={{ borderRadius: '20px' }}
+                                                    >
+                                                        {downloadingTracks.has(sound.id) ? (
+                                                            <div className="w-100">
+                                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                                    <span className="small">Téléchargement...</span>
+                                                                    <span className="small">{downloadingTracks.get(sound.id)?.progress || 0}%</span>
+                                                                </div>
+                                                                <ProgressBar
+                                                                    now={downloadingTracks.get(sound.id)?.progress || 0}
+                                                                    size="sm"
+                                                                    style={{ height: '4px' }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <FontAwesomeIcon icon={faDownload} className="me-1" />
+                                                                Télécharger
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                ) : checkIfPurchased(sound.id) ? (
+                                                    // Son acheté : bouton télécharger
+                                                    <Button
+                                                        variant="outline-success"
+                                                        size="sm"
+                                                        className="flex-grow-1"
+                                                        onClick={() => handleDownload(sound)}
+                                                        disabled={downloadingTracks.has(sound.id)}
+                                                        style={{ borderRadius: '20px' }}
+                                                    >
+                                                        {downloadingTracks.has(sound.id) ? (
+                                                            <div className="w-100">
+                                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                                    <span className="small">Téléchargement...</span>
+                                                                    <span className="small">{downloadingTracks.get(sound.id)?.progress || 0}%</span>
+                                                                </div>
+                                                                <ProgressBar
+                                                                    now={downloadingTracks.get(sound.id)?.progress || 0}
+                                                                    size="sm"
+                                                                    style={{ height: '4px' }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <FontAwesomeIcon icon={faDownload} className="me-1" />
+                                                                Télécharger
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                ) : (
+                                                    // Son payant : bouton ajouter au panier
+                                                    <Button
+                                                        variant="primary"
+                                                        size="sm"
+                                                        className="flex-grow-1"
+                                                        onClick={() => handleAddToCart(sound)}
+                                                        style={{ borderRadius: '20px' }}
+                                                    >
+                                                        <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                                                        Ajouter au panier
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </Card.Body>
+                                    </Card>
                                 </Col>
                             ))}
                         </Row>
@@ -478,6 +780,103 @@ const Catalog = () => {
                     )}
                 </Container>
             </section>
+
+            {/* Modal de détails du son */}
+            {selectedSound && (
+                <SoundDetailsModal
+                    show={showModal}
+                    onHide={() => setShowModal(false)}
+                    sound={selectedSound}
+                    onLike={handleLike}
+                    onAddToCart={handleAddToCart}
+                    likedSounds={likedSounds}
+                    hasPurchased={checkIfPurchased(selectedSound.id)}
+                />
+            )}
+
+            <style jsx>{`
+                .sound-card {
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                }
+
+                .sound-card:hover {
+                    transform: translateY(-8px);
+                    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2) !important;
+                }
+
+                .sound-overlay {
+                    background: rgba(0, 0, 0, 0.6);
+                    opacity: 0;
+                    transition: all 0.3s ease;
+                }
+
+                .sound-card:hover .sound-overlay {
+                    opacity: 1;
+                }
+
+                .sound-overlay button {
+                    transform: scale(0.8);
+                    transition: all 0.3s ease;
+                }
+
+                .sound-card:hover .sound-overlay button {
+                    transform: scale(1);
+                }
+
+                .action-btn {
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .action-btn:hover {
+                    transform: scale(1.1);
+                }
+
+                .hero-gradient {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                }
+
+                .text-gradient-light {
+                    background: linear-gradient(45deg, #ffffff, #f8f9ff);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                }
+
+                .slide-in {
+                    animation: slideInUp 0.6s ease-out;
+                }
+
+                .float-animation {
+                    animation: float 3s ease-in-out infinite;
+                }
+
+                .avoid-header-overlap {
+                    padding-top: 80px;
+                }
+
+                @keyframes slideInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes float {
+                    0%, 100% {
+                        transform: translateY(0px);
+                    }
+                    50% {
+                        transform: translateY(-10px);
+                    }
+                }
+            `}</style>
         </div>
     );
 };

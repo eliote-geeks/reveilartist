@@ -385,7 +385,7 @@ const SoundDetails = () => {
                                         <h1 className="fw-bold mb-2">{soundData.title}</h1>
                                     <p className="text-muted mb-3">
                                             par <Link
-                                                to={`/artist/${soundData.artistId}`}
+                                                to={`/artists/${soundData.artistId}`}
                                                 className="text-decoration-none fw-medium"
                                             >
                                             {soundData.artist}
@@ -708,7 +708,7 @@ const SoundDetails = () => {
                             </div>
                             <Button
                                 as={Link}
-                                to={`/artist/${soundData.artistId}`}
+                                to={`/artists/${soundData.artistId}`}
                                 variant="outline-primary"
                                 size="sm"
                                 className="w-100"
@@ -770,7 +770,7 @@ const SoundDetails = () => {
                                     </div>
                                         <Button
                                             as={Link}
-                                            to={`/sound/${suggestedSound.id}`}
+                                            to={`/sounds/${suggestedSound.id}`}
                                             variant="outline-primary"
                                             size="sm"
                                             className="ms-2"

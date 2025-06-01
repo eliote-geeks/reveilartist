@@ -128,7 +128,7 @@ const SoundCard = ({
                                 <div className="flex-grow-1">
                                     <Card.Title className="mb-1 fw-bold" style={{ fontSize: '16px' }}>
                                         <Link
-                                            to={`/sound/${sound.id}`}
+                                            to={`/sounds/${sound.id}`}
                                             className="text-decoration-none text-dark"
                                         >
                                             {sound.title}
@@ -136,7 +136,7 @@ const SoundCard = ({
                                     </Card.Title>
                                     <Card.Text className="text-muted small mb-2">
                                         par <Link
-                                            to={`/artist/${sound.artistId || 1}`}
+                                            to={`/artists/${sound.artistId || 1}`}
                                             className="text-decoration-none"
                                         >
                                             {sound.artist}
@@ -287,7 +287,7 @@ const SoundCard = ({
                     <div className="mb-3">
                         <Card.Title className="mb-1 fw-bold" style={{ fontSize: '16px' }}>
                             <Link
-                                to={`/sound/${sound.id}`}
+                                to={`/sounds/${sound.id}`}
                                 className="text-decoration-none text-dark"
                             >
                                 {sound.title}
@@ -295,7 +295,7 @@ const SoundCard = ({
                         </Card.Title>
                         <Card.Text className="text-muted small mb-0">
                             par <Link
-                                to={`/artist/${sound.artistId || 1}`}
+                                to={`/artists/${sound.artistId || 1}`}
                                 className="text-decoration-none"
                             >
                                 {sound.artist}
@@ -400,7 +400,7 @@ const SoundCard = ({
                         ) : (
                             <Button
                                 as={Link}
-                                to={`/sound/${sound.id}`}
+                                to={`/sounds/${sound.id}`}
                                 variant="success"
                                 size="sm"
                                 className="flex-fill"

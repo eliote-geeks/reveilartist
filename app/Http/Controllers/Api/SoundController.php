@@ -8,6 +8,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
@@ -314,36 +315,105 @@ class SoundController extends Controller
             $filePath = storage_path('app/public/' . $sound->file_path);
 
             if (!file_exists($filePath)) {
+                Log::warning("Fichier audio manquant pour le son ID {$id}: {$filePath}");
+
+                // Créer un fichier audio de test si c'est un environnement de développement
+                if (config('app.env') === 'local' || config('app.debug')) {
+                    $this->createTestAudioFile($sound);
+                    // Réessayer après création
+                    if (file_exists($filePath)) {
+                        return $this->streamAudioFile($sound, $filePath);
+                    }
+                }
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Fichier audio non trouvé'
+                    'message' => 'Fichier audio temporairement indisponible',
+                    'error' => 'FILE_NOT_FOUND',
+                    'sound_id' => $id,
+                    'file_path' => $sound->file_path
                 ], 404);
             }
 
-            // Incrémenter le compteur de lectures (preview)
-            $sound->increment('plays_count');
+            return $this->streamAudioFile($sound, $filePath);
 
-            // Headers pour le streaming audio
-            $headers = [
-                'Content-Type' => 'audio/mpeg',
-                'Accept-Ranges' => 'bytes',
-                'Cache-Control' => 'public, max-age=3600',
-                'X-Preview-Duration' => '20' // Indication que c'est une preview de 20s
-            ];
-
-            // Pour une vraie implémentation de preview de 20 secondes,
-            // vous devriez utiliser FFmpeg pour extraire les 20 premières secondes
-            // Ici, on retourne le fichier complet mais le frontend limitera à 20s
-
-            return response()->file($filePath, $headers);
-
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Son non trouvé',
+                'error' => 'SOUND_NOT_FOUND'
+            ], 404);
         } catch (\Exception $e) {
+            Log::error("Erreur preview son ID {$id}: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la lecture du son',
-                'error' => $e->getMessage()
+                'error' => 'PREVIEW_ERROR',
+                'details' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
+    }
+
+    /**
+     * Streamer un fichier audio
+     */
+    private function streamAudioFile($sound, $filePath)
+    {
+        // Incrémenter le compteur de lectures (preview)
+        $sound->increment('plays_count');
+
+        // Headers pour le streaming audio
+        $headers = [
+            'Content-Type' => 'audio/mpeg',
+            'Accept-Ranges' => 'bytes',
+            'Cache-Control' => 'public, max-age=3600',
+            'X-Preview-Duration' => '20', // Indication que c'est une preview de 20s
+            'X-Sound-ID' => $sound->id,
+            'X-Sound-Title' => $sound->title
+        ];
+
+        // Pour une vraie implémentation de preview de 20 secondes,
+        // vous devriez utiliser FFmpeg pour extraire les 20 premières secondes
+        // Ici, on retourne le fichier complet mais le frontend limitera à 20s
+
+        return response()->file($filePath, $headers);
+    }
+
+    /**
+     * Créer un fichier audio de test pour le développement
+     */
+    private function createTestAudioFile($sound)
+    {
+        try {
+            $soundsDir = storage_path('app/public/sounds');
+            $filePath = storage_path('app/public/' . $sound->file_path);
+
+            // Créer le dossier s'il n'existe pas
+            if (!file_exists($soundsDir)) {
+                mkdir($soundsDir, 0755, true);
+            }
+
+            // Créer un fichier audio de test simple (silence de 30 secondes)
+            // En production, vous devriez avoir de vrais fichiers audio
+            $testAudioContent = $this->generateTestAudioContent();
+            file_put_contents($filePath, $testAudioContent);
+
+            Log::info("Fichier audio de test créé: {$filePath}");
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Erreur création fichier audio test: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Générer un contenu audio de test basique
+     */
+    private function generateTestAudioContent()
+    {
+        // En-tête MP3 basique pour un fichier de test (silence)
+        // En production, utilisez de vrais fichiers audio
+        return base64_decode('SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEluZm8AAAAPAAAAEAAAEAAAJCVFVVVVVV5eXl5eXl5epqampqampramxsbGxsbGxsbGzs7Ozs7Ozs7O9fX19fX19fX1+fn5+fn5+fn5/////////////////////////wAAAAA=');
     }
 
     /**
@@ -352,7 +422,7 @@ class SoundController extends Controller
     public function popular(Request $request)
     {
         try {
-            $limit = min($request->get('limit', 8), 20);
+            $limit = min($request->get('limit', 10), 50);
 
             $sounds = Sound::with(['user', 'category'])
                 ->published()
@@ -365,14 +435,20 @@ class SoundController extends Controller
                 return [
                     'id' => $sound->id,
                     'title' => $sound->title,
+                    'slug' => $sound->slug,
                     'artist' => $sound->user->name,
+                    'artistId' => $sound->user->id,
                     'price' => $sound->price,
                     'is_free' => $sound->is_free,
                     'cover' => $sound->cover_image_url,
                     'category' => $sound->category->name ?? 'Non classé',
                     'likes' => $sound->likes_count,
                     'plays' => $sound->plays_count,
-                    'preview_url' => route('api.sounds.preview', $sound->id)
+                    'duration' => $sound->formatted_duration,
+                    'genre' => $sound->genre,
+                    'file_url' => $sound->file_url,
+                    'preview_url' => route('api.sounds.preview', $sound->id),
+                    'created_at' => $sound->created_at->format('Y-m-d')
                 ];
             });
 
@@ -385,6 +461,71 @@ class SoundController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du chargement des sons populaires',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Afficher les sons mis en avant (featured)
+     */
+    public function featured(Request $request)
+    {
+        try {
+            $limit = min($request->get('limit', 1), 10);
+
+            $sounds = Sound::with(['user', 'category'])
+                ->published()
+                ->where('is_featured', true)
+                ->orderBy('created_at', 'desc')
+                ->limit($limit)
+                ->get();
+
+            // Si aucun son en featured, prendre les plus populaires
+            if ($sounds->isEmpty()) {
+                $sounds = Sound::with(['user', 'category'])
+                    ->published()
+                    ->orderBy('plays_count', 'desc')
+                    ->orderBy('likes_count', 'desc')
+                    ->limit($limit)
+                    ->get();
+            }
+
+            $formattedSounds = $sounds->map(function ($sound) {
+                return [
+                    'id' => $sound->id,
+                    'title' => $sound->title,
+                    'slug' => $sound->slug,
+                    'description' => $sound->description,
+                    'artist' => $sound->user->name,
+                    'artistId' => $sound->user->id,
+                    'price' => $sound->price,
+                    'is_free' => $sound->is_free,
+                    'cover' => $sound->cover_image_url,
+                    'category' => $sound->category->name ?? 'Non classé',
+                    'likes' => $sound->likes_count,
+                    'plays' => $sound->plays_count,
+                    'duration' => $sound->formatted_duration,
+                    'genre' => $sound->genre,
+                    'bpm' => $sound->bpm,
+                    'key' => $sound->key,
+                    'file_url' => $sound->file_url,
+                    'preview_url' => route('api.sounds.preview', $sound->id),
+                    'is_featured' => $sound->is_featured,
+                    'created_at' => $sound->created_at->format('Y-m-d'),
+                    'tags' => $sound->tags ?? []
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'sounds' => $formattedSounds
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des sons featured',
                 'error' => $e->getMessage()
             ], 500);
         }

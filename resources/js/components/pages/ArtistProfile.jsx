@@ -178,7 +178,7 @@ const ArtistProfile = () => {
     }
 
     return (
-        <div className="bg-light min-vh-100">
+        <div className="bg-light min-vh-100" style={{ paddingTop: '80px' }}>
             {/* Cover & Profile Header */}
             <section className="position-relative">
                 <div
@@ -479,7 +479,7 @@ const ArtistProfile = () => {
                                                                                 variant="outline-primary"
                                                                                 size="sm"
                                                                                 as={Link}
-                                                                                to={`/sound/${sound.id}`}
+                                                                                to={`/sounds/${sound.id}`}
                                                                             >
                                                                                 <FontAwesomeIcon icon={faEye} className="me-1" />
                                                                                 Voir
@@ -553,7 +553,7 @@ const ArtistProfile = () => {
                                                                                     variant="outline-primary"
                                                                                     size="sm"
                                                                                     as={Link}
-                                                                                    to={`/sound/${sound.id}`}
+                                                                                    to={`/sounds/${sound.id}`}
                                                                                 >
                                                                                     <FontAwesomeIcon icon={faEye} className="me-1" />
                                                                                     Voir
@@ -617,7 +617,7 @@ const ArtistProfile = () => {
                                                                         <div className="mt-auto">
                                                                             <Button
                                                                                 as={Link}
-                                                                                to={`/event/${event.id}`}
+                                                                                to={`/events/${event.id}`}
                                                                                 variant="primary"
                                                                                 size="sm"
                                                                                 className="w-100"

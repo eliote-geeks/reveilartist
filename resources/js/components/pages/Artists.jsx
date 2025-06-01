@@ -473,10 +473,13 @@ const Artists = () => {
                                                         <Col xs={4}>
                                                             <Button
                                                                 as={Link}
-                                                                to={`/artist/${artist.id}`}
+                                                                to={`/artists/${artist.id}`}
                                                                 variant="outline-secondary"
                                                                 size="sm"
                                                                 className="w-100"
+                                                                onClick={() => {
+                                                                    console.log('Redirection vers:', `/artists/${artist.id}`, 'Artist ID:', artist.id);
+                                                                }}
                                                             >
                                                                 <FontAwesomeIcon icon={faEye} />
                                                             </Button>
