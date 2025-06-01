@@ -359,24 +359,24 @@ class SoundController extends Controller
      */
     private function streamAudioFile($sound, $filePath)
     {
-        // Incrémenter le compteur de lectures (preview)
-        $sound->increment('plays_count');
+            // Incrémenter le compteur de lectures (preview)
+            $sound->increment('plays_count');
 
-        // Headers pour le streaming audio
-        $headers = [
-            'Content-Type' => 'audio/mpeg',
-            'Accept-Ranges' => 'bytes',
-            'Cache-Control' => 'public, max-age=3600',
+            // Headers pour le streaming audio
+            $headers = [
+                'Content-Type' => 'audio/mpeg',
+                'Accept-Ranges' => 'bytes',
+                'Cache-Control' => 'public, max-age=3600',
             'X-Preview-Duration' => '20', // Indication que c'est une preview de 20s
             'X-Sound-ID' => $sound->id,
             'X-Sound-Title' => $sound->title
-        ];
+            ];
 
-        // Pour une vraie implémentation de preview de 20 secondes,
-        // vous devriez utiliser FFmpeg pour extraire les 20 premières secondes
-        // Ici, on retourne le fichier complet mais le frontend limitera à 20s
+            // Pour une vraie implémentation de preview de 20 secondes,
+            // vous devriez utiliser FFmpeg pour extraire les 20 premières secondes
+            // Ici, on retourne le fichier complet mais le frontend limitera à 20s
 
-        return response()->file($filePath, $headers);
+            return response()->file($filePath, $headers);
     }
 
     /**
@@ -483,12 +483,12 @@ class SoundController extends Controller
 
             // Si aucun son en featured, prendre les plus populaires
             if ($sounds->isEmpty()) {
-                $sounds = Sound::with(['user', 'category'])
-                    ->published()
-                    ->orderBy('plays_count', 'desc')
-                    ->orderBy('likes_count', 'desc')
-                    ->limit($limit)
-                    ->get();
+            $sounds = Sound::with(['user', 'category'])
+                ->published()
+                ->orderBy('plays_count', 'desc')
+                ->orderBy('likes_count', 'desc')
+                ->limit($limit)
+                ->get();
             }
 
             $formattedSounds = $sounds->map(function ($sound) {
@@ -960,6 +960,56 @@ class SoundController extends Controller
                 'success' => false,
                 'message' => 'Erreur lors du téléchargement',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Approuver un son (admin uniquement)
+     */
+    public function approve($id)
+    {
+        try {
+            $sound = Sound::findOrFail($id);
+
+            // Changer simplement le statut à published
+            $sound->update(['status' => 'published']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Son approuvé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur approbation son: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'approbation'
+            ], 500);
+        }
+    }
+
+    /**
+     * Rejeter un son (admin uniquement)
+     */
+    public function reject(Request $request, $id)
+    {
+        try {
+            $sound = Sound::findOrFail($id);
+
+            // Changer simplement le statut à rejected
+            $sound->update(['status' => 'rejected']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Son rejeté avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur rejet son: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du rejet'
             ], 500);
         }
     }

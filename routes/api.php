@@ -54,7 +54,13 @@ Route::prefix('sounds')->group(function () {
         Route::post('/', [ApiSoundController::class, 'store'])->name('api.sounds.store');
         Route::put('/{id}', [ApiSoundController::class, 'update'])->name('api.sounds.update')->where('id', '[0-9]+');
         Route::delete('/{id}', [ApiSoundController::class, 'destroy'])->name('api.sounds.destroy')->where('id', '[0-9]+');
-        Route::get('/{id}/download', [ApiSoundController::class, 'download'])->name('api.sounds.download')->where('id', '[0-9]+');
+        Route::post('/{id}/download', [ApiSoundController::class, 'download'])->name('api.sounds.download')->where('id', '[0-9]+');
+
+        // Routes d'administration pour les sons (admin uniquement)
+        Route::middleware('admin')->group(function () {
+            Route::post('/{id}/approve', [ApiSoundController::class, 'approve'])->name('api.sounds.approve')->where('id', '[0-9]+');
+            Route::post('/{id}/reject', [ApiSoundController::class, 'reject'])->name('api.sounds.reject')->where('id', '[0-9]+');
+        });
     });
 });
 
@@ -66,6 +72,59 @@ Route::get('/sounds/categories/list', [SoundController::class, 'getCategories'])
 // Routes publiques pour les événements
 Route::get('/events', [EventController::class, 'index']);
 Route::get('/events/{event}', [EventController::class, 'show']);
+
+// Routes pour le dashboard admin (en dehors du groupe auth:sanctum principal)
+Route::middleware(['auth:sanctum'])->prefix('dashboard')->group(function () {
+    Route::get('/stats', [DashboardController::class, 'getStats']);
+    Route::get('/sounds', [DashboardController::class, 'getSounds']);
+    Route::get('/events', [DashboardController::class, 'getEvents']);
+    Route::get('/users', [DashboardController::class, 'getUsers']);
+    Route::get('/users-revenue', [DashboardController::class, 'getUsersRevenue']);
+
+    // Routes pour la gestion des paiements dans le dashboard
+    Route::get('/users/{userId}/payments', [DashboardController::class, 'getUserPayments']);
+    Route::post('/payments/{paymentId}/approve', [DashboardController::class, 'approvePayment']);
+    Route::post('/payments/{paymentId}/cancel', [DashboardController::class, 'cancelPayment']);
+    Route::post('/payments/{paymentId}/refund', [DashboardController::class, 'refundPayment']);
+    Route::post('/payments/batch-action', [DashboardController::class, 'batchPaymentAction']);
+
+    // Routes commission simplifiées
+    Route::get('/commission', [DashboardController::class, 'getCommission']);
+    Route::post('/commission', [DashboardController::class, 'updateCommission']);
+});
+
+// Routes simplifiées pour l'analyse des achats (sans authentification complexe)
+Route::prefix('dashboard')->group(function () {
+    Route::get('/users-purchases', [DashboardController::class, 'getUsersPurchases']);
+    Route::get('/payments/search', [DashboardController::class, 'searchPayments']);
+    Route::get('/products/{type}/{productId}/payments', [DashboardController::class, 'getProductPayments']);
+    Route::get('/payments/{paymentId}/receipt', [DashboardController::class, 'generateReceipt']);
+
+    // Route de test simple
+    Route::get('/test-payments', function () {
+        try {
+            $payments = \App\Models\Payment::limit(5)->get();
+            return response()->json([
+                'success' => true,
+                'message' => 'Test réussi',
+                'count' => $payments->count(),
+                'payments' => $payments->map(function($p) {
+                    return [
+                        'id' => $p->id,
+                        'transaction_id' => $p->transaction_id,
+                        'amount' => $p->amount,
+                        'status' => $p->status
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    });
+});
 
 // Routes protégées par l'authentification
 Route::middleware('auth:sanctum')->group(function () {
@@ -100,10 +159,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['role:admin'])->prefix('admin')->group(function () {
         // Dashboard - Statistiques
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('api.dashboard.index');
-        Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('api.dashboard.stats');
         Route::get('/dashboard/export', [DashboardController::class, 'exportStats'])->name('api.dashboard.export');
         Route::get('/dashboard/calculate-commission', [DashboardController::class, 'calculateCommission'])->name('api.dashboard.calculate-commission');
-        Route::get('/dashboard/user-stats', [DashboardController::class, 'getUsersWithRevenue'])->name('api.dashboard.users-revenue');
 
         // Gestion des paiements
         Route::apiResource('payments', PaymentController::class);
@@ -120,19 +177,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Gestion des commissions
         Route::apiResource('commissions', CommissionController::class);
-    });
-
-    // Routes pour le dashboard admin
-    Route::middleware(['auth:sanctum', 'admin'])->prefix('dashboard')->group(function () {
-        Route::get('/stats', [DashboardController::class, 'getStats']);
-        Route::get('/sounds', [DashboardController::class, 'getSounds']);
-        Route::get('/events', [DashboardController::class, 'getEvents']);
-        Route::get('/users', [DashboardController::class, 'getUsers']);
-        Route::get('/users-revenue', [DashboardController::class, 'getUsersRevenue']);
-
-        // Routes commission simplifiées
-        Route::get('/commission', [DashboardController::class, 'getCommission']);
-        Route::post('/commission', [DashboardController::class, 'updateCommission']);
     });
 
     // Gestion des catégories (admin uniquement)

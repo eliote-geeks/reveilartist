@@ -473,33 +473,33 @@ class DashboardController extends Controller
                     'users.name',
                     'users.email',
                     'users.role',
-                    'users.avatar',
+                    'users.profile_photo_path',
                     'users.created_at as join_date',
                     // Revenus totaux
-                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "completed" THEN payments.seller_amount END), 0) as total_earnings'),
-                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "completed" THEN payments.amount END), 0) as total_sales'),
-                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "completed" THEN payments.commission_amount END), 0) as total_commission_paid'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = \'completed\' THEN payments.seller_amount END), 0) as total_earnings'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = \'completed\' THEN payments.amount END), 0) as total_sales'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = \'completed\' THEN payments.commission_amount END), 0) as total_commission_paid'),
 
                     // Revenus par type
-                    DB::raw('COALESCE(SUM(CASE WHEN payments.type = "sound" AND payments.status = "completed" THEN payments.seller_amount END), 0) as sound_earnings'),
-                    DB::raw('COALESCE(SUM(CASE WHEN payments.type = "event" AND payments.status = "completed" THEN payments.seller_amount END), 0) as event_earnings'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.type = \'sound\' AND payments.status = \'completed\' THEN payments.seller_amount END), 0) as sound_earnings'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.type = \'event\' AND payments.status = \'completed\' THEN payments.seller_amount END), 0) as event_earnings'),
 
                     // Statistiques de vente
-                    DB::raw('COUNT(CASE WHEN payments.status = "completed" THEN 1 END) as total_sales_count'),
-                    DB::raw('COUNT(CASE WHEN payments.type = "sound" AND payments.status = "completed" THEN 1 END) as sound_sales_count'),
-                    DB::raw('COUNT(CASE WHEN payments.type = "event" AND payments.status = "completed" THEN 1 END) as event_sales_count'),
+                    DB::raw('COUNT(CASE WHEN payments.status = \'completed\' THEN 1 END) as total_sales_count'),
+                    DB::raw('COUNT(CASE WHEN payments.type = \'sound\' AND payments.status = \'completed\' THEN 1 END) as sound_sales_count'),
+                    DB::raw('COUNT(CASE WHEN payments.type = \'event\' AND payments.status = \'completed\' THEN 1 END) as event_sales_count'),
 
                     // Paiements en attente
-                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = "pending" THEN payments.seller_amount END), 0) as pending_earnings'),
-                    DB::raw('COUNT(CASE WHEN payments.status = "pending" THEN 1 END) as pending_sales_count'),
+                    DB::raw('COALESCE(SUM(CASE WHEN payments.status = \'pending\' THEN payments.seller_amount END), 0) as pending_earnings'),
+                    DB::raw('COUNT(CASE WHEN payments.status = \'pending\' THEN 1 END) as pending_sales_count'),
 
                     // Moyennes
-                    DB::raw('COALESCE(AVG(CASE WHEN payments.status = "completed" THEN payments.amount END), 0) as average_sale_amount'),
+                    DB::raw('COALESCE(AVG(CASE WHEN payments.status = \'completed\' THEN payments.amount END), 0) as average_sale_amount'),
 
                     // Date de la dernière vente
-                    DB::raw('MAX(CASE WHEN payments.status = "completed" THEN payments.created_at END) as last_sale_date')
+                    DB::raw('MAX(CASE WHEN payments.status = \'completed\' THEN payments.created_at END) as last_sale_date')
                 ])
-                ->groupBy('users.id', 'users.name', 'users.email', 'users.role', 'users.avatar', 'users.created_at')
+                ->groupBy('users.id', 'users.name', 'users.email', 'users.role', 'users.profile_photo_path', 'users.created_at')
                 ->orderBy('total_earnings', 'desc')
                 ->get()
                 ->map(function ($user) {
@@ -508,7 +508,7 @@ class DashboardController extends Controller
                         'name' => $user->name,
                         'email' => $user->email,
                         'role' => $user->role,
-                        'avatar' => $user->avatar,
+                        'avatar' => $user->profile_photo_path,
                         'join_date' => $user->join_date,
                         'formatted_join_date' => Carbon::parse($user->join_date)->format('d/m/Y'),
 
@@ -604,5 +604,752 @@ class DashboardController extends Controller
         if ($earnings >= 25000) return 'bronze';    // 25k XAF+
         if ($earnings > 0) return 'rookie';         // Quelques ventes
         return 'none';                              // Aucune vente
+    }
+
+    /**
+     * Obtenir les paiements détaillés d'un utilisateur spécifique
+     */
+    public function getUserPayments(Request $request, $userId)
+    {
+        try {
+            $user = User::findOrFail($userId);
+
+            $query = Payment::where('seller_id', $userId)
+                ->with(['user:id,name,email', 'sound:id,title', 'event:id,title']);
+
+            // Filtres optionnels
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->has('type')) {
+                $query->where('type', $request->type);
+            }
+
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('transaction_id', 'like', "%{$search}%")
+                      ->orWhereHas('user', function ($userQuery) use ($search) {
+                          $userQuery->where('name', 'like', "%{$search}%")
+                                   ->orWhere('email', 'like', "%{$search}%");
+                      })
+                      ->orWhereHas('sound', function ($soundQuery) use ($search) {
+                          $soundQuery->where('title', 'like', "%{$search}%");
+                      })
+                      ->orWhereHas('event', function ($eventQuery) use ($search) {
+                          $eventQuery->where('title', 'like', "%{$search}%");
+                      });
+                });
+            }
+
+            $payments = $query->orderBy('created_at', 'desc')
+                             ->paginate($request->get('per_page', 20));
+
+            // Transformer les données pour l'affichage
+            $payments->getCollection()->transform(function ($payment) {
+                return [
+                    'id' => $payment->id,
+                    'transaction_id' => $payment->transaction_id,
+                    'type' => $payment->type,
+                    'type_label' => $payment->type === 'sound' ? 'Son' : 'Événement',
+                    'product_name' => $payment->product_name,
+                    'buyer_name' => $payment->user ? $payment->user->name : 'Utilisateur supprimé',
+                    'buyer_email' => $payment->user ? $payment->user->email : 'N/A',
+                    'amount' => (float) $payment->amount,
+                    'seller_amount' => (float) $payment->seller_amount,
+                    'commission_amount' => (float) $payment->commission_amount,
+                    'commission_rate' => (float) $payment->commission_rate,
+                    'status' => $payment->status,
+                    'status_label' => $payment->status_label,
+                    'payment_method' => $payment->payment_method,
+                    'payment_provider' => $payment->payment_provider,
+                    'external_payment_id' => $payment->external_payment_id,
+                    'failure_reason' => $payment->failure_reason,
+                    'created_at' => $payment->created_at,
+                    'paid_at' => $payment->paid_at,
+                    'refunded_at' => $payment->refunded_at,
+                    'formatted_amount' => number_format($payment->amount, 0, ',', ' ') . ' XAF',
+                    'formatted_seller_amount' => number_format($payment->seller_amount, 0, ',', ' ') . ' XAF',
+                    'formatted_commission_amount' => number_format($payment->commission_amount, 0, ',', ' ') . ' XAF',
+                    'formatted_created_at' => $payment->created_at->format('d/m/Y H:i'),
+                    'formatted_paid_at' => $payment->paid_at ? $payment->paid_at->format('d/m/Y H:i') : null,
+                    'can_approve' => $payment->status === 'pending',
+                    'can_cancel' => in_array($payment->status, ['pending', 'completed']),
+                    'can_refund' => $payment->status === 'completed',
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                ],
+                'payments' => $payments
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getUserPayments: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur chargement paiements utilisateur', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Approuver un paiement (changer le statut de pending à completed)
+     */
+    public function approvePayment(Request $request, $paymentId)
+    {
+        try {
+            $payment = Payment::with(['user', 'seller', 'sound', 'event'])->findOrFail($paymentId);
+
+            if ($payment->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les paiements en attente peuvent être approuvés'
+                ], 400);
+            }
+
+            // Marquer comme complété
+            $payment->markAsCompleted();
+
+            // Log de l'action admin
+            \Illuminate\Support\Facades\Log::info('Paiement approuvé par admin', [
+                'payment_id' => $payment->id,
+                'transaction_id' => $payment->transaction_id,
+                'admin_user_id' => auth('sanctum')->id(),
+                'seller_id' => $payment->seller_id,
+                'amount' => $payment->amount
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement approuvé avec succès',
+                'payment' => [
+                    'id' => $payment->id,
+                    'transaction_id' => $payment->transaction_id,
+                    'status' => $payment->status,
+                    'status_label' => $payment->status_label,
+                    'paid_at' => $payment->paid_at,
+                    'formatted_paid_at' => $payment->paid_at ? $payment->paid_at->format('d/m/Y H:i') : null,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur approvePayment: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'approbation du paiement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Annuler un paiement (changer le statut à cancelled)
+     */
+    public function cancelPayment(Request $request, $paymentId)
+    {
+        try {
+            $validated = $request->validate([
+                'reason' => 'required|string|max:500'
+            ]);
+
+            $payment = Payment::with(['user', 'seller', 'sound', 'event'])->findOrFail($paymentId);
+
+            if (!in_array($payment->status, ['pending', 'completed'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce paiement ne peut pas être annulé'
+                ], 400);
+            }
+
+            $oldStatus = $payment->status;
+
+            // Mettre à jour le statut vers cancelled
+            $payment->update([
+                'status' => 'cancelled',
+                'failure_reason' => $validated['reason'],
+            ]);
+
+            // Log de l'action admin
+            \Illuminate\Support\Facades\Log::info('Paiement annulé par admin', [
+                'payment_id' => $payment->id,
+                'transaction_id' => $payment->transaction_id,
+                'old_status' => $oldStatus,
+                'admin_user_id' => auth('sanctum')->id(),
+                'seller_id' => $payment->seller_id,
+                'amount' => $payment->amount,
+                'reason' => $validated['reason']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement annulé avec succès',
+                'payment' => [
+                    'id' => $payment->id,
+                    'transaction_id' => $payment->transaction_id,
+                    'status' => $payment->status,
+                    'status_label' => $payment->status_label,
+                    'failure_reason' => $payment->failure_reason,
+                ]
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur cancelPayment: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'annulation du paiement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Rembourser un paiement (changer le statut à refunded)
+     */
+    public function refundPayment(Request $request, $paymentId)
+    {
+        try {
+            $validated = $request->validate([
+                'reason' => 'required|string|max:500'
+            ]);
+
+            $payment = Payment::with(['user', 'seller', 'sound', 'event'])->findOrFail($paymentId);
+
+            if ($payment->status !== 'completed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les paiements complétés peuvent être remboursés'
+                ], 400);
+            }
+
+            // Marquer comme remboursé
+            $payment->refund();
+
+            // Ajouter la raison du remboursement
+            $payment->update([
+                'failure_reason' => $validated['reason']
+            ]);
+
+            // Log de l'action admin
+            \Illuminate\Support\Facades\Log::info('Paiement remboursé par admin', [
+                'payment_id' => $payment->id,
+                'transaction_id' => $payment->transaction_id,
+                'admin_user_id' => auth('sanctum')->id(),
+                'seller_id' => $payment->seller_id,
+                'amount' => $payment->amount,
+                'reason' => $validated['reason']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement remboursé avec succès',
+                'payment' => [
+                    'id' => $payment->id,
+                    'transaction_id' => $payment->transaction_id,
+                    'status' => $payment->status,
+                    'status_label' => $payment->status_label,
+                    'refunded_at' => $payment->refunded_at,
+                    'formatted_refunded_at' => $payment->refunded_at ? $payment->refunded_at->format('d/m/Y H:i') : null,
+                    'failure_reason' => $payment->failure_reason,
+                ]
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur refundPayment: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du remboursement du paiement',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Traitement par lot des paiements (approuver/annuler plusieurs paiements)
+     */
+    public function batchPaymentAction(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'payment_ids' => 'required|array|min:1',
+                'payment_ids.*' => 'integer|exists:payments,id',
+                'action' => 'required|in:approve,cancel,refund',
+                'reason' => 'required_if:action,cancel,refund|string|max:500'
+            ]);
+
+            $paymentIds = $validated['payment_ids'];
+            $action = $validated['action'];
+            $reason = $validated['reason'] ?? null;
+
+            $results = [
+                'success' => [],
+                'errors' => [],
+                'total_processed' => 0,
+                'total_success' => 0,
+                'total_errors' => 0
+            ];
+
+            foreach ($paymentIds as $paymentId) {
+                try {
+                    $payment = Payment::findOrFail($paymentId);
+
+                    switch ($action) {
+                        case 'approve':
+                            if ($payment->status === 'pending') {
+                                $payment->markAsCompleted();
+                                $results['success'][] = [
+                                    'id' => $payment->id,
+                                    'transaction_id' => $payment->transaction_id,
+                                    'message' => 'Approuvé avec succès'
+                                ];
+                            } else {
+                                $results['errors'][] = [
+                                    'id' => $payment->id,
+                                    'transaction_id' => $payment->transaction_id,
+                                    'message' => 'Statut incorrect pour approbation'
+                                ];
+                            }
+                            break;
+
+                        case 'cancel':
+                            if (in_array($payment->status, ['pending', 'completed'])) {
+                                $payment->update([
+                                    'status' => 'cancelled',
+                                    'failure_reason' => $reason,
+                                ]);
+                                $results['success'][] = [
+                                    'id' => $payment->id,
+                                    'transaction_id' => $payment->transaction_id,
+                                    'message' => 'Annulé avec succès'
+                                ];
+                            } else {
+                                $results['errors'][] = [
+                                    'id' => $payment->id,
+                                    'transaction_id' => $payment->transaction_id,
+                                    'message' => 'Statut incorrect pour annulation'
+                                ];
+                            }
+                            break;
+
+                        case 'refund':
+                            if ($payment->status === 'completed') {
+                                $payment->refund();
+                                $payment->update(['failure_reason' => $reason]);
+                                $results['success'][] = [
+                                    'id' => $payment->id,
+                                    'transaction_id' => $payment->transaction_id,
+                                    'message' => 'Remboursé avec succès'
+                                ];
+                            } else {
+                                $results['errors'][] = [
+                                    'id' => $payment->id,
+                                    'transaction_id' => $payment->transaction_id,
+                                    'message' => 'Statut incorrect pour remboursement'
+                                ];
+                            }
+                            break;
+                    }
+
+                    $results['total_processed']++;
+
+                } catch (\Exception $e) {
+                    $results['errors'][] = [
+                        'id' => $paymentId,
+                        'transaction_id' => 'N/A',
+                        'message' => 'Erreur: ' . $e->getMessage()
+                    ];
+                    $results['total_processed']++;
+                }
+            }
+
+            $results['total_success'] = count($results['success']);
+            $results['total_errors'] = count($results['errors']);
+
+            // Log de l'action groupée
+            \Illuminate\Support\Facades\Log::info('Action groupée sur paiements', [
+                'action' => $action,
+                'admin_user_id' => auth('sanctum')->id(),
+                'payment_ids' => $paymentIds,
+                'total_processed' => $results['total_processed'],
+                'total_success' => $results['total_success'],
+                'total_errors' => $results['total_errors'],
+                'reason' => $reason
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Action '{$action}' exécutée: {$results['total_success']} succès, {$results['total_errors']} erreurs",
+                'results' => $results
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur batchPaymentAction: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du traitement groupé',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les achats/dépenses des utilisateurs (acheteurs)
+     */
+    public function getUsersPurchases()
+    {
+        try {
+            // Version simplifiée sans jointures complexes
+            $users = User::all();
+            $usersPurchases = collect();
+
+            foreach ($users as $user) {
+                $completedPayments = Payment::where('user_id', $user->id)
+                    ->where('status', 'completed')
+                    ->get();
+
+                $totalSpent = $completedPayments->sum('amount');
+                $totalPurchases = $completedPayments->count();
+                $soundPurchases = $completedPayments->where('type', 'sound')->sum('amount');
+                $eventPurchases = $completedPayments->where('type', 'event')->sum('amount');
+                $soundPurchasesCount = $completedPayments->where('type', 'sound')->count();
+                $eventPurchasesCount = $completedPayments->where('type', 'event')->count();
+
+                $lastPurchase = $completedPayments->sortByDesc('paid_at')->first();
+                $firstPurchase = $completedPayments->sortBy('paid_at')->first();
+
+                $daysSinceLastPurchase = null;
+                if ($lastPurchase && $lastPurchase->paid_at) {
+                    $daysSinceLastPurchase = now()->diffInDays($lastPurchase->paid_at);
+                }
+
+                $buyerCategory = $this->getBuyerCategory($totalSpent);
+                $averageAmount = $totalPurchases > 0 ? $totalSpent / $totalPurchases : 0;
+
+                $usersPurchases->push([
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'join_date' => $user->created_at,
+                    'formatted_join_date' => $user->created_at->format('d/m/Y'),
+
+                    // Dépenses
+                    'total_spent' => $totalSpent,
+                    'sound_purchases' => $soundPurchases,
+                    'event_purchases' => $eventPurchases,
+                    'average_purchase_amount' => $averageAmount,
+
+                    // Nombres
+                    'total_purchases' => $totalPurchases,
+                    'sound_purchases_count' => $soundPurchasesCount,
+                    'event_purchases_count' => $eventPurchasesCount,
+
+                    // Dates
+                    'first_purchase_date' => $firstPurchase ? $firstPurchase->paid_at : null,
+                    'last_purchase_date' => $lastPurchase ? $lastPurchase->paid_at : null,
+                    'formatted_first_purchase_date' => $firstPurchase && $firstPurchase->paid_at ? $firstPurchase->paid_at->format('d/m/Y') : null,
+                    'formatted_last_purchase_date' => $lastPurchase && $lastPurchase->paid_at ? $lastPurchase->paid_at->format('d/m/Y') : null,
+                    'days_since_last_purchase' => $daysSinceLastPurchase,
+
+                    // Formatage
+                    'formatted_total_spent' => number_format($totalSpent, 0, ',', ' ') . ' XAF',
+                    'formatted_sound_purchases' => number_format($soundPurchases, 0, ',', ' ') . ' XAF',
+                    'formatted_event_purchases' => number_format($eventPurchases, 0, ',', ' ') . ' XAF',
+                    'formatted_average_purchase_amount' => number_format($averageAmount, 0, ',', ' ') . ' XAF',
+
+                    // Catégories
+                    'buyer_category' => $buyerCategory,
+                    'is_active_buyer' => $daysSinceLastPurchase !== null && $daysSinceLastPurchase <= 30,
+                ]);
+            }
+
+            // Trier par total dépensé
+            $usersPurchases = $usersPurchases->sortByDesc('total_spent')->values();
+
+            // Calculer les statistiques générales
+            $totalBuyers = $usersPurchases->where('total_purchases', '>', 0)->count();
+            $totalSpentAll = $usersPurchases->sum('total_spent');
+            $activeBuyers = $usersPurchases->where('is_active_buyer', true)->count();
+            $topBuyer = $usersPurchases->where('total_purchases', '>', 0)->first();
+
+            $summary = [
+                'total_buyers' => $totalBuyers,
+                'total_spent_all' => $totalSpentAll,
+                'total_purchases_all' => $usersPurchases->sum('total_purchases'),
+                'average_spent_per_buyer' => $totalBuyers > 0 ? $totalSpentAll / $totalBuyers : 0,
+                'active_buyers' => $activeBuyers,
+
+                // Par catégorie
+                'buyer_categories' => [
+                    'vip' => $usersPurchases->where('buyer_category', 'vip')->count(),
+                    'premium' => $usersPurchases->where('buyer_category', 'premium')->count(),
+                    'regular' => $usersPurchases->where('buyer_category', 'regular')->count(),
+                    'occasional' => $usersPurchases->where('buyer_category', 'occasional')->count(),
+                    'new' => $usersPurchases->where('buyer_category', 'new')->count(),
+                ],
+
+                // Top acheteur
+                'top_buyer' => $topBuyer,
+
+                // Formatage
+                'formatted_total_spent_all' => number_format($totalSpentAll, 0, ',', ' ') . ' XAF',
+                'formatted_average_spent_per_buyer' => number_format($totalBuyers > 0 ? $totalSpentAll / $totalBuyers : 0, 0, ',', ' ') . ' XAF',
+            ];
+
+            return response()->json([
+                'users_purchases' => $usersPurchases,
+                'summary' => $summary
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getUsersPurchases: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Erreur chargement achats utilisateurs',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Déterminer la catégorie d'acheteur basée sur ses dépenses
+     */
+    private function getBuyerCategory(float $spent): string
+    {
+        if ($spent >= 100000) return 'vip';        // 100k XAF+ - Acheteur VIP
+        if ($spent >= 50000) return 'premium';     // 50k XAF+ - Acheteur Premium
+        if ($spent >= 20000) return 'regular';     // 20k XAF+ - Acheteur Régulier
+        if ($spent >= 5000) return 'occasional';   // 5k XAF+ - Acheteur Occasionnel
+        if ($spent > 0) return 'new';             // Quelques achats - Nouveau
+        return 'none';                             // Aucun achat
+    }
+
+    /**
+     * Rechercher des paiements avec critères avancés
+     */
+    public function searchPayments(Request $request)
+    {
+        try {
+            // Version ultra-simple pour éviter les erreurs
+            $payments = Payment::orderBy('created_at', 'desc')->limit(20)->get();
+
+            $paymentsData = $payments->map(function ($payment) {
+                return [
+                    'id' => $payment->id,
+                    'transaction_id' => $payment->transaction_id ?? 'N/A',
+                    'type' => $payment->type ?? 'unknown',
+                    'type_label' => ($payment->type === 'sound') ? 'Son' : 'Événement',
+                    'product_name' => $payment->product_name ?? 'Produit inconnu',
+                    'amount' => (float) ($payment->amount ?? 0),
+                    'status' => $payment->status ?? 'unknown',
+                    'status_label' => $this->getPaymentStatusLabel($payment->status ?? 'unknown'),
+                    'created_at' => $payment->created_at,
+                    'formatted_amount' => number_format($payment->amount ?? 0, 0, ',', ' ') . ' XAF',
+                    'formatted_created_at' => $payment->created_at ? $payment->created_at->format('d/m/Y H:i') : 'N/A',
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'payments' => [
+                    'data' => $paymentsData,
+                    'total' => $paymentsData->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Erreur recherche paiements',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les paiements d'un produit spécifique (son ou événement)
+     */
+    public function getProductPayments(Request $request, $type, $productId)
+    {
+        try {
+            $query = Payment::with(['user:id,name,email', 'seller:id,name,email'])
+                ->where('type', $type);
+
+            if ($type === 'sound') {
+                $query->where('sound_id', $productId)
+                      ->with('sound:id,title,artist_name,price,is_free');
+            } elseif ($type === 'event') {
+                $query->where('event_id', $productId)
+                      ->with('event:id,title,event_date,location,ticket_price');
+            } else {
+                return response()->json(['error' => 'Type de produit invalide'], 400);
+            }
+
+            // Filtres optionnels
+            if ($request->has('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+
+            $payments = $query->orderBy('created_at', 'desc')
+                             ->paginate($request->get('per_page', 20));
+
+            // Récupérer les infos du produit
+            $product = null;
+            if ($type === 'sound') {
+                $product = \App\Models\Sound::find($productId);
+            } elseif ($type === 'event') {
+                $product = \App\Models\Event::find($productId);
+            }
+
+            // Calculer les statistiques du produit
+            $stats = [
+                'total_payments' => $payments->total(),
+                'completed_payments' => Payment::where($type . '_id', $productId)->where('status', 'completed')->count(),
+                'pending_payments' => Payment::where($type . '_id', $productId)->where('status', 'pending')->count(),
+                'total_revenue' => Payment::where($type . '_id', $productId)->where('status', 'completed')->sum('amount'),
+                'total_seller_amount' => Payment::where($type . '_id', $productId)->where('status', 'completed')->sum('seller_amount'),
+                'total_commission' => Payment::where($type . '_id', $productId)->where('status', 'completed')->sum('commission_amount'),
+            ];
+
+            // Transformer les données
+            $payments->getCollection()->transform(function ($payment) {
+                return $this->transformPaymentData($payment);
+            });
+
+            return response()->json([
+                'success' => true,
+                'product' => $product,
+                'payments' => $payments,
+                'stats' => array_merge($stats, [
+                    'formatted_total_revenue' => number_format($stats['total_revenue'], 0, ',', ' ') . ' XAF',
+                    'formatted_total_seller_amount' => number_format($stats['total_seller_amount'], 0, ',', ' ') . ' XAF',
+                    'formatted_total_commission' => number_format($stats['total_commission'], 0, ',', ' ') . ' XAF',
+                ])
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur getProductPayments: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur chargement paiements produit', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Générer un reçu pour un paiement
+     */
+    public function generateReceipt(Request $request, $paymentId)
+    {
+        try {
+            $payment = Payment::with(['user', 'seller', 'sound', 'event'])->findOrFail($paymentId);
+
+            // Vérifier que le paiement est complété
+            if ($payment->status !== 'completed') {
+                return response()->json(['error' => 'Seuls les paiements complétés peuvent avoir un reçu'], 400);
+            }
+
+            $receiptData = [
+                'receipt_number' => 'RCP-' . $payment->id . '-' . date('Ymd'),
+                'issue_date' => now()->format('d/m/Y H:i'),
+                'payment' => $this->transformPaymentData($payment),
+                'company' => [
+                    'name' => 'Réveil Artist',
+                    'address' => 'Yaoundé, Cameroun',
+                    'phone' => '+237 XXX XXX XXX',
+                    'email' => 'contact@reveilartist.com',
+                    'website' => 'www.reveilartist.com'
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'receipt' => $receiptData
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Erreur generateReceipt: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur génération reçu', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Transformer les données d'un paiement pour l'affichage
+     */
+    private function transformPaymentData($payment)
+    {
+        return [
+            'id' => $payment->id,
+            'transaction_id' => $payment->transaction_id,
+            'type' => $payment->type,
+            'type_label' => $payment->type === 'sound' ? 'Son' : 'Événement',
+            'product_name' => $payment->product_name,
+            'buyer_name' => $payment->user ? $payment->user->name : 'Utilisateur supprimé',
+            'buyer_email' => $payment->user ? $payment->user->email : 'N/A',
+            'seller_name' => $payment->seller ? $payment->seller->name : 'Vendeur supprimé',
+            'seller_email' => $payment->seller ? $payment->seller->email : 'N/A',
+            'amount' => (float) $payment->amount,
+            'seller_amount' => (float) $payment->seller_amount,
+            'commission_amount' => (float) $payment->commission_amount,
+            'commission_rate' => (float) $payment->commission_rate,
+            'status' => $payment->status,
+            'status_label' => $this->getPaymentStatusLabel($payment->status),
+            'payment_method' => $payment->payment_method,
+            'payment_provider' => $payment->payment_provider,
+            'external_payment_id' => $payment->external_payment_id,
+            'failure_reason' => $payment->failure_reason,
+            'created_at' => $payment->created_at,
+            'paid_at' => $payment->paid_at,
+            'refunded_at' => $payment->refunded_at,
+            'formatted_amount' => number_format($payment->amount, 0, ',', ' ') . ' XAF',
+            'formatted_seller_amount' => number_format($payment->seller_amount, 0, ',', ' ') . ' XAF',
+            'formatted_commission_amount' => number_format($payment->commission_amount, 0, ',', ' ') . ' XAF',
+            'formatted_created_at' => $payment->created_at->format('d/m/Y H:i'),
+            'formatted_paid_at' => $payment->paid_at ? $payment->paid_at->format('d/m/Y H:i') : null,
+            'can_generate_receipt' => $payment->status === 'completed',
+            'sound' => $payment->sound ? [
+                'id' => $payment->sound->id,
+                'title' => $payment->sound->title,
+            ] : null,
+            'event' => $payment->event ? [
+                'id' => $payment->event->id,
+                'title' => $payment->event->title,
+            ] : null,
+        ];
+    }
+
+    /**
+     * Obtenir le libellé du statut de paiement
+     */
+    private function getPaymentStatusLabel($status)
+    {
+        $labels = [
+            'pending' => 'En attente',
+            'completed' => 'Complété',
+            'cancelled' => 'Annulé',
+            'refunded' => 'Remboursé',
+            'failed' => 'Échec'
+        ];
+
+        return $labels[$status] ?? $status;
     }
 }

@@ -710,17 +710,17 @@ class UserController extends Controller
                     $performance = 'moyenne';
                 }
 
-                return [
-                    'id' => $sound->id,
-                    'title' => $sound->title,
+                    return [
+                        'id' => $sound->id,
+                        'title' => $sound->title,
                     'slug' => $sound->slug,
-                    'description' => $sound->description,
+                        'description' => $sound->description,
                     'category' => [
                         'id' => $sound->category->id ?? null,
                         'name' => $sound->category->name ?? 'Non catégorisé',
                         'slug' => $sound->category->slug ?? null
                     ],
-                    'status' => $sound->status,
+                        'status' => $sound->status,
                     'status_label' => $this->getStatusLabel($sound->status),
 
                     // Informations du fichier
@@ -732,8 +732,8 @@ class UserController extends Controller
                     'tags' => $sound->tags ?? [],
 
                     // URLs
-                    'cover_image_url' => $sound->cover_image_url,
-                    'file_url' => $sound->file_url,
+                        'cover_image_url' => $sound->cover_image_url,
+                        'file_url' => $sound->file_url,
                     'preview_url' => $sound->file_url, // Pour l'aperçu
 
                     // Informations de prix

@@ -709,8 +709,8 @@ const AddSound = () => {
                                     ))}
                                 </div>
                             )}
-                        </Form.Group>
-                    </Col>
+                                            </Form.Group>
+                                        </Col>
                                     </Row>
                                 </Card.Body>
                             </Card>

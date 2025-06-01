@@ -138,6 +138,53 @@ const Dashboard = () => {
     });
     const [savingCommissions, setSavingCommissions] = useState(false);
 
+    // États pour la gestion des paiements dans la section revenus
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [userPayments, setUserPayments] = useState([]);
+    const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+    const [showPaymentActionModal, setShowPaymentActionModal] = useState(false);
+    const [selectedPayment, setSelectedPayment] = useState(null);
+    const [paymentAction, setPaymentAction] = useState(''); // approve, cancel, refund
+    const [paymentActionReason, setPaymentActionReason] = useState('');
+    const [loadingPayments, setLoadingPayments] = useState(false);
+    const [processingPaymentAction, setProcessingPaymentAction] = useState(false);
+    const [paymentsFilter, setPaymentsFilter] = useState('all'); // all, pending, completed, cancelled, refunded
+    const [paymentsSearchTerm, setPaymentsSearchTerm] = useState('');
+
+    // États pour le traitement par lot des paiements
+    const [selectedPayments, setSelectedPayments] = useState([]);
+    const [showBatchModal, setShowBatchModal] = useState(false);
+    const [batchAction, setBatchAction] = useState('');
+    const [batchReason, setBatchReason] = useState('');
+    const [processingBatch, setProcessingBatch] = useState(false);
+
+    // États pour l'analyse des achats
+    const [usersPurchases, setUsersPurchases] = useState([]);
+    const [purchasesStats, setPurchasesStats] = useState({});
+    const [searchResults, setSearchResults] = useState([]);
+    const [productPayments, setProductPayments] = useState([]);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [showSearchModal, setShowSearchModal] = useState(false);
+    const [showProductPaymentsModal, setShowProductPaymentsModal] = useState(false);
+    const [showReceiptModal, setShowReceiptModal] = useState(false);
+    const [receiptData, setReceiptData] = useState(null);
+    const [searchCriteria, setSearchCriteria] = useState({
+        search: '',
+        status: 'all',
+        type: 'all',
+        min_amount: '',
+        max_amount: '',
+        start_date: '',
+        end_date: '',
+        user_id: '',
+        seller_id: ''
+    });
+    const [purchasesSearchTerm, setPurchasesSearchTerm] = useState('');
+    const [purchasesFilter, setPurchasesFilter] = useState('all');
+    const [loadingSearchResults, setLoadingSearchResults] = useState(false);
+    const [loadingProductPayments, setLoadingProductPayments] = useState(false);
+    const [loadingReceipt, setLoadingReceipt] = useState(false);
+
     const [stats, setStats] = useState({
         // Statistiques principales
         totalSounds: 0,
@@ -185,7 +232,8 @@ const Dashboard = () => {
                 loadEvents(),
                 loadUsers(),
                 loadStats(),
-                loadUsersRevenue()
+                loadUsersRevenue(),
+                loadUsersPurchases()
             ]);
         } catch (error) {
             console.error('Erreur lors du chargement des données:', error);
@@ -318,6 +366,165 @@ const Dashboard = () => {
             setUsersRevenue([]);
             setRevenueStats({});
         }
+    };
+
+    // Charger les achats/dépenses des utilisateurs
+    const loadUsersPurchases = async () => {
+        try {
+            const response = await fetch('/api/dashboard/users-purchases', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setUsersPurchases(Array.isArray(data.users_purchases) ? data.users_purchases : []);
+                setPurchasesStats(data.summary || {});
+            } else {
+                setUsersPurchases([]);
+                setPurchasesStats({});
+            }
+        } catch (error) {
+            console.error('Erreur chargement achats utilisateurs:', error);
+            setUsersPurchases([]);
+            setPurchasesStats({});
+        }
+    };
+
+    // Rechercher des paiements avec critères avancés
+    const searchPayments = async (criteria = {}) => {
+        setLoadingSearchResults(true);
+        try {
+            const params = new URLSearchParams({
+                per_page: 20,
+                ...criteria
+            });
+
+            const response = await fetch(`/api/dashboard/payments/search?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setSearchResults(data.payments.data || []);
+                } else {
+                    toast.error('Erreur', data.message || 'Impossible de rechercher les paiements');
+                    setSearchResults([]);
+                }
+            } else {
+                toast.error('Erreur', 'Erreur de connexion au serveur');
+                setSearchResults([]);
+            }
+        } catch (error) {
+            console.error('Erreur recherche paiements:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+            setSearchResults([]);
+        } finally {
+            setLoadingSearchResults(false);
+        }
+    };
+
+    // Charger les paiements d'un produit spécifique
+    const loadProductPayments = async (type, productId, filters = {}) => {
+        setLoadingProductPayments(true);
+        try {
+            const params = new URLSearchParams({
+                per_page: 20,
+                ...filters
+            });
+
+            const response = await fetch(`/api/dashboard/products/${type}/${productId}/payments?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setProductPayments(data.payments.data || []);
+                    setSelectedProduct({
+                        ...data.product,
+                        type,
+                        stats: data.stats
+                    });
+                } else {
+                    toast.error('Erreur', data.message || 'Impossible de charger les paiements du produit');
+                    setProductPayments([]);
+                }
+            } else {
+                toast.error('Erreur', 'Erreur de connexion au serveur');
+                setProductPayments([]);
+            }
+        } catch (error) {
+            console.error('Erreur chargement paiements produit:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+            setProductPayments([]);
+        } finally {
+            setLoadingProductPayments(false);
+        }
+    };
+
+    // Générer un reçu pour un paiement
+    const generateReceipt = async (paymentId) => {
+        setLoadingReceipt(true);
+        try {
+            const response = await fetch(`/api/dashboard/payments/${paymentId}/receipt`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setReceiptData(data.receipt);
+                    setShowReceiptModal(true);
+                } else {
+                    toast.error('Erreur', data.message || 'Impossible de générer le reçu');
+                }
+            } else {
+                toast.error('Erreur', 'Erreur de connexion au serveur');
+            }
+        } catch (error) {
+            console.error('Erreur génération reçu:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setLoadingReceipt(false);
+        }
+    };
+
+    // Ouvrir le modal de recherche avancée
+    const openSearchModal = () => {
+        setSearchCriteria({
+            search: '',
+            status: 'all',
+            type: 'all',
+            min_amount: '',
+            max_amount: '',
+            start_date: '',
+            end_date: '',
+            user_id: '',
+            seller_id: ''
+        });
+        setSearchResults([]);
+        setShowSearchModal(true);
+    };
+
+    // Ouvrir le modal des paiements d'un produit
+    const openProductPaymentsModal = (type, productId, productName) => {
+        setSelectedProduct({ type, id: productId, name: productName });
+        setProductPayments([]);
+        setShowProductPaymentsModal(true);
+        loadProductPayments(type, productId);
     };
 
     const loadStats = async () => {
@@ -817,6 +1024,14 @@ const Dashboard = () => {
             description: 'Revenus par utilisateur'
         },
         {
+            id: 'purchases',
+            label: 'Analyse des Achats',
+            icon: faShoppingCart,
+            color: 'info',
+            count: purchasesStats.total_buyers || 0,
+            description: 'Dépenses et recherche de paiements'
+        },
+        {
             id: 'analytics',
             label: 'Analytics',
             icon: faChartLine,
@@ -1152,7 +1367,10 @@ const Dashboard = () => {
                                 variant="outline-success"
                                 size="sm"
                                 title="Approuver"
-                                onClick={() => handleApproveSound(row.id)}
+                                onClick={() => {
+                                    setSelectedSound(row);
+                                    setShowSoundApproveModal(true);
+                                }}
                                 disabled={actionLoading}
                             >
                                 <FontAwesomeIcon icon={faCheck} />
@@ -1704,7 +1922,8 @@ const Dashboard = () => {
                     <Button
                         variant="outline-success"
                         size="sm"
-                        title="Détails des revenus"
+                        title="Détails des revenus et paiements"
+                        onClick={() => openPaymentsModal(row)}
                     >
                         <FontAwesomeIcon icon={faChartLine} />
                     </Button>
@@ -1713,8 +1932,22 @@ const Dashboard = () => {
                             variant="outline-warning"
                             size="sm"
                             title="Paiements en attente"
+                            onClick={() => {
+                                setPaymentsFilter('pending');
+                                openPaymentsModal(row);
+                            }}
                         >
                             <FontAwesomeIcon icon={faClock} />
+                        </Button>
+                    )}
+                    {(row.total_sales_count > 0 && user?.role === 'admin') && (
+                        <Button
+                            variant="outline-info"
+                            size="sm"
+                            title="Gérer les paiements"
+                            onClick={() => openPaymentsModal(row)}
+                        >
+                            <FontAwesomeIcon icon={faCreditCard} />
                         </Button>
                     )}
                 </div>
@@ -1722,7 +1955,7 @@ const Dashboard = () => {
             ignoreRowClick: true,
             allowOverflow: true,
             button: true,
-            width: '120px'
+            width: '180px'
         }
     ];
 
@@ -1845,8 +2078,8 @@ const Dashboard = () => {
     const handleApproveSound = async (soundId) => {
         try {
             setActionLoading(true);
-            const response = await fetch(`/api/admin/sounds/${soundId}/approve`, {
-                method: 'PATCH',
+            const response = await fetch(`/api/sounds/${soundId}/approve`, {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -1869,11 +2102,283 @@ const Dashboard = () => {
         }
     };
 
+    // Fonction pour rejeter un son
+    const handleRejectSound = async () => {
+        if (!selectedSound || !rejectReason.trim()) {
+            toast.error('Erreur', 'Veuillez saisir une raison pour le rejet');
+            return;
+        }
+
+        try {
+            setActionLoading(true);
+            const response = await fetch(`/api/sounds/${selectedSound.id}/reject`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    reason: rejectReason.trim()
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success || response.ok) {
+                toast.success('Succès', 'Son rejeté avec succès');
+                loadSounds(); // Recharger la liste
+                setShowSoundRejectModal(false);
+                setSelectedSound(null);
+                setRejectReason('');
+            } else {
+                toast.error('Erreur', data.message || 'Impossible de rejeter le son');
+            }
+        } catch (error) {
+            console.error('Erreur lors du rejet:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     // Fonction de filtrage pour les revenus
     const getFilteredRevenue = () => {
         return usersRevenue.filter(user => {
             // Filtrer seulement les utilisateurs qui ont des revenus ou sont des vendeurs actifs
             return user.total_earnings > 0 || user.total_sales_count > 0;
+        });
+    };
+
+    // Charger les paiements d'un utilisateur spécifique
+    const loadUserPayments = async (userId, filters = {}) => {
+        setLoadingPayments(true);
+        try {
+            const params = new URLSearchParams({
+                per_page: 20,
+                ...filters
+            });
+
+            console.log('Chargement des paiements pour l\'utilisateur:', userId, 'avec filtres:', filters);
+
+            const response = await fetch(`/api/dashboard/users/${userId}/payments?${params}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Réponse API getUserPayments:', data);
+
+                if (data.success && data.payments) {
+                    // Vérifier si les données sont paginées ou directement un array
+                    const paymentsData = data.payments.data || data.payments;
+                    setUserPayments(Array.isArray(paymentsData) ? paymentsData : []);
+                    setSelectedUser(data.user);
+                    console.log('Paiements chargés:', paymentsData.length);
+                } else {
+                    console.warn('Réponse API sans succès:', data);
+                    toast.error('Erreur', data.message || 'Impossible de charger les paiements');
+                    setUserPayments([]);
+                }
+            } else {
+                console.error('Erreur HTTP:', response.status, response.statusText);
+                toast.error('Erreur', `Erreur de connexion au serveur (${response.status})`);
+                setUserPayments([]);
+            }
+        } catch (error) {
+            console.error('Erreur chargement paiements:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+            setUserPayments([]);
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
+    // Ouvrir le modal des paiements d'un utilisateur
+    const openPaymentsModal = (user) => {
+        console.log('Ouverture modal paiements pour:', user);
+        setSelectedUser(user);
+        setShowPaymentsModal(true);
+        setUserPayments([]); // Réinitialiser d'abord
+        setPaymentsFilter('all'); // Réinitialiser le filtre
+        setPaymentsSearchTerm(''); // Réinitialiser la recherche
+
+        // Charger les paiements
+        loadUserPayments(user.id, {
+            status: 'all' // Commencer par tous les statuts
+        });
+    };
+
+    // Fermer le modal des paiements
+    const closePaymentsModal = () => {
+        setShowPaymentsModal(false);
+        setSelectedUser(null);
+        setUserPayments([]);
+        setPaymentsFilter('all');
+        setPaymentsSearchTerm('');
+    };
+
+    // Ouvrir le modal d'action sur un paiement
+    const openPaymentActionModal = (payment, action) => {
+        setSelectedPayment(payment);
+        setPaymentAction(action);
+        setPaymentActionReason('');
+        setShowPaymentActionModal(true);
+    };
+
+    // Fermer le modal d'action sur un paiement
+    const closePaymentActionModal = () => {
+        setShowPaymentActionModal(false);
+        setSelectedPayment(null);
+        setPaymentAction('');
+        setPaymentActionReason('');
+    };
+
+    // Exécuter une action sur un paiement
+    const executePaymentAction = async () => {
+        if (!selectedPayment || !paymentAction) return;
+
+        // Validation pour les actions qui nécessitent une raison
+        if ((paymentAction === 'cancel' || paymentAction === 'refund') && !paymentActionReason.trim()) {
+            toast.error('Erreur', 'Veuillez saisir une raison pour cette action');
+            return;
+        }
+
+        setProcessingPaymentAction(true);
+        try {
+            const endpoint = `/api/dashboard/payments/${selectedPayment.id}/${paymentAction}`;
+            const method = 'POST';
+            const body = (paymentAction === 'cancel' || paymentAction === 'refund') ?
+                JSON.stringify({ reason: paymentActionReason.trim() }) : null;
+
+            const response = await fetch(endpoint, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                ...(body && { body })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                const actionMessages = {
+                    approve: 'Paiement approuvé avec succès',
+                    cancel: 'Paiement annulé avec succès',
+                    refund: 'Paiement remboursé avec succès'
+                };
+
+                toast.success('Succès', actionMessages[paymentAction]);
+
+                // Recharger les paiements et les données du dashboard
+                if (selectedUser) {
+                    loadUserPayments(selectedUser.id, {
+                        status: paymentsFilter !== 'all' ? paymentsFilter : undefined,
+                        search: paymentsSearchTerm || undefined
+                    });
+                }
+                loadUsersRevenue();
+                loadStats();
+
+                closePaymentActionModal();
+            } else {
+                toast.error('Erreur', data.message || `Impossible d'effectuer l'action`);
+            }
+        } catch (error) {
+            console.error('Erreur action paiement:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setProcessingPaymentAction(false);
+        }
+    };
+
+    // Traitement par lot des paiements
+    const executeBatchAction = async () => {
+        if (!selectedPayments.length || !batchAction) return;
+
+        if ((batchAction === 'cancel' || batchAction === 'refund') && !batchReason.trim()) {
+            toast.error('Erreur', 'Veuillez saisir une raison pour cette action');
+            return;
+        }
+
+        setProcessingBatch(true);
+        try {
+            const response = await fetch('/api/dashboard/payments/batch-action', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    payment_ids: selectedPayments,
+                    action: batchAction,
+                    ...(batchReason.trim() && { reason: batchReason.trim() })
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Succès', data.message);
+
+                // Recharger les données
+                if (selectedUser) {
+                    loadUserPayments(selectedUser.id);
+                }
+                loadUsersRevenue();
+                loadStats();
+
+                // Réinitialiser
+                setSelectedPayments([]);
+                setShowBatchModal(false);
+                setBatchAction('');
+                setBatchReason('');
+            } else {
+                toast.error('Erreur', data.message || 'Erreur lors du traitement par lot');
+            }
+        } catch (error) {
+            console.error('Erreur traitement par lot:', error);
+            toast.error('Erreur', 'Erreur de connexion au serveur');
+        } finally {
+            setProcessingBatch(false);
+        }
+    };
+
+    // Filtrer les paiements affichés
+    const getFilteredUserPayments = () => {
+        if (!Array.isArray(userPayments)) {
+            console.warn('userPayments n\'est pas un array:', userPayments);
+            return [];
+        }
+
+        return userPayments.filter(payment => {
+            if (!payment) return false;
+
+            // Filtre par statut
+            if (paymentsFilter !== 'all' && payment.status !== paymentsFilter) {
+                return false;
+            }
+
+            // Filtre par recherche
+            if (paymentsSearchTerm) {
+                const searchLower = paymentsSearchTerm.toLowerCase();
+                const searchableFields = [
+                    payment.transaction_id || '',
+                    payment.product_name || '',
+                    payment.buyer_name || '',
+                    payment.buyer_email || '',
+                    payment.payment_method || ''
+                ];
+
+                return searchableFields.some(field =>
+                    field.toLowerCase().includes(searchLower)
+                );
+            }
+
+            return true;
         });
     };
 
@@ -2960,7 +3465,591 @@ const Dashboard = () => {
                                             size="sm"
                                             style={{ width: '250px' }}
                                         />
-                                        <Button variant="outline-secondary" size="sm">
+                                        <Button variant="outline-secondary" size="sm" onClick={() => {
+                                            // La recherche se fait déjà automatiquement via getFilteredUserPayments()
+                                            console.log('Recherche manuelle déclenchée');
+                                        }}>
+                                            <FontAwesomeIcon icon={faSearch} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            }
+                        />
+                    )}
+                </Card.Body>
+            </Card>
+        </div>
+    );
+
+    // Colonnes pour la table des achats/dépenses des utilisateurs
+    const purchasesColumns = [
+        {
+            name: 'Acheteur',
+            selector: row => row.name,
+            sortable: true,
+            cell: row => (
+                <div className="d-flex align-items-center">
+                    <div className="me-3 p-3 rounded-circle text-center position-relative" style={{
+                        background: `linear-gradient(135deg, ${
+                            row.buyer_category === 'vip' ? '#8b5cf6, #7c3aed' :
+                            row.buyer_category === 'premium' ? '#f59e0b, #d97706' :
+                            row.buyer_category === 'regular' ? '#3b82f6, #1d4ed8' :
+                            row.buyer_category === 'occasional' ? '#10b981, #059669' :
+                            row.buyer_category === 'new' ? '#6b7280, #4b5563' :
+                            '#9ca3af, #6b7280'
+                        })`,
+                        color: 'white',
+                        minWidth: '60px',
+                        minHeight: '60px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <FontAwesomeIcon icon={
+                            row.buyer_category === 'vip' ? faCrown :
+                            row.buyer_category === 'premium' ? faStar :
+                            faUser
+                        } className="text-white" />
+
+                        {/* Badge catégorie */}
+                        {row.buyer_category !== 'none' && (
+                            <div className="position-absolute" style={{
+                                bottom: '-5px',
+                                right: '-5px',
+                                background: row.buyer_category === 'vip' ? '#8b5cf6' :
+                                           row.buyer_category === 'premium' ? '#f59e0b' :
+                                           row.buyer_category === 'regular' ? '#3b82f6' :
+                                           row.buyer_category === 'occasional' ? '#10b981' : '#6b7280',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                fontWeight: 'bold',
+                                color: 'white',
+                                border: '2px solid white'
+                            }}>
+                                {row.buyer_category === 'vip' ? 'V' :
+                                 row.buyer_category === 'premium' ? 'P' :
+                                 row.buyer_category === 'regular' ? 'R' :
+                                 row.buyer_category === 'occasional' ? 'O' : 'N'}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex-grow-1">
+                        <div className="fw-bold text-dark mb-1">{row.name}</div>
+                        <small className="text-muted d-block">{row.email}</small>
+                        <div className="small d-flex align-items-center gap-2 mt-1">
+                            <Badge bg={row.role === 'artist' ? 'primary' : row.role === 'producer' ? 'success' : 'secondary'}>
+                                <FontAwesomeIcon
+                                    icon={row.role === 'artist' ? faStar : row.role === 'producer' ? faCog : faUser}
+                                    className="me-1"
+                                />
+                                {row.role === 'artist' ? 'Artiste' : row.role === 'producer' ? 'Producteur' : 'Utilisateur'}
+                            </Badge>
+                            {row.buyer_category !== 'none' && (
+                                <Badge bg={
+                                    row.buyer_category === 'vip' ? 'purple' :
+                                    row.buyer_category === 'premium' ? 'warning' :
+                                    row.buyer_category === 'regular' ? 'primary' :
+                                    row.buyer_category === 'occasional' ? 'success' : 'secondary'
+                                } className="text-uppercase">
+                                    {row.buyer_category === 'vip' ? 'VIP' :
+                                     row.buyer_category === 'premium' ? 'Premium' :
+                                     row.buyer_category === 'regular' ? 'Régulier' :
+                                     row.buyer_category === 'occasional' ? 'Occasionnel' : 'Nouveau'}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ),
+            width: '280px'
+        },
+        {
+            name: 'Dépenses Totales',
+            selector: row => row.total_spent,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold h6 mb-1 text-primary">
+                        <FontAwesomeIcon icon={faEuroSign} className="me-1" />
+                        {row.formatted_total_spent}
+                    </div>
+                    <small className="text-muted">
+                        {row.total_purchases} achat(s)
+                    </small>
+                    <div className="small text-info">
+                        Moy: {row.formatted_average_purchase_amount}
+                    </div>
+                </div>
+            ),
+            width: '150px'
+        },
+        {
+            name: 'Répartition',
+            selector: row => row.sound_purchases + row.event_purchases,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="mb-2">
+                        <div className="small text-primary">
+                            <FontAwesomeIcon icon={faMusic} className="me-1" />
+                            Sons: {row.formatted_sound_purchases}
+                        </div>
+                        <div className="small text-success">
+                            <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
+                            Events: {row.formatted_event_purchases}
+                        </div>
+                    </div>
+                    {row.total_spent > 0 && (
+                        <div className="progress" style={{ height: '4px' }}>
+                            <div
+                                className="progress-bar bg-primary"
+                                style={{
+                                    width: `${(row.sound_purchases / row.total_spent) * 100}%`
+                                }}
+                                title={`Sons: ${Math.round((row.sound_purchases / row.total_spent) * 100)}%`}
+                            />
+                            <div
+                                className="progress-bar bg-success"
+                                style={{
+                                    width: `${(row.event_purchases / row.total_spent) * 100}%`
+                                }}
+                                title={`Événements: ${Math.round((row.event_purchases / row.total_spent) * 100)}%`}
+                            />
+                        </div>
+                    )}
+                </div>
+            ),
+            width: '160px'
+        },
+        {
+            name: 'Achats',
+            selector: row => row.total_purchases,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="fw-bold text-success mb-1">
+                        <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                        {row.total_purchases}
+                    </div>
+                    <div className="small text-muted mb-1">
+                        <FontAwesomeIcon icon={faMusic} className="me-1 text-primary" />
+                        {row.sound_purchases_count} sons
+                    </div>
+                    <div className="small text-muted">
+                        <FontAwesomeIcon icon={faCalendarAlt} className="me-1 text-success" />
+                        {row.event_purchases_count} events
+                    </div>
+                    {row.pending_purchases_count > 0 && (
+                        <div className="small text-warning mt-1">
+                            <FontAwesomeIcon icon={faClock} className="me-1" />
+                            {row.pending_purchases_count} en attente
+                        </div>
+                    )}
+                </div>
+            ),
+            width: '120px'
+        },
+        {
+            name: 'Activité',
+            selector: row => row.days_since_last_purchase,
+            sortable: true,
+            cell: row => (
+                <div className="text-center">
+                    <div className="small text-muted mb-1">Dernier achat</div>
+                    <div className="fw-medium mb-1">
+                        {row.formatted_last_purchase_date || 'Jamais'}
+                    </div>
+                    {row.days_since_last_purchase !== null && (
+                        <div className={`small ${
+                            row.days_since_last_purchase <= 7 ? 'text-success' :
+                            row.days_since_last_purchase <= 30 ? 'text-warning' : 'text-danger'
+                        }`}>
+                            {row.days_since_last_purchase === 0 ? 'Aujourd\'hui' :
+                             row.days_since_last_purchase === 1 ? 'Hier' :
+                             `Il y a ${row.days_since_last_purchase} jours`}
+                        </div>
+                    )}
+                    <div className="small text-muted">
+                        Membre depuis {row.formatted_join_date}
+                    </div>
+                    {row.is_active_buyer && (
+                        <Badge bg="success" className="mt-1">Actif</Badge>
+                    )}
+                </div>
+            ),
+            width: '140px'
+        },
+        {
+            name: 'Actions',
+            cell: row => (
+                <div className="d-flex gap-1">
+                    <Button
+                        as={Link}
+                        to={`/artist/${row.id}`}
+                        variant="outline-primary"
+                        size="sm"
+                        title="Voir le profil"
+                    >
+                        <FontAwesomeIcon icon={faEye} />
+                    </Button>
+                    <Button
+                        variant="outline-success"
+                        size="sm"
+                        title="Voir les achats détaillés"
+                        onClick={() => {
+                            setSearchCriteria({
+                                ...searchCriteria,
+                                user_id: row.id,
+                                search: row.name
+                            });
+                            searchPayments({ user_id: row.id });
+                            setShowSearchModal(true);
+                        }}
+                    >
+                        <FontAwesomeIcon icon={faShoppingCart} />
+                    </Button>
+                    {row.pending_amount > 0 && (
+                        <Button
+                            variant="outline-warning"
+                            size="sm"
+                            title="Achats en attente"
+                            onClick={() => {
+                                setSearchCriteria({
+                                    ...searchCriteria,
+                                    user_id: row.id,
+                                    status: 'pending'
+                                });
+                                searchPayments({ user_id: row.id, status: 'pending' });
+                                setShowSearchModal(true);
+                            }}
+                        >
+                            <FontAwesomeIcon icon={faClock} />
+                        </Button>
+                    )}
+                    <Button
+                        variant="outline-info"
+                        size="sm"
+                        title="Rechercher ses paiements"
+                        onClick={() => {
+                            setSearchCriteria({
+                                ...searchCriteria,
+                                user_id: row.id
+                            });
+                            openSearchModal();
+                        }}
+                    >
+                        <FontAwesomeIcon icon={faSearch} />
+                    </Button>
+                </div>
+            ),
+            ignoreRowClick: true,
+            allowOverflow: true,
+            button: true,
+            width: '180px'
+        }
+    ];
+
+    const renderPurchasesAnalysis = () => (
+        <div>
+            {/* Header avec actions */}
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h5 className="fw-bold mb-1">Analyse des Achats</h5>
+                    <p className="text-muted mb-0 small">Analysez les dépenses des utilisateurs et recherchez des paiements spécifiques</p>
+                </div>
+                <div className="d-flex gap-2">
+                    <Button
+                        variant="outline-info"
+                        onClick={openSearchModal}
+                    >
+                        <FontAwesomeIcon icon={faSearch} className="me-2" />
+                        Recherche Avancée
+                    </Button>
+                    <Button
+                        variant="outline-primary"
+                        onClick={loadUsersPurchases}
+                        disabled={loading}
+                    >
+                        <FontAwesomeIcon icon={faSync} className="me-2" />
+                        Actualiser
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={() => {
+                            // Export des achats
+                            const csvContent = [
+                                ['Nom', 'Email', 'Rôle', 'Catégorie', 'Dépenses Totales', 'Achats Sons', 'Achats Événements', 'Nombre Total Achats', 'Achat Moyen', 'Dernier Achat'],
+                                ...usersPurchases.filter(user => user.total_purchases > 0).map(user => [
+                                    user.name,
+                                    user.email,
+                                    user.role,
+                                    user.buyer_category,
+                                    user.total_spent,
+                                    user.sound_purchases,
+                                    user.event_purchases,
+                                    user.total_purchases,
+                                    user.average_purchase_amount,
+                                    user.formatted_last_purchase_date
+                                ])
+                            ].map(row => row.join(',')).join('\n');
+
+                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `achats_utilisateurs_${new Date().toISOString().split('T')[0]}.csv`;
+                            link.click();
+                        }}
+                    >
+                        <FontAwesomeIcon icon={faDownload} className="me-2" />
+                        Exporter CSV
+                    </Button>
+                </div>
+            </div>
+
+            {/* Statistiques rapides des achats */}
+            <Row className="g-3 mb-4">
+                <Col lg={3} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faUsers} className="text-primary mb-2" size="lg" />
+                            <h4 className="fw-bold text-primary">{purchasesStats.total_buyers || 0}</h4>
+                            <small className="text-muted">Acheteurs actifs</small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col lg={3} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faEuroSign} className="text-success mb-2" size="lg" />
+                            <h4 className="fw-bold text-success">{purchasesStats.formatted_total_spent_all || '0 XAF'}</h4>
+                            <small className="text-muted">Total dépenses</small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col lg={3} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faShoppingCart} className="text-info mb-2" size="lg" />
+                            <h4 className="fw-bold text-info">{purchasesStats.total_purchases_all || 0}</h4>
+                            <small className="text-muted">Total achats</small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col lg={3} md={6}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="text-center">
+                            <FontAwesomeIcon icon={faChartLine} className="text-warning mb-2" size="lg" />
+                            <h4 className="fw-bold text-warning">{purchasesStats.formatted_average_spent_per_buyer || '0 XAF'}</h4>
+                            <small className="text-muted">Dépense moyenne</small>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Répartition par catégorie d'acheteurs */}
+            <Row className="g-4 mb-4">
+                <Col lg={8}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Top Acheteurs</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            {purchasesStats.top_buyer ? (
+                                <div className="d-flex align-items-center mb-3 p-3 bg-light rounded">
+                                    <div className="me-3 p-3 rounded-circle text-center" style={{
+                                        background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                                        color: 'white',
+                                        minWidth: '60px',
+                                        minHeight: '60px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <FontAwesomeIcon icon={faCrown} size="lg" />
+                                    </div>
+                                    <div className="flex-grow-1">
+                                        <h6 className="fw-bold mb-1">🛒 Meilleur Acheteur</h6>
+                                        <div className="fw-medium text-primary">{purchasesStats.top_buyer.name}</div>
+                                        <div className="text-success fw-bold">{purchasesStats.top_buyer.formatted_total_spent}</div>
+                                        <div className="small text-muted">{purchasesStats.top_buyer.total_purchases} achats</div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-3">
+                                    <FontAwesomeIcon icon={faShoppingCart} size="2x" className="text-muted mb-2" />
+                                    <p className="text-muted">Aucun acheteur actif pour le moment</p>
+                                </div>
+                            )}
+
+                            {/* Statistiques par catégorie */}
+                            <div className="row g-3">
+                                <div className="col-md-6">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faCrown} className="text-purple me-2" />
+                                            VIP
+                                        </span>
+                                        <span className="fw-bold">{purchasesStats.buyer_categories?.vip || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faStar} className="text-warning me-2" />
+                                            Premium
+                                        </span>
+                                        <span className="fw-bold">{purchasesStats.buyer_categories?.premium || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faUser} className="text-primary me-2" />
+                                            Réguliers
+                                        </span>
+                                        <span className="fw-bold">{purchasesStats.buyer_categories?.regular || 0}</span>
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faUser} className="text-success me-2" />
+                                            Occasionnels
+                                        </span>
+                                        <span className="fw-bold">{purchasesStats.buyer_categories?.occasional || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center mb-2">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faUser} className="text-secondary me-2" />
+                                            Nouveaux
+                                        </span>
+                                        <span className="fw-bold">{purchasesStats.buyer_categories?.new || 0}</span>
+                                    </div>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <span className="text-muted d-flex align-items-center">
+                                            <FontAwesomeIcon icon={faCheckCircle} className="text-success me-2" />
+                                            Actifs (30j)
+                                        </span>
+                                        <span className="fw-bold">{purchasesStats.active_buyers || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+
+                <Col lg={4}>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Header className="bg-white border-bottom">
+                            <h6 className="fw-bold mb-0">Légende des Catégories</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            <div className="mb-3">
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#8b5cf6', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faCrown} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">VIP</div>
+                                        <small className="text-muted">100 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#f59e0b', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faStar} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Premium</div>
+                                        <small className="text-muted">50 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#3b82f6', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faUser} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Régulier</div>
+                                        <small className="text-muted">20 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center mb-2">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#10b981', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faUser} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Occasionnel</div>
+                                        <small className="text-muted">5 000 XAF+</small>
+                                    </div>
+                                </div>
+                                <div className="d-flex align-items-center">
+                                    <div className="me-2 p-2 rounded-circle" style={{ background: '#6b7280', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <FontAwesomeIcon icon={faUser} className="text-white" style={{ fontSize: '12px' }} />
+                                    </div>
+                                    <div>
+                                        <div className="fw-bold small">Nouveau</div>
+                                        <small className="text-muted">Premiers achats</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Table des achats */}
+            <Card className="border-0 shadow-sm">
+                <Card.Header className="bg-white">
+                    <div className="d-flex justify-content-between align-items-center">
+                        <h6 className="fw-bold mb-0">Achats détaillés par utilisateur</h6>
+                        <div className="d-flex gap-2">
+                            <Form.Select size="sm" style={{ width: 'auto' }}>
+                                <option>Toutes les catégories</option>
+                                <option value="vip">VIP</option>
+                                <option value="premium">Premium</option>
+                                <option value="regular">Régulier</option>
+                                <option value="occasional">Occasionnel</option>
+                                <option value="new">Nouveau</option>
+                            </Form.Select>
+                            <Button variant="outline-primary" size="sm" onClick={openSearchModal}>
+                                <FontAwesomeIcon icon={faSearch} className="me-1" />
+                                Recherche
+                            </Button>
+                        </div>
+                    </div>
+                </Card.Header>
+                <Card.Body className="p-0">
+                    {usersPurchases.filter(user => user.total_purchases > 0).length === 0 ? (
+                        <div className="text-center py-5">
+                            <FontAwesomeIcon icon={faShoppingCart} size="3x" className="text-muted mb-3" />
+                            <h6 className="text-muted">Aucun achat trouvé</h6>
+                            <p className="text-muted small">Les achats apparaîtront ici une fois les premières transactions effectuées</p>
+                        </div>
+                    ) : (
+                        <CustomDataTable
+                            columns={purchasesColumns}
+                            data={usersPurchases.filter(user => user.total_purchases > 0)}
+                            {...dataTableConfig}
+                            subHeader
+                            subHeaderComponent={
+                                <div className="d-flex justify-content-between align-items-center w-100 p-3">
+                                    <div>
+                                        <strong>{usersPurchases.filter(user => user.total_purchases > 0).length}</strong> acheteur(s) •
+                                        <span className="text-success ms-1">
+                                            {purchasesStats.formatted_total_spent_all || '0 XAF'} dépensés
+                                        </span>
+                                    </div>
+                                    <div className="d-flex gap-2">
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Rechercher un acheteur..."
+                                            size="sm"
+                                            style={{ width: '250px' }}
+                                            value={purchasesSearchTerm}
+                                            onChange={(e) => setPurchasesSearchTerm(e.target.value)}
+                                        />
+                                        <Button variant="outline-secondary" size="sm" onClick={openSearchModal}>
                                             <FontAwesomeIcon icon={faSearch} />
                                         </Button>
                                     </div>
@@ -3141,11 +4230,1300 @@ const Dashboard = () => {
                                 {activeTab === 'analytics' && renderAnalytics()}
                                 {activeTab === 'categories' && <CategoryManagement />}
                                 {activeTab === 'settings' && renderSettings()}
+                                {activeTab === 'purchases' && renderPurchasesAnalysis()}
                             </>
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Modals pour la gestion des sons */}
+
+            {/* Modal de rejet de son */}
+            <Modal show={showSoundRejectModal} onHide={() => setShowSoundRejectModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faTimes} className="text-warning me-2" />
+                        Rejeter le son
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedSound && (
+                        <div>
+                            <div className="mb-3">
+                                <h6 className="fw-bold">{selectedSound.title}</h6>
+                                <p className="text-muted small mb-0">
+                                    par {selectedSound.artist_name || selectedSound.artist || (selectedSound.user ? selectedSound.user.name : 'Artiste inconnu')}
+                                </p>
+                            </div>
+                            <Form.Group>
+                                <Form.Label className="fw-medium">Raison du rejet *</Form.Label>
+                                <Form.Control
+                                    as="textarea"
+                                    rows={4}
+                                    placeholder="Expliquez pourquoi ce son est rejeté..."
+                                    value={rejectReason}
+                                    onChange={(e) => setRejectReason(e.target.value)}
+                                />
+                                <Form.Text className="text-muted">
+                                    Cette raison sera envoyée à l'artiste par email.
+                                </Form.Text>
+                            </Form.Group>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowSoundRejectModal(false)}
+                        disabled={actionLoading}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="warning"
+                        onClick={handleRejectSound}
+                        disabled={actionLoading || !rejectReason.trim()}
+                    >
+                        {actionLoading ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Rejet en cours...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faTimes} className="me-2" />
+                                Rejeter le son
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal d'approbation de son */}
+            <Modal show={showSoundApproveModal} onHide={() => setShowSoundApproveModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faCheck} className="text-success me-2" />
+                        Approuver le son
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedSound && (
+                        <div>
+                            <div className="text-center mb-4">
+                                <FontAwesomeIcon icon={faMusic} size="3x" className="text-primary mb-3" />
+                                <h5 className="fw-bold">{selectedSound.title}</h5>
+                                <p className="text-muted">
+                                    par {selectedSound.artist_name || selectedSound.artist || (selectedSound.user ? selectedSound.user.name : 'Artiste inconnu')}
+                                </p>
+                            </div>
+                            <Alert variant="info">
+                                <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
+                                En approuvant ce son, il sera publié et visible par tous les utilisateurs de la plateforme.
+                            </Alert>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowSoundApproveModal(false)}
+                        disabled={actionLoading}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="success"
+                        onClick={() => {
+                            if (selectedSound) {
+                                handleApproveSound(selectedSound.id);
+                                setShowSoundApproveModal(false);
+                            }
+                        }}
+                        disabled={actionLoading}
+                    >
+                        {actionLoading ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Approbation...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faCheck} className="me-2" />
+                                Approuver le son
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* === MODALS POUR LA GESTION DES PAIEMENTS === */}
+
+            {/* Modal des paiements d'un utilisateur */}
+            <Modal
+                show={showPaymentsModal}
+                onHide={closePaymentsModal}
+                size="xl"
+                centered
+                backdrop="static"
+            >
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faCreditCard} className="text-primary me-2" />
+                        Paiements de {selectedUser?.name}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedUser && (
+                        <div>
+                            {/* En-tête avec infos utilisateur */}
+                            <div className="row mb-4">
+                                <div className="col-md-8">
+                                    <div className="d-flex align-items-center">
+                                        <div className="me-3 p-3 rounded-circle text-center" style={{
+                                            background: `linear-gradient(135deg, ${
+                                                selectedUser.seller_category === 'platinum' ? '#8b5cf6, #7c3aed' :
+                                                selectedUser.seller_category === 'gold' ? '#f59e0b, #d97706' :
+                                                selectedUser.seller_category === 'silver' ? '#6b7280, #4b5563' :
+                                                selectedUser.seller_category === 'bronze' ? '#92400e, #78350f' :
+                                                '#059669, #047857'
+                                            })`,
+                                            color: 'white',
+                                            minWidth: '60px',
+                                            minHeight: '60px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            <FontAwesomeIcon icon={faUser} size="lg" />
+                                        </div>
+                                        <div>
+                                            <h5 className="fw-bold mb-1">{selectedUser.name}</h5>
+                                            <p className="text-muted mb-1">{selectedUser.email}</p>
+                                            <div className="d-flex gap-2">
+                                                <Badge bg="primary">{selectedUser.role}</Badge>
+                                                {selectedUser.seller_category !== 'none' && (
+                                                    <Badge bg="warning">{selectedUser.seller_category}</Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="col-md-4">
+                                    <div className="text-center p-3 bg-light rounded">
+                                        <div className="h4 fw-bold text-success mb-1">
+                                            {selectedUser.formatted_total_earnings}
+                                        </div>
+                                        <small className="text-muted">Revenus totaux</small>
+                                        <div className="small text-info mt-1">
+                                            {selectedUser.total_sales_count} vente(s)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filtres et recherche */}
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <Form.Group>
+                                        <Form.Label className="small fw-medium">Filtrer par statut</Form.Label>
+                                        <Form.Select
+                                            size="sm"
+                                            value={paymentsFilter}
+                                            onChange={(e) => {
+                                                const newFilter = e.target.value;
+                                                setPaymentsFilter(newFilter);
+                                                // Pas besoin de recharger depuis l'API si on a déjà tous les paiements
+                                                // Le filtrage se fait côté client avec getFilteredUserPayments()
+                                                console.log('Filtre changé vers:', newFilter);
+                                            }}
+                                        >
+                                            <option value="all">Tous les statuts</option>
+                                            <option value="pending">En attente</option>
+                                            <option value="completed">Complétés</option>
+                                            <option value="cancelled">Annulés</option>
+                                            <option value="refunded">Remboursés</option>
+                                            <option value="failed">Échecs</option>
+                                        </Form.Select>
+                                    </Form.Group>
+                                </div>
+                                <div className="col-md-6">
+                                    <Form.Group>
+                                        <Form.Label className="small fw-medium">Rechercher</Form.Label>
+                                        <div className="input-group input-group-sm">
+                                            <Form.Control
+                                                type="text"
+                                                placeholder="Transaction ID, produit, acheteur..."
+                                                value={paymentsSearchTerm}
+                                                onChange={(e) => setPaymentsSearchTerm(e.target.value)}
+                                                onKeyPress={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        // La recherche se fait automatiquement côté client
+                                                        console.log('Recherche pour:', e.target.value);
+                                                    }
+                                                }}
+                                            />
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={() => loadUserPayments(selectedUser.id, {
+                                                    status: paymentsFilter !== 'all' ? paymentsFilter : undefined,
+                                                    search: paymentsSearchTerm || undefined
+                                                })}
+                                            >
+                                                <FontAwesomeIcon icon={faSearch} />
+                                            </Button>
+                                        </div>
+                                    </Form.Group>
+                                </div>
+                            </div>
+
+                            {/* Actions de lot */}
+                            {selectedPayments.length > 0 && (
+                                <div className="alert alert-info d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <FontAwesomeIcon icon={faCheck} className="me-2" />
+                                        {selectedPayments.length} paiement(s) sélectionné(s)
+                                    </span>
+                                    <div className="d-flex gap-1">
+                                        <Button size="sm" variant="success" onClick={() => {
+                                            setBatchAction('approve');
+                                            setShowBatchModal(true);
+                                        }}>
+                                            <FontAwesomeIcon icon={faCheck} className="me-1" />
+                                            Approuver
+                                        </Button>
+                                        <Button size="sm" variant="warning" onClick={() => {
+                                            setBatchAction('cancel');
+                                            setShowBatchModal(true);
+                                        }}>
+                                            <FontAwesomeIcon icon={faTimes} className="me-1" />
+                                            Annuler
+                                        </Button>
+                                        <Button size="sm" variant="secondary" onClick={() => setSelectedPayments([])}>
+                                            Désélectionner
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Liste des paiements */}
+                            {loadingPayments ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-primary mb-2" />
+                                    <p className="text-muted">Chargement des paiements...</p>
+                                </div>
+                            ) : userPayments.length === 0 ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faCreditCard} size="3x" className="text-muted mb-3" />
+                                    <h6 className="text-muted">Aucun paiement trouvé</h6>
+                                    <p className="text-muted small">
+                                        {paymentsFilter !== 'all' ?
+                                            `Aucun paiement avec le statut "${paymentsFilter}" pour cet utilisateur.` :
+                                            'Cet utilisateur n\'a pas encore effectué de ventes sur la plateforme.'}
+                                    </p>
+                                    {/* Bouton pour réessayer */}
+                                    <Button
+                                        variant="outline-primary"
+                                        size="sm"
+                                        onClick={() => loadUserPayments(selectedUser?.id, {
+                                            status: paymentsFilter !== 'all' ? paymentsFilter : undefined,
+                                            search: paymentsSearchTerm || undefined
+                                        })}
+                                    >
+                                        <FontAwesomeIcon icon={faSync} className="me-2" />
+                                        Réessayer
+                                    </Button>
+                                </div>
+                            ) : getFilteredUserPayments().length === 0 ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faSearch} size="3x" className="text-muted mb-3" />
+                                    <h6 className="text-muted">Aucun résultat pour cette recherche</h6>
+                                    <p className="text-muted small">
+                                        Modifiez vos critères de filtrage ou de recherche.
+                                    </p>
+                                    <Button
+                                        variant="outline-secondary"
+                                        size="sm"
+                                        onClick={() => {
+                                            setPaymentsFilter('all');
+                                            setPaymentsSearchTerm('');
+                                            loadUserPayments(selectedUser?.id);
+                                        }}
+                                    >
+                                        <FontAwesomeIcon icon={faUndo} className="me-2" />
+                                        Réinitialiser les filtres
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div>
+                                    {/* Statistiques rapides des paiements */}
+                                    <div className="alert alert-info mb-3">
+                                        <div className="row text-center">
+                                            <div className="col-md-3">
+                                                <strong>{userPayments.length}</strong>
+                                                <div className="small text-muted">Total paiements</div>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <strong>{userPayments.filter(p => p.status === 'completed').length}</strong>
+                                                <div className="small text-success">Complétés</div>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <strong>{userPayments.filter(p => p.status === 'pending').length}</strong>
+                                                <div className="small text-warning">En attente</div>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <strong>{userPayments.filter(p => p.status === 'cancelled').length}</strong>
+                                                <div className="small text-danger">Annulés</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="table-responsive">
+                                        <Table striped hover size="sm">
+                                            <thead className="table-light">
+                                                <tr>
+                                                    <th width="30">
+                                                        <Form.Check
+                                                            type="checkbox"
+                                                            checked={selectedPayments.length === getFilteredUserPayments().length && getFilteredUserPayments().length > 0}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedPayments(getFilteredUserPayments().map(p => p.id));
+                                                                } else {
+                                                                    setSelectedPayments([]);
+                                                                }
+                                                            }}
+                                                        />
+                                                    </th>
+                                                    <th>Transaction</th>
+                                                    <th>Produit</th>
+                                                    <th>Acheteur</th>
+                                                    <th>Montant</th>
+                                                    <th>Statut</th>
+                                                    <th>Date</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {getFilteredUserPayments().map(payment => (
+                                                    <tr key={payment.id}>
+                                                        <td>
+                                                            <Form.Check
+                                                                type="checkbox"
+                                                                checked={selectedPayments.includes(payment.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedPayments([...selectedPayments, payment.id]);
+                                                                    } else {
+                                                                        setSelectedPayments(selectedPayments.filter(id => id !== payment.id));
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        <td>
+                                                            <div className="small fw-medium">{payment.transaction_id}</div>
+                                                            <div className="small text-muted">{payment.payment_method}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="small fw-medium">{payment.product_name}</div>
+                                                            <div className="small text-muted">
+                                                                <FontAwesomeIcon icon={payment.type === 'sound' ? faMusic : faCalendarAlt} className="me-1" />
+                                                                {payment.type === 'sound' ? 'Son' : 'Événement'}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="small fw-medium">{payment.buyer_name}</div>
+                                                            <div className="small text-muted">{payment.buyer_email}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="small fw-bold text-success">{payment.formatted_amount}</div>
+                                                            <div className="small text-muted">Commission: {payment.formatted_commission_amount}</div>
+                                                        </td>
+                                                        <td>
+                                                            <Badge bg={
+                                                                payment.status === 'completed' ? 'success' :
+                                                                payment.status === 'pending' ? 'warning' :
+                                                                payment.status === 'cancelled' ? 'secondary' :
+                                                                payment.status === 'refunded' ? 'info' : 'danger'
+                                                            }>
+                                                                {payment.status === 'completed' ? 'Complété' :
+                                                                 payment.status === 'pending' ? 'En attente' :
+                                                                 payment.status === 'cancelled' ? 'Annulé' :
+                                                                 payment.status === 'refunded' ? 'Remboursé' : 'Échec'}
+                                                            </Badge>
+                                                        </td>
+                                                        <td>
+                                                            <div className="small">{payment.formatted_created_at}</div>
+                                                            {payment.paid_at && (
+                                                                <div className="small text-success">Payé: {payment.formatted_paid_at}</div>
+                                                            )}
+                                                        </td>
+                                                        <td>
+                                                            <div className="d-flex gap-1">
+                                                                {payment.status === 'pending' && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline-success"
+                                                                        title="Approuver"
+                                                                        onClick={() => openPaymentActionModal(payment, 'approve')}
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faCheck} />
+                                                                    </Button>
+                                                                )}
+                                                                {(payment.status === 'pending' || payment.status === 'completed') && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline-warning"
+                                                                        title="Annuler"
+                                                                        onClick={() => openPaymentActionModal(payment, 'cancel')}
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faTimes} />
+                                                                    </Button>
+                                                                )}
+                                                                {payment.status === 'completed' && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline-info"
+                                                                        title="Rembourser"
+                                                                        onClick={() => openPaymentActionModal(payment, 'refund')}
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faUndo} />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closePaymentsModal}>
+                        Fermer
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={() => {
+                            // Recharger tous les paiements pour cet utilisateur
+                            if (selectedUser) {
+                                loadUserPayments(selectedUser.id, { status: 'all' });
+                            }
+                        }}
+                        disabled={loadingPayments}
+                    >
+                        <FontAwesomeIcon icon={faSync} className="me-2" />
+                        Actualiser
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal d'action sur un paiement */}
+            <Modal show={showPaymentActionModal} onHide={closePaymentActionModal} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon
+                            icon={paymentAction === 'approve' ? faCheck : paymentAction === 'cancel' ? faTimes : faUndo}
+                            className={`me-2 ${paymentAction === 'approve' ? 'text-success' : paymentAction === 'cancel' ? 'text-warning' : 'text-info'}`}
+                        />
+                        {paymentAction === 'approve' ? 'Approuver le paiement' :
+                         paymentAction === 'cancel' ? 'Annuler le paiement' : 'Rembourser le paiement'}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedPayment && (
+                        <div>
+                            {/* Informations du paiement */}
+                            <div className="mb-4 p-3 bg-light rounded">
+                                <h6 className="fw-bold mb-2">Détails du paiement</h6>
+                                <div className="row">
+                                    <div className="col-6">
+                                        <strong>Transaction ID:</strong><br />
+                                        <span className="small">{selectedPayment.transaction_id}</span>
+                                    </div>
+                                    <div className="col-6">
+                                        <strong>Montant:</strong><br />
+                                        <span className="text-success fw-bold">{selectedPayment.formatted_amount}</span>
+                                    </div>
+                                    <div className="col-6 mt-2">
+                                        <strong>Produit:</strong><br />
+                                        <span className="small">{selectedPayment.product_name}</span>
+                                    </div>
+                                    <div className="col-6 mt-2">
+                                        <strong>Acheteur:</strong><br />
+                                        <span className="small">{selectedPayment.buyer_name}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Message d'action */}
+                            <Alert variant={paymentAction === 'approve' ? 'success' : paymentAction === 'cancel' ? 'warning' : 'info'}>
+                                <FontAwesomeIcon
+                                    icon={paymentAction === 'approve' ? faCheckCircle : paymentAction === 'cancel' ? faExclamationTriangle : faUndo}
+                                    className="me-2"
+                                />
+                                {paymentAction === 'approve' ?
+                                    'En approuvant ce paiement, le vendeur recevra ses revenus et le statut passera à "Complété".' :
+                                 paymentAction === 'cancel' ?
+                                    'En annulant ce paiement, la transaction sera marquée comme annulée et aucun revenu ne sera versé.' :
+                                    'En remboursant ce paiement, l\'acheteur sera remboursé et les revenus du vendeur seront déduits.'
+                                }
+                            </Alert>
+
+                            {/* Raison (pour annulation et remboursement) */}
+                            {(paymentAction === 'cancel' || paymentAction === 'refund') && (
+                                <Form.Group>
+                                    <Form.Label className="fw-medium">
+                                        Raison {paymentAction === 'cancel' ? 'de l\'annulation' : 'du remboursement'} *
+                                    </Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={3}
+                                        placeholder={`Expliquez la raison ${paymentAction === 'cancel' ? 'de l\'annulation' : 'du remboursement'}...`}
+                                        value={paymentActionReason}
+                                        onChange={(e) => setPaymentActionReason(e.target.value)}
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Cette information sera enregistrée dans l'historique du paiement.
+                                    </Form.Text>
+                                </Form.Group>
+                            )}
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={closePaymentActionModal}
+                        disabled={processingPaymentAction}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        variant={paymentAction === 'approve' ? 'success' : paymentAction === 'cancel' ? 'warning' : 'info'}
+                        onClick={executePaymentAction}
+                        disabled={processingPaymentAction || ((paymentAction === 'cancel' || paymentAction === 'refund') && !paymentActionReason.trim())}
+                    >
+                        {processingPaymentAction ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Traitement...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon
+                                    icon={paymentAction === 'approve' ? faCheck : paymentAction === 'cancel' ? faTimes : faUndo}
+                                    className="me-2"
+                                />
+                                {paymentAction === 'approve' ? 'Approuver' :
+                                 paymentAction === 'cancel' ? 'Annuler' : 'Rembourser'}
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal de traitement par lot */}
+            <Modal show={showBatchModal} onHide={() => setShowBatchModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon
+                            icon={batchAction === 'approve' ? faCheck : faTimes}
+                            className={`me-2 ${batchAction === 'approve' ? 'text-success' : 'text-warning'}`}
+                        />
+                        {batchAction === 'approve' ? 'Approuver' : 'Annuler'} les paiements sélectionnés
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert variant={batchAction === 'approve' ? 'success' : 'warning'}>
+                        <FontAwesomeIcon
+                            icon={batchAction === 'approve' ? faCheckCircle : faExclamationTriangle}
+                            className="me-2"
+                        />
+                        Vous allez {batchAction === 'approve' ? 'approuver' : 'annuler'} <strong>{selectedPayments.length}</strong> paiement(s).
+                    </Alert>
+
+                    {batchAction === 'cancel' && (
+                        <Form.Group>
+                            <Form.Label className="fw-medium">Raison de l'annulation *</Form.Label>
+                            <Form.Control
+                                as="textarea"
+                                rows={3}
+                                placeholder="Expliquez la raison de l'annulation en lot..."
+                                value={batchReason}
+                                onChange={(e) => setBatchReason(e.target.value)}
+                            />
+                        </Form.Group>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowBatchModal(false)}
+                        disabled={processingBatch}
+                    >
+                        Annuler
+                    </Button>
+                    <Button
+                        variant={batchAction === 'approve' ? 'success' : 'warning'}
+                        onClick={executeBatchAction}
+                        disabled={processingBatch || (batchAction === 'cancel' && !batchReason.trim())}
+                    >
+                        {processingBatch ? (
+                            <>
+                                <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                Traitement...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon
+                                    icon={batchAction === 'approve' ? faCheck : faTimes}
+                                    className="me-2"
+                                />
+                                Confirmer ({selectedPayments.length} paiements)
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* === MODALS POUR L'ANALYSE DES ACHATS === */}
+
+            {/* Modal de recherche avancée de paiements */}
+            <Modal
+                show={showSearchModal}
+                onHide={() => setShowSearchModal(false)}
+                size="xl"
+                centered
+                backdrop="static"
+            >
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faSearch} className="text-primary me-2" />
+                        Recherche Avancée de Paiements
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {/* Critères de recherche */}
+                    <Card className="mb-4">
+                        <Card.Header className="bg-light">
+                            <h6 className="fw-bold mb-0">Critères de recherche</h6>
+                        </Card.Header>
+                        <Card.Body>
+                            <Row className="g-3">
+                                <Col md={6}>
+                                    <Form.Group>
+                                        <Form.Label>Recherche textuelle</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Transaction ID, nom, email, produit..."
+                                            value={searchCriteria.search}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, search: e.target.value})}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Statut</Form.Label>
+                                        <Form.Select
+                                            value={searchCriteria.status}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, status: e.target.value})}
+                                        >
+                                            <option value="all">Tous les statuts</option>
+                                            <option value="pending">En attente</option>
+                                            <option value="completed">Complétés</option>
+                                            <option value="cancelled">Annulés</option>
+                                            <option value="refunded">Remboursés</option>
+                                            <option value="failed">Échecs</option>
+                                        </Form.Select>
+                                    </Form.Group>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Type</Form.Label>
+                                        <Form.Select
+                                            value={searchCriteria.type}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, type: e.target.value})}
+                                        >
+                                            <option value="all">Tous les types</option>
+                                            <option value="sound">Sons</option>
+                                            <option value="event">Événements</option>
+                                        </Form.Select>
+                                    </Form.Group>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Montant minimum</Form.Label>
+                                        <Form.Control
+                                            type="number"
+                                            placeholder="0"
+                                            value={searchCriteria.min_amount}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, min_amount: e.target.value})}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Montant maximum</Form.Label>
+                                        <Form.Control
+                                            type="number"
+                                            placeholder="999999"
+                                            value={searchCriteria.max_amount}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, max_amount: e.target.value})}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Date début</Form.Label>
+                                        <Form.Control
+                                            type="date"
+                                            value={searchCriteria.start_date}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, start_date: e.target.value})}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>Date fin</Form.Label>
+                                        <Form.Control
+                                            type="date"
+                                            value={searchCriteria.end_date}
+                                            onChange={(e) => setSearchCriteria({...searchCriteria, end_date: e.target.value})}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+                            <div className="d-flex gap-2 mt-3">
+                                <Button
+                                    variant="primary"
+                                    onClick={() => searchPayments(searchCriteria)}
+                                    disabled={loadingSearchResults}
+                                >
+                                    {loadingSearchResults ? (
+                                        <>
+                                            <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
+                                            Recherche...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FontAwesomeIcon icon={faSearch} className="me-2" />
+                                            Rechercher
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
+                                    variant="outline-secondary"
+                                    onClick={() => {
+                                        setSearchCriteria({
+                                            search: '',
+                                            status: 'all',
+                                            type: 'all',
+                                            min_amount: '',
+                                            max_amount: '',
+                                            start_date: '',
+                                            end_date: '',
+                                            user_id: '',
+                                            seller_id: ''
+                                        });
+                                        setSearchResults([]);
+                                    }}
+                                >
+                                    <FontAwesomeIcon icon={faUndo} className="me-2" />
+                                    Réinitialiser
+                                </Button>
+                            </div>
+                        </Card.Body>
+                    </Card>
+
+                    {/* Résultats de recherche */}
+                    <Card>
+                        <Card.Header className="bg-white">
+                            <h6 className="fw-bold mb-0">
+                                Résultats de recherche
+                                {searchResults.length > 0 && (
+                                    <Badge bg="primary" className="ms-2">{searchResults.length}</Badge>
+                                )}
+                            </h6>
+                        </Card.Header>
+                        <Card.Body>
+                            {loadingSearchResults ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-primary mb-2" />
+                                    <p className="text-muted">Recherche en cours...</p>
+                                </div>
+                            ) : searchResults.length === 0 ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faSearch} size="3x" className="text-muted mb-3" />
+                                    <h6 className="text-muted">Aucun résultat</h6>
+                                    <p className="text-muted small">Modifiez vos critères de recherche et réessayez</p>
+                                </div>
+                            ) : (
+                                <div className="table-responsive">
+                                    <Table striped hover size="sm">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Transaction</th>
+                                                <th>Type</th>
+                                                <th>Produit</th>
+                                                <th>Acheteur</th>
+                                                <th>Vendeur</th>
+                                                <th>Montant</th>
+                                                <th>Statut</th>
+                                                <th>Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {searchResults.map(payment => (
+                                                <tr key={payment.id}>
+                                                    <td>
+                                                        <div className="small fw-medium">{payment.transaction_id}</div>
+                                                        <div className="small text-muted">{payment.payment_method}</div>
+                                                    </td>
+                                                    <td>
+                                                        <Badge bg={payment.type === 'sound' ? 'primary' : 'success'}>
+                                                            <FontAwesomeIcon icon={payment.type === 'sound' ? faMusic : faCalendarAlt} className="me-1" />
+                                                            {payment.type_label}
+                                                        </Badge>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small fw-medium">{payment.product_name}</div>
+                                                        {payment.sound && (
+                                                            <Button
+                                                                variant="link"
+                                                                size="sm"
+                                                                className="p-0 small"
+                                                                onClick={() => openProductPaymentsModal('sound', payment.sound.id, payment.sound.title)}
+                                                            >
+                                                                Voir tous les paiements de ce son
+                                                            </Button>
+                                                        )}
+                                                        {payment.event && (
+                                                            <Button
+                                                                variant="link"
+                                                                size="sm"
+                                                                className="p-0 small"
+                                                                onClick={() => openProductPaymentsModal('event', payment.event.id, payment.event.title)}
+                                                            >
+                                                                Voir tous les paiements de cet événement
+                                                            </Button>
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        <div className="small fw-medium">{payment.buyer_name}</div>
+                                                        <div className="small text-muted">{payment.buyer_email}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small fw-medium">{payment.seller_name}</div>
+                                                        <div className="small text-muted">{payment.seller_email}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small fw-bold text-success">{payment.formatted_amount}</div>
+                                                        <div className="small text-muted">Commission: {payment.formatted_commission_amount}</div>
+                                                    </td>
+                                                    <td>
+                                                        <Badge bg={
+                                                            payment.status === 'completed' ? 'success' :
+                                                            payment.status === 'pending' ? 'warning' :
+                                                            payment.status === 'cancelled' ? 'secondary' :
+                                                            payment.status === 'refunded' ? 'info' : 'danger'
+                                                        }>
+                                                            {payment.status_label}
+                                                        </Badge>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small">{payment.formatted_created_at}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="d-flex gap-1">
+                                                            {payment.can_generate_receipt && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline-success"
+                                                                    title="Générer le reçu"
+                                                                    onClick={() => generateReceipt(payment.id)}
+                                                                    disabled={loadingReceipt}
+                                                                >
+                                                                    <FontAwesomeIcon icon={faDownload} />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowSearchModal(false)}>
+                        Fermer
+                    </Button>
+                    {searchResults.length > 0 && (
+                        <Button
+                            variant="primary"
+                            onClick={() => {
+                                // Export des résultats de recherche
+                                const csvContent = [
+                                    ['Transaction ID', 'Type', 'Produit', 'Acheteur', 'Vendeur', 'Montant', 'Statut', 'Date'],
+                                    ...searchResults.map(payment => [
+                                        payment.transaction_id,
+                                        payment.type_label,
+                                        payment.product_name,
+                                        payment.buyer_name,
+                                        payment.seller_name,
+                                        payment.amount,
+                                        payment.status_label,
+                                        payment.formatted_created_at
+                                    ])
+                                ].map(row => row.join(',')).join('\n');
+
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const link = document.createElement('a');
+                                link.href = URL.createObjectURL(blob);
+                                link.download = `recherche_paiements_${new Date().toISOString().split('T')[0]}.csv`;
+                                link.click();
+                            }}
+                        >
+                            <FontAwesomeIcon icon={faDownload} className="me-2" />
+                            Exporter Résultats (CSV)
+                        </Button>
+                    )}
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal des paiements d'un produit */}
+            <Modal
+                show={showProductPaymentsModal}
+                onHide={() => setShowProductPaymentsModal(false)}
+                size="xl"
+                centered
+            >
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={selectedProduct?.type === 'sound' ? faMusic : faCalendarAlt} className="text-primary me-2" />
+                        Paiements de {selectedProduct?.title || selectedProduct?.name}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedProduct && (
+                        <div>
+                            {/* Statistiques du produit */}
+                            {selectedProduct.stats && (
+                                <Card className="mb-4">
+                                    <Card.Header className="bg-light">
+                                        <h6 className="fw-bold mb-0">Statistiques du produit</h6>
+                                    </Card.Header>
+                                    <Card.Body>
+                                        <Row className="text-center">
+                                            <Col md={3}>
+                                                <div className="fw-bold h5 text-primary">{selectedProduct.stats.total_payments}</div>
+                                                <small className="text-muted">Total paiements</small>
+                                            </Col>
+                                            <Col md={3}>
+                                                <div className="fw-bold h5 text-success">{selectedProduct.stats.completed_payments}</div>
+                                                <small className="text-muted">Complétés</small>
+                                            </Col>
+                                            <Col md={3}>
+                                                <div className="fw-bold h5 text-info">{selectedProduct.stats.formatted_total_revenue}</div>
+                                                <small className="text-muted">Revenus totaux</small>
+                                            </Col>
+                                            <Col md={3}>
+                                                <div className="fw-bold h5 text-warning">{selectedProduct.stats.formatted_total_commission}</div>
+                                                <small className="text-muted">Commission</small>
+                                            </Col>
+                                        </Row>
+                                    </Card.Body>
+                                </Card>
+                            )}
+
+                            {/* Liste des paiements */}
+                            {loadingProductPayments ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-primary mb-2" />
+                                    <p className="text-muted">Chargement des paiements...</p>
+                                </div>
+                            ) : productPayments.length === 0 ? (
+                                <div className="text-center py-4">
+                                    <FontAwesomeIcon icon={faCreditCard} size="3x" className="text-muted mb-3" />
+                                    <h6 className="text-muted">Aucun paiement trouvé</h6>
+                                    <p className="text-muted small">Ce produit n'a encore généré aucun paiement</p>
+                                </div>
+                            ) : (
+                                <div className="table-responsive">
+                                    <Table striped hover size="sm">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Transaction</th>
+                                                <th>Acheteur</th>
+                                                <th>Montant</th>
+                                                <th>Statut</th>
+                                                <th>Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {productPayments.map(payment => (
+                                                <tr key={payment.id}>
+                                                    <td>
+                                                        <div className="small fw-medium">{payment.transaction_id}</div>
+                                                        <div className="small text-muted">{payment.payment_method}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small fw-medium">{payment.buyer_name}</div>
+                                                        <div className="small text-muted">{payment.buyer_email}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small fw-bold text-success">{payment.formatted_amount}</div>
+                                                        <div className="small text-muted">Commission: {payment.formatted_commission_amount}</div>
+                                                    </td>
+                                                    <td>
+                                                        <Badge bg={
+                                                            payment.status === 'completed' ? 'success' :
+                                                            payment.status === 'pending' ? 'warning' :
+                                                            payment.status === 'cancelled' ? 'secondary' :
+                                                            payment.status === 'refunded' ? 'info' : 'danger'
+                                                        }>
+                                                            {payment.status_label}
+                                                        </Badge>
+                                                    </td>
+                                                    <td>
+                                                        <div className="small">{payment.formatted_created_at}</div>
+                                                    </td>
+                                                    <td>
+                                                        {payment.can_generate_receipt && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline-success"
+                                                                title="Générer le reçu"
+                                                                onClick={() => generateReceipt(payment.id)}
+                                                                disabled={loadingReceipt}
+                                                            >
+                                                                <FontAwesomeIcon icon={faDownload} />
+                                                            </Button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowProductPaymentsModal(false)}>
+                        Fermer
+                    </Button>
+                    {productPayments.length > 0 && (
+                        <Button
+                            variant="primary"
+                            onClick={() => {
+                                // Export des paiements du produit
+                                const csvContent = [
+                                    ['Transaction ID', 'Acheteur', 'Email', 'Montant', 'Commission', 'Statut', 'Date'],
+                                    ...productPayments.map(payment => [
+                                        payment.transaction_id,
+                                        payment.buyer_name,
+                                        payment.buyer_email,
+                                        payment.amount,
+                                        payment.commission_amount,
+                                        payment.status_label,
+                                        payment.formatted_created_at
+                                    ])
+                                ].map(row => row.join(',')).join('\n');
+
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const link = document.createElement('a');
+                                link.href = URL.createObjectURL(blob);
+                                link.download = `paiements_${selectedProduct?.type}_${selectedProduct?.id}_${new Date().toISOString().split('T')[0]}.csv`;
+                                link.click();
+                            }}
+                        >
+                            <FontAwesomeIcon icon={faDownload} className="me-2" />
+                            Exporter (CSV)
+                        </Button>
+                    )}
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal de reçu */}
+            <Modal
+                show={showReceiptModal}
+                onHide={() => setShowReceiptModal(false)}
+                size="lg"
+                centered
+            >
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faDownload} className="text-success me-2" />
+                        Reçu de Paiement
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {receiptData && (
+                        <div className="receipt-container p-4" style={{ backgroundColor: '#f8f9fa' }}>
+                            {/* En-tête du reçu */}
+                            <div className="text-center mb-4">
+                                <h3 className="fw-bold text-primary">{receiptData.company.name}</h3>
+                                <p className="text-muted mb-1">{receiptData.company.address}</p>
+                                <p className="text-muted mb-1">{receiptData.company.phone} • {receiptData.company.email}</p>
+                                <p className="text-muted">{receiptData.company.website}</p>
+                                <hr />
+                                <h4 className="fw-bold">REÇU DE PAIEMENT</h4>
+                                <p className="text-muted">N° {receiptData.receipt_number}</p>
+                            </div>
+
+                            {/* Informations du paiement */}
+                            <Row className="mb-4">
+                                <Col md={6}>
+                                    <h6 className="fw-bold">Informations de paiement</h6>
+                                    <table className="table table-borderless table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Transaction ID:</strong></td>
+                                                <td>{receiptData.payment.transaction_id}</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Date de paiement:</strong></td>
+                                                <td>{receiptData.payment.formatted_paid_at}</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Méthode:</strong></td>
+                                                <td>{receiptData.payment.payment_method}</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Statut:</strong></td>
+                                                <td>
+                                                    <Badge bg="success">{receiptData.payment.status_label}</Badge>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </Col>
+                                <Col md={6}>
+                                    <h6 className="fw-bold">Acheteur</h6>
+                                    <p className="mb-1"><strong>{receiptData.payment.buyer_name}</strong></p>
+                                    <p className="text-muted">{receiptData.payment.buyer_email}</p>
+
+                                    <h6 className="fw-bold mt-3">Vendeur</h6>
+                                    <p className="mb-1"><strong>{receiptData.payment.seller_name}</strong></p>
+                                    <p className="text-muted">{receiptData.payment.seller_email}</p>
+                                </Col>
+                            </Row>
+
+                            {/* Détails du produit */}
+                            <div className="mb-4">
+                                <h6 className="fw-bold">Produit acheté</h6>
+                                <div className="p-3 bg-white rounded border">
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 className="mb-1">
+                                                <Badge bg={receiptData.payment.type === 'sound' ? 'primary' : 'success'} className="me-2">
+                                                    <FontAwesomeIcon icon={receiptData.payment.type === 'sound' ? faMusic : faCalendarAlt} className="me-1" />
+                                                    {receiptData.payment.type_label}
+                                                </Badge>
+                                                {receiptData.payment.product_name}
+                                            </h6>
+                                        </div>
+                                        <div className="text-end">
+                                            <div className="fw-bold h5 text-success">{receiptData.payment.formatted_amount}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Récapitulatif financier */}
+                            <div className="mb-4">
+                                <h6 className="fw-bold">Récapitulatif</h6>
+                                <div className="p-3 bg-white rounded border">
+                                    <table className="table table-borderless mb-0">
+                                        <tbody>
+                                            <tr>
+                                                <td>Montant total:</td>
+                                                <td className="text-end fw-bold">{receiptData.payment.formatted_amount}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Commission plateforme ({receiptData.payment.commission_rate}%):</td>
+                                                <td className="text-end">{receiptData.payment.formatted_commission_amount}</td>
+                                            </tr>
+                                            <tr className="border-top">
+                                                <td><strong>Montant versé au vendeur:</strong></td>
+                                                <td className="text-end"><strong>{receiptData.payment.formatted_seller_amount}</strong></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="text-center mt-4">
+                                <hr />
+                                <small className="text-muted">
+                                    Reçu généré le {receiptData.issue_date}<br />
+                                    Ce reçu confirme le paiement effectué sur la plateforme {receiptData.company.name}
+                                </small>
+                            </div>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowReceiptModal(false)}>
+                        Fermer
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={() => {
+                            // Imprimer le reçu
+                            const printContent = document.querySelector('.receipt-container').innerHTML;
+                            const printWindow = window.open('', '_blank');
+                            printWindow.document.write(`
+                                <html>
+                                    <head>
+                                        <title>Reçu de Paiement - ${receiptData.receipt_number}</title>
+                                        <style>
+                                            body { font-family: Arial, sans-serif; margin: 20px; }
+                                            .fw-bold { font-weight: bold; }
+                                            .text-center { text-align: center; }
+                                            .text-end { text-align: right; }
+                                            .text-primary { color: #0d6efd; }
+                                            .text-success { color: #198754; }
+                                            .text-muted { color: #6c757d; }
+                                            .mb-1 { margin-bottom: 0.25rem; }
+                                            .mb-4 { margin-bottom: 1.5rem; }
+                                            .p-3 { padding: 1rem; }
+                                            .bg-white { background-color: white; }
+                                            .border { border: 1px solid #dee2e6; }
+                                            .rounded { border-radius: 0.375rem; }
+                                            table { width: 100%; }
+                                            .table-borderless td { border: none; padding: 0.25rem 0; }
+                                            .border-top { border-top: 1px solid #dee2e6; }
+                                            hr { margin: 1rem 0; }
+                                        </style>
+                                    </head>
+                                    <body>${printContent}</body>
+                                </html>
+                            `);
+                            printWindow.document.close();
+                            printWindow.print();
+                        }}
+                    >
+                        <FontAwesomeIcon icon={faDownload} className="me-2" />
+                        Imprimer / Télécharger
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

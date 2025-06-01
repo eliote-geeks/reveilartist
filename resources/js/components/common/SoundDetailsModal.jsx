@@ -155,7 +155,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
         }
 
         // Sinon ajouter au panier
-        onAddToCart(sound);
+            onAddToCart(sound);
     };
 
     const handleShare = () => {
@@ -179,7 +179,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                 centered
                 className="sound-details-modal"
             >
-                <Modal.Header closeButton className="border-0 pb-0">
+            <Modal.Header closeButton className="border-0 pb-0">
                     <div className="d-flex align-items-center gap-3">
                         <div className="sound-cover-mini">
                             <Image
@@ -194,7 +194,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                             <h4 className="mb-1 fw-bold">{sound.title}</h4>
                             <p className="text-muted mb-0">Par {sound.artist}</p>
                         </div>
-                    </div>
+                        </div>
                     <Button
                         variant="outline-secondary"
                         size="sm"
@@ -260,24 +260,24 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                                                 {sound.is_free ? 'Télécharger gratuitement' : 'Télécharger'}
                                                             </Button>
                                                         ) : (
-                                                            <Button
+                            <Button
                                                                 variant="warning"
-                                                                size="sm"
+                                size="sm"
                                                                 onClick={handleAddToCart}
-                                                            >
+                            >
                                                                 <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
                                                                 {`Acheter ${sound.price} XAF`}
-                                                            </Button>
+                            </Button>
                                                         )}
 
-                                                        <Button
+                            <Button
                                                             variant="outline-light"
-                                                            size="sm"
-                                                            onClick={handleShare}
-                                                        >
+                                size="sm"
+                                onClick={handleShare}
+                            >
                                                             <FontAwesomeIcon icon={faShare} />
-                                                        </Button>
-                                                    </div>
+                            </Button>
+                        </div>
 
                                                     {/* Barre de progression */}
                                                     <div className="d-flex align-items-center gap-2">
@@ -329,8 +329,8 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                                     </div>
                                                 </Col>
                                             </Row>
-                                        </Col>
-                                    </Row>
+                    </Col>
+                </Row>
 
                                     {/* Badge de statut */}
                                     <div className="position-absolute top-0 end-0 m-3">
@@ -349,7 +349,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                                 Preview 20s
                                             </Badge>
                                         )}
-                                    </div>
+                </div>
                                 </Card.Body>
                             </Card>
 
@@ -418,7 +418,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                                     </Badge>
                                                 ))}
                                             </div>
-                                        </div>
+                </div>
                                     )}
                                 </Card.Body>
                             </Card>
@@ -432,7 +432,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                         <h6 className="fw-bold mb-0">
                                             <FontAwesomeIcon icon={faUser} className="me-2 text-primary" />
                                             Artiste
-                                        </h6>
+                    </h6>
                                     </Card.Header>
                                     <Card.Body className="text-center">
                                         {loadingArtist ? (
@@ -444,7 +444,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                             <>
                                                 <Image
                                                     src={artistInfo.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(sound.artist)}&size=80&background=667eea&color=ffffff`}
-                                                    alt={sound.artist}
+                            alt={sound.artist}
                                                     width={80}
                                                     height={80}
                                                     roundedCircle
@@ -461,12 +461,12 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                                     <div className="col">
                                                         <div className="fw-bold text-primary">{artistInfo.followers_count || 0}</div>
                                                         <small className="text-muted">Abonnés</small>
-                                                    </div>
+                        </div>
                                                     <div className="col">
                                                         <div className="fw-bold text-primary">{artistInfo.total_plays || 0}</div>
                                                         <small className="text-muted">Écoutes</small>
-                                                    </div>
-                                                </div>
+                    </div>
+                </div>
 
                                                 <Button variant="primary" size="sm" className="w-100" onClick={() => navigate(`/artists/${sound.artistId || sound.user_id}`)}>
                                                     Voir le profil
@@ -507,9 +507,9 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                             </Col>
                         )}
                     </Row>
-                </Modal.Body>
+            </Modal.Body>
 
-                <Modal.Footer className="border-0 pt-0">
+            <Modal.Footer className="border-0 pt-0">
                     <div className="d-flex align-items-center justify-content-between w-100">
                         <div className="d-flex gap-2">
                             <Badge bg="secondary" className="fw-normal">
@@ -520,15 +520,15 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                     Mis en avant
                                 </Badge>
                             )}
-                        </div>
+                    </div>
 
-                        <div className="d-flex gap-2">
+                    <div className="d-flex gap-2">
                             {hasPurchased || sound.is_free ? (
                                 <Button variant="success" onClick={handleDownload}>
                                     <FontAwesomeIcon icon={faDownload} className="me-1" />
                                     {sound.is_free ? 'Télécharger gratuitement' : 'Télécharger'}
-                                </Button>
-                            ) : (
+                            </Button>
+                        ) : (
                                 <Button variant="primary" onClick={handleAddToCart}>
                                     <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
                                     {`Acheter ${sound.price} XAF`}
@@ -538,9 +538,9 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                                 Fermer
                             </Button>
                         </div>
-                    </div>
-                </Modal.Footer>
-            </Modal>
+                </div>
+            </Modal.Footer>
+        </Modal>
 
             <style jsx>{`
                 .sound-details-modal .modal-content {

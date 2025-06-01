@@ -180,7 +180,7 @@ const CategoryDetail = () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    setLikedSounds(new Set(data.likes || []));
+                setLikedSounds(new Set(data.likes || []));
                 }
             }
         } catch (error) {
@@ -249,7 +249,7 @@ const CategoryDetail = () => {
         });
 
         if (success) {
-            toast.success('Ajouté au panier', `"${sound.title}" a été ajouté au panier`);
+        toast.success('Ajouté au panier', `"${sound.title}" a été ajouté au panier`);
         }
     };
 
@@ -709,18 +709,18 @@ const CategoryDetail = () => {
                         </div>
                     ) : (
                         <>
-                            <Row className="g-4">
+                        <Row className="g-4">
                                 {sounds.map((sound, index) => (
-                                    <Col
-                                        key={sound.id}
-                                        lg={viewMode === 'grid' ? 3 : 12}
-                                        md={viewMode === 'grid' ? 4 : 12}
-                                        sm={viewMode === 'grid' ? 6 : 12}
-                                    >
-                                        <SoundCard sound={sound} index={index} />
-                                    </Col>
-                                ))}
-                            </Row>
+                                <Col
+                                    key={sound.id}
+                                    lg={viewMode === 'grid' ? 3 : 12}
+                                    md={viewMode === 'grid' ? 4 : 12}
+                                    sm={viewMode === 'grid' ? 6 : 12}
+                                >
+                                    <SoundCard sound={sound} index={index} />
+                                </Col>
+                            ))}
+                        </Row>
 
                             {/* Pagination */}
                             {pagination.has_more && (
