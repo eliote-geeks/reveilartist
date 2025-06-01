@@ -29,6 +29,17 @@ import Categories from './pages/Categories';
 import CategoryDetail from './pages/CategoryDetail';
 import About from './pages/About';
 
+// Import des pages de compétitions
+import Competitions from './pages/Competitions';
+import CompetitionDetails from './pages/CompetitionDetails';
+import CreateCompetition from './pages/CreateCompetition';
+import LiveCompetition from './pages/LiveCompetition';
+
+// Import des pages de clips vidéos
+import ClipsVideos from './pages/ClipsVideos';
+import ClipDetails from './pages/ClipDetails';
+import AddClip from './pages/AddClip';
+
 // Import des pages de détails
 import SoundDetails from './pages/SoundDetails';
 import Profile from './pages/Profile';
@@ -48,12 +59,12 @@ import SoundManagement from './pages/SoundManagement';
 function App() {
     return (
         <div className="d-flex flex-column min-vh-100">
-                        <Header />
+            <Header />
             <main className="flex-grow-1">
-                        <PageTransition>
-                                <Routes>
+                <PageTransition>
+                    <Routes>
                         {/* Pages publiques */}
-                                    <Route path="/" element={<Home />} />
+                        <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/contact" element={<Contact />} />
@@ -61,15 +72,24 @@ function App() {
                         <Route path="/auth-test" element={<AuthTest />} />
 
                         {/* Pages de contenu publiques */}
-                                    <Route path="/catalog" element={<Catalog />} />
-                                    <Route path="/sounds/:id" element={<SoundDetails />} />
-                                    <Route path="/artists" element={<Artists />} />
-                                    <Route path="/artists/:id" element={<ArtistProfile />} />
-                                    <Route path="/events" element={<Events />} />
-                                    <Route path="/events/:id" element={<EventDetails />} />
-                                    <Route path="/about" element={<About />} />
-                                    <Route path="/categories" element={<Categories />} />
-                                    <Route path="/category/:id" element={<CategoryDetail />} />
+                        <Route path="/catalog" element={<Catalog />} />
+                        <Route path="/sounds/:id" element={<SoundDetails />} />
+                        <Route path="/artists" element={<Artists />} />
+                        <Route path="/artists/:id" element={<ArtistProfile />} />
+                        <Route path="/events" element={<Events />} />
+                        <Route path="/events/:id" element={<EventDetails />} />
+                        <Route path="/about" element={<About />} />
+                        <Route path="/categories" element={<Categories />} />
+                        <Route path="/category/:id" element={<CategoryDetail />} />
+
+                        {/* Pages de clips vidéos */}
+                        <Route path="/clips" element={<ClipsVideos />} />
+                        <Route path="/clips/:id" element={<ClipDetails />} />
+
+                        {/* Pages de compétitions */}
+                        <Route path="/competitions" element={<Competitions />} />
+                        <Route path="/competitions/:id" element={<CompetitionDetails />} />
+                        <Route path="/competitions/:id/live" element={<LiveCompetition />} />
 
                         {/* Pages protégées - nécessitent une authentification */}
                         <Route path="/dashboard" element={
@@ -133,6 +153,18 @@ function App() {
                             </ProtectedRoute>
                         } />
 
+                        <Route path="/add-clip" element={
+                            <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                <AddClip />
+                            </ProtectedRoute>
+                        } />
+
+                        <Route path="/create-competition" element={
+                            <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
+                                <CreateCompetition />
+                            </ProtectedRoute>
+                        } />
+
                         <Route path="/edit-sound/:id" element={
                             <ProtectedRoute requiredRoles={['artist', 'producer', 'admin']}>
                                 <EditSound />
@@ -147,13 +179,13 @@ function App() {
 
                         {/* Redirection par défaut */}
                         <Route path="*" element={<Navigate to="/" replace />} />
-                                </Routes>
+                    </Routes>
                 </PageTransition>
-                            </main>
-                        <Footer />
+            </main>
+            <Footer />
 
             {/* Bouton flottant disponible sur toutes les pages */}
-                        <FloatingActionButton />
+            <FloatingActionButton />
         </div>
     );
 }

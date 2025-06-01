@@ -12,7 +12,6 @@ import {
     faStar,
     faMusic,
     faClock,
-    faHeart,
     faShare,
     faPlus,
     faMinus,
@@ -42,7 +41,6 @@ const Events = () => {
     const [viewMode, setViewMode] = useState('grid');
     const [categories, setCategories] = useState(['Tous']);
     const [cities, setCities] = useState(['Toutes']);
-    const [favoriteEvents, setFavoriteEvents] = useState(new Set());
 
     // Villes populaires du Cameroun
     const cameroonCities = [
@@ -85,51 +83,54 @@ const Events = () => {
         filterEvents();
     }, [events, searchQuery, selectedCategory, selectedCity]);
 
-    useEffect(() => {
-        if (token) {
-            loadFavorites();
-        }
-    }, [token]);
-
     const loadEvents = async () => {
         try {
             setLoading(true);
             const response = await fetch('/api/events');
             const data = await response.json();
 
-            if (data.success) {
-                // Adapter simplement les données des événements pour les URLs d'images et JSON
-                const adaptedEvents = data.events.map(event => ({
+            console.log('Données événements reçues:', data);
+
+            if (data && Array.isArray(data)) {
+                // Si data est directement un tableau
+                const adaptedEvents = data.map(event => ({
                     ...event,
-                    // S'assurer que les URLs d'images sont correctes
                     poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
-                    // Décoder les artistes et sponsors depuis JSON si ils existent
                     artists_array: event.artists ? (
                         typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
                     ) : [],
-                    sponsors_array: event.sponsors ? (
-                        typeof event.sponsors === 'string' ? JSON.parse(event.sponsors) : event.sponsors
-                    ) : [],
-                    // Calculer le nombre de places restantes
                     remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
                 }));
-
                 setEvents(adaptedEvents);
-
-                // Extraire les catégories et villes uniques
-                const uniqueCategories = ['Tous', ...new Set(adaptedEvents.map(event => event.category))];
-                // Combiner les villes existantes avec celles du Cameroun
-                const existingCities = new Set(adaptedEvents.map(event => event.city));
-                const allCities = [...new Set([...cameroonCities, ...existingCities])];
-
-                setCategories(uniqueCategories);
-                setCities(allCities);
+            } else if (data && data.events) {
+                // Si data contient une propriété events
+                const adaptedEvents = data.events.map(event => ({
+                    ...event,
+                    poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
+                    artists_array: event.artists ? (
+                        typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
+                    ) : [],
+                    remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
+                }));
+                setEvents(adaptedEvents);
             } else {
-                toast.error('Erreur', data.message || 'Impossible de charger les événements');
+                console.error('Format de données inattendu:', data);
+                setEvents([]);
             }
+
+            // Extraire les catégories et villes uniques
+            const allEvents = data && Array.isArray(data) ? data : (data && data.events ? data.events : []);
+            const uniqueCategories = ['Tous', ...new Set(allEvents.map(event => event.category).filter(Boolean))];
+            const existingCities = new Set(allEvents.map(event => event.city).filter(Boolean));
+            const allCities = [...new Set([...cameroonCities, ...existingCities])];
+
+            setCategories(uniqueCategories);
+            setCities(allCities);
+
         } catch (error) {
             console.error('Erreur lors du chargement des événements:', error);
             toast.error('Erreur', 'Erreur de connexion au serveur');
+            setEvents([]);
         } finally {
             setLoading(false);
         }
@@ -140,13 +141,13 @@ const Events = () => {
 
         if (searchQuery) {
             filtered = filtered.filter(event =>
-                event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                event.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (event.artists_array && event.artists_array.some(artist =>
                     artist.toLowerCase().includes(searchQuery.toLowerCase())
                 )) ||
-                event.venue.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                event.city.toLowerCase().includes(searchQuery.toLowerCase())
+                event.venue?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                event.city?.toLowerCase().includes(searchQuery.toLowerCase())
             );
         }
 
@@ -194,17 +195,6 @@ const Events = () => {
         return 0;
     };
 
-    const handleTicketQuantityChange = (eventId, ticketType, change) => {
-        const key = `${eventId}_${ticketType}`;
-        const currentQuantity = ticketQuantities[key] || 0;
-        const newQuantity = Math.max(0, currentQuantity + change);
-
-        setTicketQuantities(prev => ({
-            ...prev,
-            [key]: newQuantity
-        }));
-    };
-
     const openTicketModal = (event) => {
         setSelectedEvent(event);
         setShowTicketModal(true);
@@ -214,67 +204,6 @@ const Events = () => {
         setShowTicketModal(false);
         setSelectedEvent(null);
         setTicketQuantities({});
-    };
-
-    const loadFavorites = async () => {
-        if (!token) return;
-
-        try {
-            const response = await fetch('/api/events/favorites', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const favoriteIds = data.favorites.map(fav => fav.id);
-                setFavoriteEvents(new Set(favoriteIds));
-            }
-        } catch (error) {
-            console.error('Erreur lors du chargement des favoris:', error);
-        }
-    };
-
-    const handleToggleFavorite = async (eventId) => {
-        if (!token) {
-            toast.warning('Connexion requise', 'Vous devez être connecté pour ajouter aux favoris');
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/events/${eventId}/favorite`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setFavoriteEvents(prev => {
-                    const newSet = new Set(prev);
-                    if (data.is_favorite) {
-                        newSet.add(eventId);
-                    } else {
-                        newSet.delete(eventId);
-                    }
-                    return newSet;
-                });
-
-                toast.success(
-                    'Favoris',
-                    data.is_favorite ? 'Événement ajouté aux favoris' : 'Événement retiré des favoris'
-                );
-            } else {
-                toast.error('Erreur', 'Impossible de modifier les favoris');
-            }
-        } catch (error) {
-            console.error('Erreur lors de la modification des favoris:', error);
-            toast.error('Erreur', 'Erreur de connexion');
-        }
     };
 
     const handleAddToCart = () => {
@@ -305,7 +234,7 @@ const Events = () => {
 
             addToCart(cartItem);
 
-            toast.cart(
+            toast.success(
                 'Billet ajouté au panier',
                 `Billet pour "${selectedEvent.title}" ajouté au panier`
             );
@@ -327,7 +256,7 @@ const Events = () => {
                 <div className="position-relative">
                     <Card.Img
                         variant="top"
-                        src={event.poster_image_url || event.featured_image || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=250&fit=crop`}
+                        src={event.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=250&fit=crop`}
                         className="event-image"
                         style={{ height: '200px', objectFit: 'cover' }}
                     />
@@ -335,7 +264,7 @@ const Events = () => {
                     {/* Badges */}
                     <div className="position-absolute top-0 start-0 m-3">
                         <Badge bg="primary" className="mb-2">
-                            {event.category}
+                            {event.category || 'Événement'}
                         </Badge>
                         {event.is_featured && (
                             <Badge bg="warning" text="dark">
@@ -358,7 +287,7 @@ const Events = () => {
                         <div className="event-overlay-content text-center">
                             <Button
                                 as={Link}
-                                to={`/event/${event.id}`}
+                                to={`/events/${event.id}`}
                                 variant="light"
                                 className="mb-2 me-2"
                             >
@@ -372,7 +301,7 @@ const Events = () => {
                                 >
                                     <FontAwesomeIcon icon={faTicketAlt} className="me-2" />
                                     Billets
-                            </Button>
+                                </Button>
                             )}
                         </div>
                     </div>
@@ -382,19 +311,12 @@ const Events = () => {
                     <div className="d-flex justify-content-between align-items-start mb-2">
                         <h5 className="card-title fw-bold mb-0">
                             <Link
-                                to={`/event/${event.id}`}
+                                to={`/events/${event.id}`}
                                 className="text-decoration-none text-dark"
                             >
                                 {event.title}
                             </Link>
                         </h5>
-                        <Button
-                            variant={favoriteEvents.has(event.id) ? "danger" : "outline-danger"}
-                            size="sm"
-                            onClick={() => handleToggleFavorite(event.id)}
-                        >
-                            <FontAwesomeIcon icon={faHeart} />
-                        </Button>
                     </div>
 
                     <p className="text-muted small mb-2">
@@ -410,7 +332,7 @@ const Events = () => {
                         </div>
                         <div className="d-flex align-items-center mb-1">
                             <FontAwesomeIcon icon={faClock} className="text-primary me-2" />
-                            <small>{event.start_time}</small>
+                            <small>{event.start_time || 'Heure à confirmer'}</small>
                         </div>
                         <div className="d-flex align-items-center">
                             <FontAwesomeIcon icon={faMapMarkerAlt} className="text-primary me-2" />
@@ -418,8 +340,8 @@ const Events = () => {
                         </div>
                     </div>
 
-                        <div className="d-flex justify-content-between align-items-center">
-                            <div>
+                    <div className="d-flex justify-content-between align-items-center">
+                        <div>
                             {event.is_free ? (
                                 <span className="fw-bold text-success">Gratuit</span>
                             ) : (
@@ -427,16 +349,16 @@ const Events = () => {
                                     À partir de {formatCurrency(getLowestPrice(event))}
                                 </span>
                             )}
-                                </div>
+                        </div>
                         <div className="d-flex gap-1">
-                                <Button
+                            <Button
                                 as={Link}
-                                to={`/event/${event.id}`}
-                                    variant="outline-primary"
-                                    size="sm"
-                                >
+                                to={`/events/${event.id}`}
+                                variant="outline-primary"
+                                size="sm"
+                            >
                                 <FontAwesomeIcon icon={faEye} />
-                                </Button>
+                            </Button>
                             {!event.is_free && (
                                 <Button
                                     variant="primary"
@@ -457,12 +379,12 @@ const Events = () => {
         <AnimatedElement animation="slideInUp" delay={100 + (index * 50)}>
             <Card className="event-list-item border-0 shadow-sm mb-3">
                 <Row className="g-0">
-                        <Col md={3}>
-                                <img
-                            src={event.poster_image_url || event.featured_image || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=300&h=200&fit=crop`}
+                    <Col md={3}>
+                        <img
+                            src={event.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=300&h=200&fit=crop`}
                             className="img-fluid rounded-start"
                             style={{ height: '150px', width: '100%', objectFit: 'cover' }}
-                                    alt={event.title}
+                            alt={event.title}
                         />
                     </Col>
                     <Col md={9}>
@@ -470,21 +392,21 @@ const Events = () => {
                             <Row className="h-100">
                                 <Col md={8}>
                                     <div className="d-flex align-items-center mb-2">
-                                        <Badge bg="primary" className="me-2">{event.category}</Badge>
+                                        <Badge bg="primary" className="me-2">{event.category || 'Événement'}</Badge>
                                         {event.is_featured && (
                                             <Badge bg="warning" text="dark">
                                                 <FontAwesomeIcon icon={faStar} className="me-1" />
-                                        Featured
-                                    </Badge>
-                                )}
+                                                Featured
+                                            </Badge>
+                                        )}
                                         {event.is_free && (
                                             <Badge bg="success" className="ms-2">Gratuit</Badge>
                                         )}
-                            </div>
+                                    </div>
 
                                     <h5 className="fw-bold mb-2">
                                         <Link
-                                            to={`/event/${event.id}`}
+                                            to={`/events/${event.id}`}
                                             className="text-decoration-none text-dark"
                                         >
                                             {event.title}
@@ -503,14 +425,14 @@ const Events = () => {
                                     <div className="event-details">
                                         <div className="d-flex align-items-center mb-1">
                                             <FontAwesomeIcon icon={faCalendarAlt} className="text-primary me-2" />
-                                            <span>{formatDate(event.event_date)} à {event.start_time}</span>
+                                            <span>{formatDate(event.event_date)} à {event.start_time || 'Heure à confirmer'}</span>
                                         </div>
                                         <div className="d-flex align-items-center">
                                             <FontAwesomeIcon icon={faMapMarkerAlt} className="text-primary me-2" />
                                             <span>{event.venue}, {event.city}</span>
                                         </div>
-                            </div>
-                        </Col>
+                                    </div>
+                                </Col>
                                 <Col md={4} className="d-flex flex-column justify-content-between">
                                     <div className="text-end">
                                         {event.is_free ? (
@@ -518,41 +440,34 @@ const Events = () => {
                                         ) : (
                                             <div className="fw-bold text-primary fs-5">
                                                 À partir de {formatCurrency(getLowestPrice(event))}
-                                </div>
+                                            </div>
                                         )}
-                            </div>
+                                    </div>
 
                                     <div className="d-flex gap-2 justify-content-end">
                                         <Button
-                                            variant={favoriteEvents.has(event.id) ? "danger" : "outline-danger"}
-                                            size="sm"
-                                            onClick={() => handleToggleFavorite(event.id)}
-                                        >
-                                            <FontAwesomeIcon icon={faHeart} />
-                                        </Button>
-                                <Button
                                             as={Link}
-                                            to={`/event/${event.id}`}
-                                    variant="outline-primary"
-                                    size="sm"
-                                >
+                                            to={`/events/${event.id}`}
+                                            variant="outline-primary"
+                                            size="sm"
+                                        >
                                             <FontAwesomeIcon icon={faEye} className="me-1" />
                                             Détails
-                                </Button>
+                                        </Button>
                                         {!event.is_free && (
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => openTicketModal(event)}
-                                >
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                onClick={() => openTicketModal(event)}
+                                            >
                                                 <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
                                                 Billets
-                                </Button>
+                                            </Button>
                                         )}
-                            </div>
-                        </Col>
-                    </Row>
-                </Card.Body>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </Card.Body>
                     </Col>
                 </Row>
             </Card>
@@ -717,7 +632,7 @@ const Events = () => {
                                     </span>
                                     <span>
                                         <FontAwesomeIcon icon={faClock} className="me-1" />
-                                        {selectedEvent.start_time}
+                                        {selectedEvent.start_time || 'Heure à confirmer'}
                                     </span>
                                     <span>
                                         <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />

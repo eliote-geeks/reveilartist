@@ -7,7 +7,7 @@ import {
     faMusic, faUsers, faCalendarAlt, faShoppingCart,
     faSearch, faTh, faPlus, faTimes, faCog, faHeart,
     faTachometerAlt, faUserCircle, faEdit, faHome, faBell,
-    faUserCog, faChevronDown
+    faUserCog, faChevronDown, faTrophy, faVideo
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -116,7 +116,9 @@ const Header = () => {
                             {[
                                 { path: '/', icon: faHome, label: 'Accueil' },
                                 { path: '/catalog', icon: faMusic, label: 'Catalogue' },
+                                { path: '/clips', icon: faVideo, label: 'Clips' },
                                 { path: '/events', icon: faCalendarAlt, label: 'Événements' },
+                                { path: '/competitions', icon: faTrophy, label: 'Compétitions' },
                                 { path: '/categories', icon: faTh, label: 'Catégories' },
                                 { path: '/artists', icon: faUsers, label: 'Artistes' }
                             ].map((item) => (
@@ -162,6 +164,15 @@ const Header = () => {
                                                         <div className="item-subtitle">Partagez votre musique</div>
                                                     </div>
                                                 </NavDropdown.Item>
+                                                <NavDropdown.Item as={Link} to="/add-clip" className="dropdown-item-modern">
+                                                    <div className="item-icon clip">
+                                                        <FontAwesomeIcon icon={faVideo} />
+                                                    </div>
+                                                    <div className="item-content">
+                                                        <div className="item-title">Nouveau Clip</div>
+                                                        <div className="item-subtitle">Partagez votre vidéo</div>
+                                                    </div>
+                                                </NavDropdown.Item>
                                                 <NavDropdown.Item as={Link} to="/add-event" className="dropdown-item-modern">
                                                     <div className="item-icon event">
                                                         <FontAwesomeIcon icon={faCalendarAlt} />
@@ -169,6 +180,15 @@ const Header = () => {
                                                     <div className="item-content">
                                                         <div className="item-title">Nouvel Événement</div>
                                                         <div className="item-subtitle">Organisez un concert</div>
+                                                    </div>
+                                                </NavDropdown.Item>
+                                                <NavDropdown.Item as={Link} to="/create-competition" className="dropdown-item-modern">
+                                                    <div className="item-icon competition">
+                                                        <FontAwesomeIcon icon={faTrophy} />
+                                                    </div>
+                                                    <div className="item-content">
+                                                        <div className="item-title">Nouvelle Compétition</div>
+                                                        <div className="item-subtitle">Lancez un battle musical</div>
                                                     </div>
                                                 </NavDropdown.Item>
                                             </div>
@@ -341,7 +361,9 @@ const Header = () => {
                         {[
                             { path: '/', icon: faHome, label: 'Accueil' },
                             { path: '/catalog', icon: faMusic, label: 'Catalogue' },
+                            { path: '/clips', icon: faVideo, label: 'Clips' },
                             { path: '/events', icon: faCalendarAlt, label: 'Événements' },
+                            { path: '/competitions', icon: faTrophy, label: 'Compétitions' },
                             { path: '/categories', icon: faTh, label: 'Catégories' },
                             { path: '/artists', icon: faUsers, label: 'Artistes' }
                         ].map((item) => (
@@ -388,9 +410,17 @@ const Header = () => {
                                                 <FontAwesomeIcon icon={faMusic} />
                                                 <span>Nouveau Son</span>
                                             </Nav.Link>
+                                            <Nav.Link as={Link} to="/add-clip" className="mobile-create-item" onClick={closeMobileMenu}>
+                                                <FontAwesomeIcon icon={faVideo} />
+                                                <span>Nouveau Clip</span>
+                                            </Nav.Link>
                                             <Nav.Link as={Link} to="/add-event" className="mobile-create-item" onClick={closeMobileMenu}>
                                                 <FontAwesomeIcon icon={faCalendarAlt} />
                                                 <span>Nouvel Événement</span>
+                                            </Nav.Link>
+                                            <Nav.Link as={Link} to="/create-competition" className="mobile-create-item" onClick={closeMobileMenu}>
+                                                <FontAwesomeIcon icon={faTrophy} />
+                                                <span>Nouvelle Compétition</span>
                                             </Nav.Link>
                                         </div>
                                     </>
@@ -823,6 +853,11 @@ const Header = () => {
                 .item-icon.logout {
                     background: rgba(239, 68, 68, 0.1);
                     color: #ef4444;
+                }
+
+                .item-icon.competition {
+                    background: rgba(255, 193, 7, 0.1);
+                    color: #ffc107;
                 }
 
                 .item-content {

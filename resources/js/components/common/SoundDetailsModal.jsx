@@ -537,7 +537,7 @@ const SoundDetailsModal = ({ show, onHide, sound, onLike, onAddToCart, likedSoun
                             <Button variant="outline-secondary" onClick={onHide}>
                                 Fermer
                             </Button>
-                        </div>
+                    </div>
                 </div>
             </Modal.Footer>
         </Modal>

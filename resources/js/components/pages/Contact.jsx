@@ -7,7 +7,7 @@ const Contact = () => {
                 <Container>
                     <Row className="justify-content-center">
                     <Col md={8}>
-                        <Card className="border-0 shadow-sm">
+                            <Card className="border-0 shadow-sm">
                             <Card.Body className="p-5 text-center">
                                 <h1 className="fw-bold mb-4">Contactez-nous</h1>
                                 <p className="text-muted">
