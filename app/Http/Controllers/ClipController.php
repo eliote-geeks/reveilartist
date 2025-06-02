@@ -744,4 +744,331 @@ class ClipController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Méthodes pour la gestion admin des clips
+     */
+
+    /**
+     * Obtenir tous les clips pour l'administration
+     */
+    public function getAllForAdmin(Request $request)
+    {
+        $query = Clip::with(['user', 'comments' => function($q) {
+            $q->where('is_active', true);
+        }]);
+
+        // Filtres
+        if ($request->filled('status')) {
+            if ($request->status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($request->status === 'inactive') {
+                $query->where('is_active', false);
+            }
+        }
+
+        if ($request->filled('featured')) {
+            $query->where('featured', $request->featured === 'true');
+        }
+
+        if ($request->filled('category') && $request->category !== 'all') {
+            $query->where('category', $request->category);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhereHas('user', function($userQuery) use ($search) {
+                      $userQuery->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // Tri
+        switch ($request->get('sort_by', 'created_at')) {
+            case 'views':
+                $query->orderBy('views', 'desc');
+                break;
+            case 'likes':
+                $query->orderBy('likes', 'desc');
+                break;
+            case 'comments':
+                $query->orderBy('comments_count', 'desc');
+                break;
+            case 'title':
+                $query->orderBy('title', 'asc');
+                break;
+            default:
+                $query->orderBy('created_at', 'desc');
+        }
+
+        $clips = $query->paginate($request->get('per_page', 20));
+
+        // Ajouter des informations additionnelles
+        $clips->getCollection()->transform(function ($clip) {
+            $clip->formatted_views = number_format($clip->views);
+            $clip->formatted_likes = number_format($clip->likes);
+            $clip->formatted_comments = number_format($clip->comments_count);
+            $clip->has_potential_issues = $this->checkPotentialIssues($clip);
+            $clip->issue_flags = $this->getIssueFlags($clip);
+            $clip->engagement_rate = $clip->views > 0 ? round(($clip->likes / $clip->views) * 100, 2) : 0;
+
+            return $clip;
+        });
+
+        return response()->json([
+            'success' => true,
+            'clips' => $clips,
+            'message' => 'Clips admin récupérés avec succès'
+        ]);
+    }
+
+    /**
+     * Obtenir les clips les plus populaires
+     */
+    public function getMostPopular(Request $request)
+    {
+        $limit = $request->get('limit', 10);
+
+        $clips = Clip::with('user')
+            ->where('is_active', true)
+            ->orderBy('views', 'desc')
+            ->orderBy('likes', 'desc')
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'clips' => $clips,
+            'message' => 'Clips populaires récupérés'
+        ]);
+    }
+
+    /**
+     * Obtenir les clips les moins populaires
+     */
+    public function getLeastPopular(Request $request)
+    {
+        $limit = $request->get('limit', 10);
+
+        $clips = Clip::with('user')
+            ->where('is_active', true)
+            ->orderBy('views', 'asc')
+            ->orderBy('likes', 'asc')
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'clips' => $clips,
+            'message' => 'Clips moins populaires récupérés'
+        ]);
+    }
+
+    /**
+     * Obtenir les clips avec problèmes potentiels
+     */
+    public function getProblematicClips(Request $request)
+    {
+        $clips = Clip::with('user')
+            ->where('is_active', true)
+            ->get()
+            ->filter(function ($clip) {
+                return $this->checkPotentialIssues($clip);
+            })
+            ->take($request->get('limit', 20));
+
+        return response()->json([
+            'success' => true,
+            'clips' => $clips->values(),
+            'message' => 'Clips problématiques récupérés'
+        ]);
+    }
+
+    /**
+     * Vérifier les problèmes potentiels d'un clip
+     */
+    private function checkPotentialIssues($clip)
+    {
+        $issues = [];
+        $description = strtolower($clip->description);
+        $title = strtolower($clip->title);
+
+        // Mots-clés problématiques
+        $problematicKeywords = [
+            'violence', 'violent', 'bagarre', 'guerre', 'combat',
+            'sexe', 'sexuel', 'nudité', 'adult', 'xxx',
+            'drogue', 'alcool', 'stupéfiant', 'cannabis', 'cocaine',
+            'haine', 'racisme', 'discrimination', 'nazi', 'terrorisme',
+            'suicide', 'mort', 'tuer', 'assassin', 'meurtre',
+            'arnaque', 'scam', 'fake', 'faux', 'contrefaçon'
+        ];
+
+        foreach ($problematicKeywords as $keyword) {
+            if (strpos($description, $keyword) !== false || strpos($title, $keyword) !== false) {
+                $issues[] = 'Contenu potentiellement inapproprié';
+                break;
+            }
+        }
+
+        // Ratio faible engagement
+        if ($clip->views > 100 && $clip->likes < ($clip->views * 0.01)) {
+            $issues[] = 'Faible engagement';
+        }
+
+        // Beaucoup de vues mais peu de likes
+        if ($clip->views > 1000 && $clip->likes < 10) {
+            $issues[] = 'Ratio vues/likes suspect';
+        }
+
+        // Description trop courte
+        if (strlen($clip->description) < 20) {
+            $issues[] = 'Description trop courte';
+        }
+
+        // Tags manquants
+        if (empty($clip->tags)) {
+            $issues[] = 'Tags manquants';
+        }
+
+        return count($issues) > 0;
+    }
+
+    /**
+     * Obtenir les drapeaux d'alerte d'un clip
+     */
+    private function getIssueFlags($clip)
+    {
+        $flags = [];
+        $description = strtolower($clip->description);
+        $title = strtolower($clip->title);
+
+        // Vérifications similaires à checkPotentialIssues mais retourne les détails
+        $problematicKeywords = [
+            'violence' => 'Contenu violent',
+            'sexe' => 'Contenu sexuel',
+            'drogue' => 'Référence aux drogues',
+            'haine' => 'Discours de haine',
+            'suicide' => 'Contenu suicidaire',
+            'arnaque' => 'Contenu frauduleux'
+        ];
+
+        foreach ($problematicKeywords as $keyword => $flag) {
+            if (strpos($description, $keyword) !== false || strpos($title, $keyword) !== false) {
+                $flags[] = $flag;
+            }
+        }
+
+        if ($clip->views > 100 && $clip->likes < ($clip->views * 0.01)) {
+            $flags[] = 'Faible engagement';
+        }
+
+        if (strlen($clip->description) < 20) {
+            $flags[] = 'Description incomplète';
+        }
+
+        if (empty($clip->tags)) {
+            $flags[] = 'Tags manquants';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * Activer/Désactiver un clip
+     */
+    public function toggleStatus($id)
+    {
+        $clip = Clip::findOrFail($id);
+        $clip->is_active = !$clip->is_active;
+        $clip->save();
+
+        return response()->json([
+            'success' => true,
+            'clip' => $clip,
+            'message' => $clip->is_active ? 'Clip activé' : 'Clip désactivé'
+        ]);
+    }
+
+    /**
+     * Marquer/Démarquer comme featured
+     */
+    public function toggleFeatured($id)
+    {
+        $clip = Clip::findOrFail($id);
+        $clip->featured = !$clip->featured;
+        $clip->save();
+
+        return response()->json([
+            'success' => true,
+            'clip' => $clip,
+            'message' => $clip->featured ? 'Clip mis en avant' : 'Clip retiré de la mise en avant'
+        ]);
+    }
+
+    /**
+     * Obtenir les statistiques des clips
+     */
+    public function getStats()
+    {
+        $stats = [
+            'total_clips' => Clip::count(),
+            'active_clips' => Clip::where('is_active', true)->count(),
+            'featured_clips' => Clip::where('featured', true)->count(),
+            'total_views' => Clip::sum('views'),
+            'total_likes' => Clip::sum('likes'),
+            'total_comments' => Clip::sum('comments_count'),
+            'avg_engagement_rate' => Clip::where('views', '>', 0)
+                ->selectRaw('AVG(likes / views * 100) as avg_engagement')
+                ->value('avg_engagement'),
+            'clips_by_category' => Clip::selectRaw('category, COUNT(*) as count')
+                ->groupBy('category')
+                ->pluck('count', 'category'),
+            'top_creators' => Clip::selectRaw('user_id, COUNT(*) as clips_count, SUM(views) as total_views')
+                ->with('user:id,name')
+                ->groupBy('user_id')
+                ->orderByDesc('total_views')
+                ->limit(10)
+                ->get()
+        ];
+
+        return response()->json([
+            'success' => true,
+            'stats' => $stats,
+            'message' => 'Statistiques récupérées'
+        ]);
+    }
+
+    /**
+     * Recherche avancée de clips
+     */
+    public function search(Request $request)
+    {
+        $query = Clip::with('user')->where('is_active', true);
+
+        if ($request->filled('q')) {
+            $search = $request->q;
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('category', 'like', "%{$search}%")
+                  ->orWhereJsonContains('tags', $search)
+                  ->orWhereHas('user', function($userQuery) use ($search) {
+                      $userQuery->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $clips = $query->orderBy('views', 'desc')
+                      ->limit($request->get('limit', 20))
+                      ->get();
+
+        return response()->json([
+            'success' => true,
+            'clips' => $clips,
+            'message' => 'Résultats de recherche'
+        ]);
+    }
 }

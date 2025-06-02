@@ -189,11 +189,44 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/sounds/{id}/approve', [AdminController::class, 'approveSound']);
         Route::post('/sounds/{id}/reject', [AdminController::class, 'rejectSound']);
 
+        // Gestion des clips
+        Route::prefix('clips')->group(function () {
+            Route::get('/', [ClipController::class, 'getAllForAdmin'])->name('api.admin.clips.index');
+            Route::get('/stats', [ClipController::class, 'getStats'])->name('api.admin.clips.stats');
+            Route::get('/popular', [ClipController::class, 'getMostPopular'])->name('api.admin.clips.popular');
+            Route::get('/unpopular', [ClipController::class, 'getLeastPopular'])->name('api.admin.clips.unpopular');
+            Route::get('/problematic', [ClipController::class, 'getProblematicClips'])->name('api.admin.clips.problematic');
+            Route::post('/{id}/toggle-status', [ClipController::class, 'toggleStatus'])->name('api.admin.clips.toggle-status');
+            Route::post('/{id}/toggle-featured', [ClipController::class, 'toggleFeatured'])->name('api.admin.clips.toggle-featured');
+            Route::put('/{id}', [ClipController::class, 'update'])->name('api.admin.clips.update');
+            Route::delete('/{id}', [ClipController::class, 'destroy'])->name('api.admin.clips.destroy');
+        });
+
         // Gestion des utilisateurs
         Route::get('/users', [UserController::class, 'index'])->name('api.admin.users.index');
         Route::get('/users/{id}', [UserController::class, 'show'])->name('api.admin.users.show');
         Route::put('/users/{id}', [UserController::class, 'update'])->name('api.admin.users.update');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('api.admin.users.destroy');
+    });
+
+    // Routes Dashboard (admin uniquement)
+    Route::middleware(['admin'])->prefix('dashboard')->group(function () {
+        Route::get('/stats', [DashboardController::class, 'getStats'])->name('api.dashboard.stats');
+        Route::get('/sounds', [DashboardController::class, 'getSounds'])->name('api.dashboard.sounds');
+        Route::get('/events', [DashboardController::class, 'getEvents'])->name('api.dashboard.events');
+        Route::get('/users', [DashboardController::class, 'getUsers'])->name('api.dashboard.users');
+        Route::get('/commission', [DashboardController::class, 'getCommission'])->name('api.dashboard.commission');
+        Route::put('/commission', [DashboardController::class, 'updateCommission'])->name('api.dashboard.commission.update');
+        Route::get('/users-revenue', [DashboardController::class, 'getUsersRevenue'])->name('api.dashboard.users-revenue');
+        Route::get('/users-purchases', [DashboardController::class, 'getUsersPurchases'])->name('api.dashboard.users-purchases');
+        Route::get('/user-payments/{userId}', [DashboardController::class, 'getUserPayments'])->name('api.dashboard.user-payments');
+        Route::get('/payments/search', [DashboardController::class, 'searchPayments'])->name('api.dashboard.payments.search');
+        Route::get('/payments/{type}/{productId}', [DashboardController::class, 'getProductPayments'])->name('api.dashboard.product-payments');
+        Route::get('/receipt/{paymentId}', [DashboardController::class, 'generateReceipt'])->name('api.dashboard.receipt');
+        Route::post('/payments/{paymentId}/approve', [DashboardController::class, 'approvePayment'])->name('api.dashboard.payments.approve');
+        Route::post('/payments/{paymentId}/cancel', [DashboardController::class, 'cancelPayment'])->name('api.dashboard.payments.cancel');
+        Route::post('/payments/{paymentId}/refund', [DashboardController::class, 'refundPayment'])->name('api.dashboard.payments.refund');
+        Route::post('/payments/batch-action', [DashboardController::class, 'batchPaymentAction'])->name('api.dashboard.payments.batch');
     });
 
     // Gestion des sons (utilisateurs authentifiés) - ANCIENNE API
