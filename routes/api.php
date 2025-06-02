@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\CommissionController;
+use App\Http\Controllers\ClipController;
+use App\Http\Controllers\CompetitionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -72,6 +74,52 @@ Route::get('/sounds/categories/list', [SoundController::class, 'getCategories'])
 // Routes publiques pour les événements
 Route::get('/events', [EventController::class, 'index']);
 Route::get('/events/{event}', [EventController::class, 'show']);
+
+// Routes publiques pour les clips vidéos
+Route::prefix('clips')->group(function () {
+    Route::get('/', [ClipController::class, 'index'])->name('api.clips.index');
+    Route::get('/categories', [ClipController::class, 'getCategories'])->name('api.clips.categories');
+    Route::get('/{id}', [ClipController::class, 'show'])->name('api.clips.show')->where('id', '[0-9]+');
+    Route::post('/{id}/share', [ClipController::class, 'share'])->name('api.clips.share')->where('id', '[0-9]+');
+
+    // Routes publiques pour les commentaires
+    Route::get('/{id}/comments', [ClipController::class, 'getComments'])->name('api.clips.comments')->where('id', '[0-9]+');
+
+    // Routes authentifiées pour les clips
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/', [ClipController::class, 'store'])->name('api.clips.store')->middleware('can_upload_clips');
+        Route::put('/{id}', [ClipController::class, 'update'])->name('api.clips.update')->where('id', '[0-9]+');
+        Route::delete('/{id}', [ClipController::class, 'destroy'])->name('api.clips.destroy')->where('id', '[0-9]+');
+        Route::post('/{id}/like', [ClipController::class, 'toggleLike'])->name('api.clips.like')->where('id', '[0-9]+');
+        Route::post('/{id}/bookmark', [ClipController::class, 'toggleBookmark'])->name('api.clips.bookmark')->where('id', '[0-9]+');
+
+        // Routes pour les commentaires
+        Route::post('/{id}/comments', [ClipController::class, 'addComment'])->name('api.clips.comments.store')->where('id', '[0-9]+');
+    });
+});
+
+// Routes pour les commentaires (likes)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/comments/{id}/like', [ClipController::class, 'toggleCommentLike'])->name('api.comments.like')->where('id', '[0-9]+');
+});
+
+// Routes publiques pour les compétitions
+Route::prefix('competitions')->group(function () {
+    Route::get('/', [\App\Http\Controllers\CompetitionController::class, 'index'])->name('api.competitions.index');
+    Route::get('/categories', [\App\Http\Controllers\CompetitionController::class, 'getCategories'])->name('api.competitions.categories');
+    Route::get('/upcoming', [\App\Http\Controllers\CompetitionController::class, 'upcoming'])->name('api.competitions.upcoming');
+    Route::get('/popular', [\App\Http\Controllers\CompetitionController::class, 'popular'])->name('api.competitions.popular');
+    Route::get('/{id}', [\App\Http\Controllers\CompetitionController::class, 'show'])->name('api.competitions.show')->where('id', '[0-9]+');
+
+    // Routes authentifiées pour les compétitions
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/', [\App\Http\Controllers\CompetitionController::class, 'store'])->name('api.competitions.store')->middleware('can_upload_clips');
+        Route::put('/{id}', [\App\Http\Controllers\CompetitionController::class, 'update'])->name('api.competitions.update')->where('id', '[0-9]+');
+        Route::delete('/{id}', [\App\Http\Controllers\CompetitionController::class, 'destroy'])->name('api.competitions.destroy')->where('id', '[0-9]+');
+        Route::post('/{id}/register', [\App\Http\Controllers\CompetitionController::class, 'register'])->name('api.competitions.register')->where('id', '[0-9]+');
+        Route::delete('/{id}/unregister', [\App\Http\Controllers\CompetitionController::class, 'unregister'])->name('api.competitions.unregister')->where('id', '[0-9]+');
+    });
+});
 
 // Routes pour le dashboard admin (en dehors du groupe auth:sanctum principal)
 Route::middleware(['auth:sanctum'])->prefix('dashboard')->group(function () {

@@ -4,37 +4,25 @@ import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faTrophy,
-    faMusic,
-    faClock,
     faUsers,
     faCoins,
-    faPlay,
-    faStop,
-    faPause,
-    faFire,
-    faStar,
+    faCalendarAlt,
+    faClock,
     faPlus,
     faSearch,
     faFilter,
-    faCalendarAlt,
+    faFire,
+    faStar,
+    faTicketAlt,
     faMapMarkerAlt,
-    faEuroSign,
-    faMicrophone,
-    faHeadphones,
-    faVolumeUp,
-    faRocket,
-    faCrown,
-    faLightbulb,
-    faEye,
-    faCheck,
     faChartBar
 } from '@fortawesome/free-solid-svg-icons';
 import { AnimatedElement } from '../common/PageTransition';
-import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import CategoryBadge from '../common/CategoryBadge';
 
-const Competitions = () => {
+const CompetitionsList = () => {
     const [competitions, setCompetitions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -43,7 +31,6 @@ const Competitions = () => {
     const [sortBy, setSortBy] = useState('created_at');
     const [activeTab, setActiveTab] = useState('all');
     const [categories, setCategories] = useState([]);
-    const [pagination, setPagination] = useState(null);
 
     const { user, isArtist, isProducer, isAdmin, token } = useAuth();
     const toast = useToast();
@@ -82,7 +69,6 @@ const Competitions = () => {
 
             if (response.ok) {
                 setCompetitions(result.competitions.data || result.competitions || []);
-                setPagination(result.competitions.pagination || null);
             } else {
                 throw new Error(result.message || 'Erreur lors du chargement');
             }
@@ -224,24 +210,9 @@ const Competitions = () => {
                         onSelect={(k) => setActiveTab(k)}
                         className="mb-4"
                     >
-                        <Tab eventKey="all" title={
-                            <>
-                                <FontAwesomeIcon icon={faChartBar} className="me-2" />
-                                Toutes
-                            </>
-                        } />
-                        <Tab eventKey="upcoming" title={
-                            <>
-                                <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
-                                À venir
-                            </>
-                        } />
-                        <Tab eventKey="popular" title={
-                            <>
-                                <FontAwesomeIcon icon={faFire} className="me-2" />
-                                Populaires
-                            </>
-                        } />
+                        <Tab eventKey="all" title="Toutes" />
+                        <Tab eventKey="upcoming" title="À venir" />
+                        <Tab eventKey="popular" title="Populaires" />
                     </Tabs>
                 </AnimatedElement>
 
@@ -375,4 +346,4 @@ const Competitions = () => {
     );
 };
 
-export default Competitions;
+export default CompetitionsList;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert, InputGroup, Badge, Modal, ProgressBar } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Button, Alert, InputGroup, Badge, Modal, ProgressBar, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -26,11 +26,20 @@ import {
     faTimes,
     faChartBar,
     faFire,
-    faStar
+    faStar,
+    faHeart,
+    faDrum,
+    faHeartbeat,
+    faHandsPraying,
+    faBolt,
+    faSmile,
+    faCloud,
+    faLeaf
 } from '@fortawesome/free-solid-svg-icons';
 import { AnimatedElement } from '../common/PageTransition';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import CategoryBadge from '../common/CategoryBadge';
 
 const CreateCompetition = () => {
     const [formData, setFormData] = useState({
@@ -62,15 +71,17 @@ const CreateCompetition = () => {
     const [showPreview, setShowPreview] = useState(false);
     const [currentStep, setCurrentStep] = useState(1);
     const totalSteps = 4;
+    const [categories, setCategories] = useState([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
+
+    // États pour l'approbation
+    const [showApprovalModal, setShowApprovalModal] = useState(false);
+    const [approvalStep, setApprovalStep] = useState(1);
+    const [previewData, setPreviewData] = useState(null);
 
     const navigate = useNavigate();
     const toast = useToast();
-    const { user, isArtist, isProducer, isAdmin } = useAuth();
-
-    const categories = [
-        'Rap', 'Afrobeat', 'Makossa', 'Gospel', 'Jazz',
-        'Reggae', 'Hip-Hop', 'RnB', 'Pop', 'Folk'
-    ];
+    const { user, isArtist, isProducer, isAdmin, token } = useAuth();
 
     useEffect(() => {
         if (!isArtist() && !isProducer() && !isAdmin()) {
@@ -79,7 +90,54 @@ const CreateCompetition = () => {
             }
             navigate('/competitions');
         }
+        fetchCategories();
     }, [user]);
+
+    const fetchCategories = async () => {
+        try {
+            setLoadingCategories(true);
+            const response = await fetch('/api/competitions/categories');
+            const result = await response.json();
+
+            if (response.ok) {
+                setCategories(result.categories || []);
+            } else {
+                throw new Error('Erreur lors du chargement des catégories');
+            }
+        } catch (error) {
+            console.error('Erreur catégories:', error);
+            toast?.error('Erreur', 'Impossible de charger les catégories');
+            // Fallback avec catégories hardcodées
+            setCategories([
+                { name: 'Rap', color: '#4ECDC4', icon: 'faMicrophone' },
+                { name: 'Afrobeat', color: '#FF6B35', icon: 'faHeart' },
+                { name: 'Makossa', color: '#45B7D1', icon: 'faMusic' },
+                { name: 'Gospel', color: '#DDA0DD', icon: 'faHandsPraying' },
+                { name: 'Jazz', color: '#A29BFE', icon: 'faMusic' },
+                { name: 'Reggae', color: '#00B894', icon: 'faLeaf' }
+            ]);
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
+
+    const getCategoryIcon = (iconName) => {
+        const iconMap = {
+            faHeart, faMicrophone, faMusic, faDrum, faHeartbeat,
+            faHandsPraying, faBolt, faUsers, faSmile, faFire,
+            faCloud, faLeaf, faStar
+        };
+        return iconMap[iconName] || faMusic;
+    };
+
+    const getCategoryStyle = (categoryName) => {
+        const category = categories.find(cat => cat.name === categoryName);
+        return category ? {
+            backgroundColor: category.color + '20',
+            borderColor: category.color,
+            color: category.color
+        } : {};
+    };
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -204,17 +262,76 @@ const CreateCompetition = () => {
         try {
             setIsSubmitting(true);
 
-            // Simuler l'envoi
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Créer un FormData pour l'upload
+            const formDataToSend = new FormData();
 
+            // Ajouter les champs de base
+            formDataToSend.append('title', formData.title);
+            formDataToSend.append('description', formData.description);
+            formDataToSend.append('category', formData.category);
+            formDataToSend.append('entry_fee', formData.entry_fee);
+            formDataToSend.append('max_participants', formData.max_participants);
+            formDataToSend.append('start_date', formData.start_date);
+            formDataToSend.append('start_time', formData.start_time);
+            formDataToSend.append('duration', formData.duration);
+
+            // Ajouter les règles (filtrer les vides)
+            const validRules = formData.rules.filter(rule => rule.trim());
+            validRules.forEach((rule, index) => {
+                formDataToSend.append(`rules[${index}]`, rule);
+            });
+
+            // Ajouter les prix
+            formData.prizes.forEach((prize, index) => {
+                formDataToSend.append(`prizes[${index}][position]`, prize.position);
+                formDataToSend.append(`prizes[${index}][percentage]`, prize.percentage);
+                formDataToSend.append(`prizes[${index}][label]`, prize.label);
+            });
+
+            // Ajouter les critères de jugement
+            formData.judging_criteria.forEach((criteria, index) => {
+                formDataToSend.append(`judging_criteria[${index}][name]`, criteria.name);
+                formDataToSend.append(`judging_criteria[${index}][weight]`, criteria.weight);
+            });
+
+            // Ajouter l'image si fournie
+            if (formData.image) {
+                formDataToSend.append('image', formData.image);
+            }
+
+            // Appel API
+            const response = await fetch('/api/competitions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
+                body: formDataToSend
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                // Gestion des erreurs de validation
+                if (response.status === 422 && result.errors) {
+                    setErrors(result.errors);
+                    if (toast) {
+                        toast.error('Erreurs de validation', 'Veuillez corriger les erreurs dans le formulaire');
+                    }
+                    return;
+                }
+                throw new Error(result.message || 'Erreur lors de la création de la compétition');
+            }
+
+            setShowApprovalModal(false);
             if (toast) {
-                toast.success('Compétition créée', 'Votre compétition a été créée avec succès !');
+                toast.success('Compétition créée', result.message || 'Votre compétition a été créée avec succès !');
             }
             navigate('/competitions');
         } catch (error) {
             console.error('Erreur lors de la création:', error);
             if (toast) {
-                toast.error('Erreur', 'Erreur lors de la création de la compétition');
+                toast.error('Erreur', error.message || 'Erreur lors de la création de la compétition');
             }
         } finally {
             setIsSubmitting(false);
@@ -345,11 +462,17 @@ const CreateCompetition = () => {
                                         value={formData.category}
                                         onChange={handleInputChange}
                                         isInvalid={!!errors.category}
+                                        style={getCategoryStyle(formData.category)}
+                                        className="category-select"
                                     >
                                         <option value="">Choisir une catégorie</option>
-                                        {categories.map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
-                                        ))}
+                                        {loadingCategories ? (
+                                            <option disabled>Chargement des catégories...</option>
+                                        ) : (
+                                            categories.map(cat => (
+                                                <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                            ))
+                                        )}
                                     </Form.Select>
                                     <Form.Control.Feedback type="invalid">
                                         {errors.category}
@@ -745,6 +868,28 @@ const CreateCompetition = () => {
         </AnimatedElement>
     );
 
+    const handlePreviewCompetition = () => {
+        if (!validateStep(currentStep)) return;
+
+        // Trouver l'objet catégorie complet à partir du nom sélectionné
+        const selectedCategory = categories.find(cat => cat.name === formData.category);
+
+        setPreviewData({
+            ...formData,
+            selectedCategory, // Utiliser selectedCategory au lieu de category
+            totalPrizePool: calculatePrizePool(),
+            formattedEntryFee: formatCurrency(parseInt(formData.entry_fee) || 0),
+            formattedTotalPrizePool: formatCurrency(calculatePrizePool())
+        });
+        setShowPreview(true);
+    };
+
+    const handleApprovalCompetition = () => {
+        setShowPreview(false);
+        setShowApprovalModal(true);
+        setApprovalStep(1);
+    };
+
     if (!user || (!isArtist() && !isProducer() && !isAdmin())) {
         return (
             <div className="min-vh-100 d-flex align-items-center justify-content-center">
@@ -810,35 +955,202 @@ const CreateCompetition = () => {
                                     Précédent
                                 </Button>
 
-                                {currentStep < totalSteps ? (
-                                    <Button variant="primary" onClick={nextStep}>
-                                        Suivant
-                                        <FontAwesomeIcon icon={faArrowLeft} className="ms-2" style={{transform: 'rotate(180deg)'}} />
-                                    </Button>
-                                ) : (
-                                    <Button
-                                        type="submit"
-                                        variant="success"
-                                        disabled={isSubmitting}
-                                    >
-                                        {isSubmitting ? (
-                                            <>
-                                                <span className="spinner-border spinner-border-sm me-2" />
-                                                Création...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <FontAwesomeIcon icon={faRocket} className="me-2" />
-                                                Créer la compétition
-                                            </>
-                                        )}
-                                    </Button>
-                                )}
+                                <div className="d-flex gap-2">
+                                    {currentStep === totalSteps && (
+                                        <Button
+                                            variant="info"
+                                            onClick={handlePreviewCompetition}
+                                            disabled={isSubmitting || !formData.title}
+                                        >
+                                            <FontAwesomeIcon icon={faEye} className="me-2" />
+                                            Prévisualiser
+                                        </Button>
+                                    )}
+
+                                    {currentStep < totalSteps ? (
+                                        <Button variant="primary" onClick={nextStep}>
+                                            Suivant
+                                            <FontAwesomeIcon icon={faArrowLeft} className="ms-2" style={{transform: 'rotate(180deg)'}} />
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="submit"
+                                            variant="success"
+                                            disabled={isSubmitting}
+                                        >
+                                            {isSubmitting ? (
+                                                <>
+                                                    <span className="spinner-border spinner-border-sm me-2" />
+                                                    Création...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FontAwesomeIcon icon={faRocket} className="me-2" />
+                                                    Créer la compétition
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                         </Form>
                     </Col>
                 </Row>
             </Container>
+
+            {/* Modal de prévisualisation */}
+            <Modal show={showPreview} onHide={() => setShowPreview(false)} size="lg" centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faEye} className="me-2" />
+                        Prévisualisation de la compétition
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {previewData && (
+                        <div>
+                            <div className="text-center mb-4">
+                                <h4 className="fw-bold">{previewData.title}</h4>
+                                {previewData.selectedCategory && (
+                                    <CategoryBadge
+                                        category={previewData.selectedCategory}
+                                        size="large"
+                                    />
+                                )}
+                            </div>
+
+                            <p className="text-muted mb-4">{previewData.description}</p>
+
+                            <Row className="g-3 mb-4">
+                                <Col md={6}>
+                                    <div className="border rounded p-3">
+                                        <h6 className="fw-bold text-primary">
+                                            <FontAwesomeIcon icon={faCoins} className="me-2" />
+                                            Informations financières
+                                        </h6>
+                                        <ul className="list-unstyled small mb-0">
+                                            <li><strong>Frais d'inscription:</strong> {previewData.formattedEntryFee}</li>
+                                            <li><strong>Participants max:</strong> {previewData.max_participants}</li>
+                                            <li><strong>Cagnotte totale:</strong> {previewData.formattedTotalPrizePool}</li>
+                                        </ul>
+                                    </div>
+                                </Col>
+                                <Col md={6}>
+                                    <div className="border rounded p-3">
+                                        <h6 className="fw-bold text-success">
+                                            <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
+                                            Programmation
+                                        </h6>
+                                        <ul className="list-unstyled small mb-0">
+                                            <li><strong>Date:</strong> {previewData.start_date}</li>
+                                            <li><strong>Heure:</strong> {previewData.start_time}</li>
+                                            <li><strong>Durée:</strong> {previewData.duration} minutes</li>
+                                        </ul>
+                                    </div>
+                                </Col>
+                            </Row>
+
+                            <div className="mb-3">
+                                <h6 className="fw-bold">Règles de la compétition</h6>
+                                <ul className="small">
+                                    {previewData.rules.filter(rule => rule.trim()).map((rule, index) => (
+                                        <li key={index}>{rule}</li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            <div className="mb-3">
+                                <h6 className="fw-bold">Répartition des prix</h6>
+                                <div className="row g-2">
+                                    {previewData.prizes.map((prize, index) => (
+                                        <div key={index} className="col-md-4">
+                                            <div className="border rounded p-2 text-center">
+                                                <div className="fw-bold">{prize.label}</div>
+                                                <div className="text-primary">{prize.percentage}%</div>
+                                                <div className="small text-muted">
+                                                    {formatCurrency(previewData.totalPrizePool * prize.percentage / 100)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <h6 className="fw-bold">Critères de jugement</h6>
+                                <div className="row g-2">
+                                    {previewData.judging_criteria.map((criteria, index) => (
+                                        <div key={index} className="col-md-6">
+                                            <div className="d-flex justify-content-between align-items-center border rounded p-2">
+                                                <span className="small">{criteria.name}</span>
+                                                <Badge bg="primary">{criteria.weight}%</Badge>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="outline-secondary" onClick={() => setShowPreview(false)}>
+                        <FontAwesomeIcon icon={faEdit} className="me-2" />
+                        Modifier
+                    </Button>
+                    <Button variant="success" onClick={handleApprovalCompetition}>
+                        <FontAwesomeIcon icon={faCheck} className="me-2" />
+                        Approuver et créer
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal d'approbation finale */}
+            <Modal show={showApprovalModal} onHide={() => setShowApprovalModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faCheck} className="me-2" />
+                        Confirmation de création
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {approvalStep === 1 && (
+                        <div className="text-center">
+                            <FontAwesomeIcon icon={faTrophy} size="3x" className="text-warning mb-3" />
+                            <h5>Êtes-vous sûr de vouloir créer cette compétition ?</h5>
+                            <p className="text-muted">
+                                Une fois créée, votre compétition sera visible par tous les utilisateurs
+                                et les participants pourront s'inscrire.
+                            </p>
+                            <Alert variant="info" className="text-start">
+                                <FontAwesomeIcon icon={faInfoCircle} className="me-2" />
+                                <strong>Important :</strong> Vérifiez que toutes les informations sont
+                                correctes car certains paramètres ne pourront plus être modifiés après inscription.
+                            </Alert>
+                        </div>
+                    )}
+
+                    {isSubmitting && (
+                        <div className="text-center">
+                            <Spinner animation="border" variant="primary" className="mb-3" />
+                            <h5>Création en cours...</h5>
+                            <p className="text-muted">Veuillez patienter pendant la création de votre compétition</p>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    {!isSubmitting && (
+                        <>
+                            <Button variant="outline-secondary" onClick={() => setShowApprovalModal(false)}>
+                                Annuler
+                            </Button>
+                            <Button variant="success" onClick={handleSubmit}>
+                                <FontAwesomeIcon icon={faRocket} className="me-2" />
+                                Confirmer la création
+                            </Button>
+                        </>
+                    )}
+                </Modal.Footer>
+            </Modal>
 
             <style jsx>{`
                 .bg-gradient-primary {
@@ -911,6 +1223,86 @@ const CreateCompetition = () => {
                 .form-control,
                 .form-select {
                     border-radius: 8px;
+                }
+
+                .category-select {
+                    transition: all 0.3s ease;
+                    font-weight: 500;
+                }
+
+                .category-select:focus {
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+                }
+
+                .category-badge {
+                    font-weight: 600;
+                    padding: 8px 16px;
+                    border-radius: 12px;
+                    border: 2px solid currentColor;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .prize-card {
+                    background: linear-gradient(145deg, #ffffff 0%, #f8f9ff 100%);
+                    border: 2px solid #e9ecef;
+                    border-radius: 12px;
+                    transition: all 0.3s ease;
+                }
+
+                .prize-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+                    border-color: #667eea;
+                }
+
+                .criteria-card {
+                    background: linear-gradient(145deg, #ffffff 0%, #f8f9ff 100%);
+                    border: 1px solid #e9ecef;
+                    border-radius: 8px;
+                    transition: all 0.3s ease;
+                }
+
+                .criteria-card:hover {
+                    border-color: #667eea;
+                    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+                }
+
+                .modal-preview {
+                    border-radius: 16px;
+                    overflow: hidden;
+                }
+
+                .modal-preview .modal-content {
+                    border: none;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+                }
+
+                .info-card {
+                    background: linear-gradient(145deg, #f8f9ff 0%, #ffffff 100%);
+                    border: 1px solid #e9ecef;
+                    border-radius: 12px;
+                    transition: all 0.3s ease;
+                }
+
+                .info-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+                }
+
+                @media (max-width: 768px) {
+                    .step-indicator .step-circle {
+                        width: 35px;
+                        height: 35px;
+                        font-size: 0.9rem;
+                    }
+
+                    .category-badge {
+                        padding: 6px 12px;
+                        font-size: 0.9rem;
+                    }
                 }
             `}</style>
         </div>

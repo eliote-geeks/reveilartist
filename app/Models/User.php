@@ -106,6 +106,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Vérifier si l'utilisateur est un administrateur
+     */
+    public function isAdmin()
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
      * Vérifier si l'utilisateur est actif
      */
     public function isActive()
@@ -170,6 +178,40 @@ class User extends Authenticatable
     public function events()
     {
         return $this->hasMany(Event::class);
+    }
+
+    /**
+     * Clips créés par l'utilisateur
+     */
+    public function clips()
+    {
+        return $this->hasMany(Clip::class);
+    }
+
+    /**
+     * Compétitions créées par l'utilisateur
+     */
+    public function competitions()
+    {
+        return $this->hasMany(Competition::class);
+    }
+
+    /**
+     * Participations aux compétitions
+     */
+    public function competitionParticipations()
+    {
+        return $this->hasMany(CompetitionParticipant::class);
+    }
+
+    /**
+     * Compétitions auxquelles l'utilisateur participe
+     */
+    public function participatedCompetitions()
+    {
+        return $this->belongsToMany(Competition::class, 'competition_participants')
+                    ->withPivot(['status', 'entry_fee_paid', 'payment_status', 'total_score', 'position'])
+                    ->withTimestamps();
     }
 
     /**

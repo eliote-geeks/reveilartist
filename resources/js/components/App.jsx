@@ -59,12 +59,12 @@ import SoundManagement from './pages/SoundManagement';
 function App() {
     return (
         <div className="d-flex flex-column min-vh-100">
-            <Header />
+                        <Header />
             <main className="flex-grow-1">
-                <PageTransition>
-                    <Routes>
+                        <PageTransition>
+                                <Routes>
                         {/* Pages publiques */}
-                        <Route path="/" element={<Home />} />
+                                    <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/contact" element={<Contact />} />
@@ -72,11 +72,11 @@ function App() {
                         <Route path="/auth-test" element={<AuthTest />} />
 
                         {/* Pages de contenu publiques */}
-                        <Route path="/catalog" element={<Catalog />} />
+                                    <Route path="/catalog" element={<Catalog />} />
                         <Route path="/sounds/:id" element={<SoundDetails />} />
-                        <Route path="/artists" element={<Artists />} />
+                                    <Route path="/artists" element={<Artists />} />
                         <Route path="/artists/:id" element={<ArtistProfile />} />
-                        <Route path="/events" element={<Events />} />
+                                    <Route path="/events" element={<Events />} />
                         <Route path="/events/:id" element={<EventDetails />} />
                         <Route path="/about" element={<About />} />
                         <Route path="/categories" element={<Categories />} />
@@ -179,13 +179,13 @@ function App() {
 
                         {/* Redirection par défaut */}
                         <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
+                                </Routes>
                 </PageTransition>
-            </main>
-            <Footer />
+                            </main>
+                        <Footer />
 
             {/* Bouton flottant disponible sur toutes les pages */}
-            <FloatingActionButton />
+                        <FloatingActionButton />
         </div>
     );
 }

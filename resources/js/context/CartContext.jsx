@@ -57,7 +57,7 @@ export const CartProvider = ({ children }) => {
         // Vérifier si l'item est déjà dans le panier
         const existingItem = cartItems.find(cartItem => cartItem.id === item.id && cartItem.type === (item.type || 'sound'));
 
-        if (existingItem) {
+            if (existingItem) {
             // Incrémenter la quantité si l'item existe déjà
             setCartItems(prevItems =>
                 prevItems.map(cartItem =>
@@ -65,9 +65,9 @@ export const CartProvider = ({ children }) => {
                         ? { ...cartItem, quantity: cartItem.quantity + 1 }
                         : cartItem
                 )
-            );
+                );
             toast.success('Panier', `Quantité de "${item.title}" augmentée !`);
-        } else {
+            } else {
             // Ajouter le nouvel item
             const cartItem = {
                 id: item.id,
@@ -77,7 +77,7 @@ export const CartProvider = ({ children }) => {
                 price: item.type === 'event' ? (item.ticket_price || item.price) : item.price,
                 cover: item.cover || item.poster || item.image,
                 is_free: isFreeItem(),
-                quantity: 1,
+                    quantity: 1,
                 added_at: new Date().toISOString(),
 
                 // Ajouter des propriétés spécifiques selon le type

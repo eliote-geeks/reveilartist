@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert, ProgressBar, Badge } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Container, Row, Col, Card, Form, Button, Alert, ProgressBar, Badge, Modal, Spinner } from 'react-bootstrap';
 import { useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -18,16 +18,31 @@ import {
     faTrophy,
     faAward,
     faStar,
-    faCrown
+    faCrown,
+    faEye,
+    faEdit,
+    faHeart,
+    faMicrophone,
+    faDrum,
+    faHeartbeat,
+    faHandsPraying,
+    faBolt,
+    faUsers,
+    faSmile,
+    faFire,
+    faCloud,
+    faLeaf,
+    faRocket
 } from '@fortawesome/free-solid-svg-icons';
 import { AnimatedElement } from '../common/PageTransition';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import CategoryBadge from '../common/CategoryBadge';
 
 const AddClip = () => {
     const navigate = useNavigate();
     const toast = useToast();
-    const { user } = useAuth();
+    const { user, token } = useAuth();
 
     const [formData, setFormData] = useState({
         title: '',
@@ -49,11 +64,62 @@ const AddClip = () => {
     const [errors, setErrors] = useState({});
     const [videoPreview, setVideoPreview] = useState(null);
     const [thumbnailPreview, setThumbnailPreview] = useState(null);
+    const [categories, setCategories] = useState([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
 
-    const categories = [
-        'Afrobeat', 'Rap', 'Makossa', 'Gospel', 'Zouk', 'Jazz', 'Pop',
-        'R&B', 'Reggae', 'Hip-Hop', 'Soul', 'Blues', 'Rock'
-    ];
+    // États pour l'approbation et prévisualisation
+    const [showPreview, setShowPreview] = useState(false);
+    const [showApprovalModal, setShowApprovalModal] = useState(false);
+    const [approvalStep, setApprovalStep] = useState(1);
+    const [previewData, setPreviewData] = useState(null);
+
+    useEffect(() => {
+        fetchCategories();
+    }, []);
+
+    const fetchCategories = async () => {
+        try {
+            setLoadingCategories(true);
+            const response = await fetch('/api/clips/categories');
+            const result = await response.json();
+
+            if (response.ok) {
+                setCategories(result.categories || []);
+            } else {
+                throw new Error('Erreur lors du chargement des catégories');
+            }
+        } catch (error) {
+            console.error('Erreur catégories:', error);
+            toast?.error('Erreur', 'Impossible de charger les catégories');
+            // Fallback
+            setCategories([
+                { name: 'Afrobeat', color: '#FF6B35', icon: 'faHeart' },
+                { name: 'Rap', color: '#4ECDC4', icon: 'faMicrophone' },
+                { name: 'Makossa', color: '#45B7D1', icon: 'faMusic' },
+                { name: 'Gospel', color: '#DDA0DD', icon: 'faHandsPraying' }
+            ]);
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
+
+    const getCategoryIcon = (iconName) => {
+        const iconMap = {
+            faHeart, faMicrophone, faMusic, faDrum, faHeartbeat,
+            faHandsPraying, faBolt, faUsers, faSmile, faFire,
+            faCloud, faLeaf, faStar
+        };
+        return iconMap[iconName] || faMusic;
+    };
+
+    const getCategoryStyle = (categoryName) => {
+        const category = categories.find(cat => cat.name === categoryName);
+        return category ? {
+            backgroundColor: category.color + '20',
+            borderColor: category.color,
+            color: category.color
+        } : {};
+    };
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -132,19 +198,28 @@ const AddClip = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const simulateUpload = () => {
-        return new Promise((resolve) => {
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 15;
-                if (progress >= 100) {
-                    progress = 100;
-                    clearInterval(interval);
-                    resolve();
-                }
-                setUploadProgress(Math.min(progress, 100));
-            }, 200);
+    const handlePreview = () => {
+        if (!validateForm()) {
+            toast?.error('Erreur', 'Veuillez corriger les erreurs dans le formulaire');
+            return;
+        }
+
+        // Trouver l'objet catégorie complet à partir du nom sélectionné
+        const selectedCategory = categories.find(cat => cat.name === formData.category);
+
+        setPreviewData({
+            ...formData,
+            videoPreview,
+            thumbnailPreview,
+            selectedCategory // Utiliser selectedCategory au lieu de category
         });
+        setShowPreview(true);
+    };
+
+    const handleApproval = () => {
+        setShowPreview(false);
+        setShowApprovalModal(true);
+        setApprovalStep(1);
     };
 
     const handleSubmit = async (e) => {
@@ -159,24 +234,55 @@ const AddClip = () => {
         setUploadProgress(0);
 
         try {
-            // Simulation de l'upload
-            await simulateUpload();
+            // Créer un FormData pour l'upload
+            const formDataToSend = new FormData();
+            formDataToSend.append('title', formData.title);
+            formDataToSend.append('description', formData.description);
+            formDataToSend.append('category', formData.category);
+            formDataToSend.append('tags', formData.tags);
+            formDataToSend.append('video_file', formData.video_file);
+            formDataToSend.append('thumbnail_file', formData.thumbnail_file);
 
-            // Ici, vous feriez l'appel API réel
-            // const formDataToSend = new FormData();
-            // Object.keys(formData).forEach(key => {
-            //     if (key === 'credits') {
-            //         formDataToSend.append(key, JSON.stringify(formData[key]));
-            //     } else {
-            //         formDataToSend.append(key, formData[key]);
-            //     }
-            // });
+            // Ajouter les crédits s'ils existent
+            if (formData.credits.director) formDataToSend.append('credits[director]', formData.credits.director);
+            if (formData.credits.producer) formDataToSend.append('credits[producer]', formData.credits.producer);
+            if (formData.credits.cinematographer) formDataToSend.append('credits[cinematographer]', formData.credits.cinematographer);
+            if (formData.credits.editor) formDataToSend.append('credits[editor]', formData.credits.editor);
 
-            toast?.success('Succès', 'Votre clip a été ajouté avec succès !');
+            // Simulation de progression pour l'UX
+            const progressInterval = setInterval(() => {
+                setUploadProgress(prev => {
+                    if (prev >= 90) return prev;
+                    return prev + Math.random() * 10;
+                });
+            }, 200);
+
+            // Appel API
+            const response = await fetch('/api/clips', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                },
+                body: formDataToSend
+            });
+
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || 'Erreur lors de la création du clip');
+            }
+
+            setShowApprovalModal(false);
+            toast?.success('Succès', result.message || 'Votre clip a été ajouté avec succès !');
             navigate('/clips');
+
         } catch (error) {
             console.error('Erreur lors de l\'upload:', error);
-            toast?.error('Erreur', 'Une erreur est survenue lors de l\'upload');
+            toast?.error('Erreur', error.message || 'Une erreur est survenue lors de l\'upload');
         } finally {
             setUploading(false);
             setUploadProgress(0);
@@ -292,11 +398,16 @@ const AddClip = () => {
                                                             value={formData.category}
                                                             onChange={handleInputChange}
                                                             isInvalid={!!errors.category}
+                                                            style={getCategoryStyle(formData.category)}
                                                         >
                                                             <option value="">Choisir une catégorie</option>
-                                                            {categories.map(cat => (
-                                                                <option key={cat} value={cat}>{cat}</option>
-                                                            ))}
+                                                            {loadingCategories ? (
+                                                                <option disabled>Chargement...</option>
+                                                            ) : (
+                                                                categories.map(cat => (
+                                                                    <option key={cat.name} value={cat.name}>{cat.name}</option>
+                                                                ))
+                                                            )}
                                                         </Form.Select>
                                                         <Form.Control.Feedback type="invalid">
                                                             {errors.category}
@@ -498,6 +609,14 @@ const AddClip = () => {
                                                 Annuler
                                             </Button>
                                             <Button
+                                                variant="info"
+                                                onClick={handlePreview}
+                                                disabled={uploading || !formData.title || !formData.video_file}
+                                            >
+                                                <FontAwesomeIcon icon={faEye} className="me-2" />
+                                                Prévisualiser
+                                            </Button>
+                                            <Button
                                                 type="submit"
                                                 variant="primary"
                                                 disabled={uploading}
@@ -570,6 +689,142 @@ const AddClip = () => {
                 </Row>
             </Container>
 
+            {/* Modal de prévisualisation */}
+            <Modal show={showPreview} onHide={() => setShowPreview(false)} size="lg" centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faEye} className="me-2" />
+                        Prévisualisation du clip
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {previewData && (
+                        <div>
+                            <Row className="g-3">
+                                <Col md={6}>
+                                    {previewData.videoPreview && (
+                                        <div>
+                                            <h6 className="fw-bold mb-2">Vidéo</h6>
+                                            <video
+                                                src={previewData.videoPreview}
+                                                controls
+                                                className="w-100 rounded"
+                                                style={{ maxHeight: '250px' }}
+                                            />
+                                        </div>
+                                    )}
+                                </Col>
+                                <Col md={6}>
+                                    {previewData.thumbnailPreview && (
+                                        <div>
+                                            <h6 className="fw-bold mb-2">Miniature</h6>
+                                            <img
+                                                src={previewData.thumbnailPreview}
+                                                alt="Miniature"
+                                                className="w-100 rounded"
+                                                style={{ maxHeight: '250px', objectFit: 'cover' }}
+                                            />
+                                        </div>
+                                    )}
+                                </Col>
+                            </Row>
+
+                            <hr />
+
+                            <div className="mb-3">
+                                <h5 className="fw-bold">{previewData.title}</h5>
+                                {previewData.selectedCategory && (
+                                    <CategoryBadge
+                                        category={previewData.selectedCategory}
+                                    />
+                                )}
+                                <p className="text-muted">{previewData.description}</p>
+                                {previewData.tags && (
+                                    <div>
+                                        <small className="text-muted">Tags: {previewData.tags}</small>
+                                    </div>
+                                )}
+                            </div>
+
+                            {(previewData.credits.director || previewData.credits.producer ||
+                              previewData.credits.cinematographer || previewData.credits.editor) && (
+                                <div>
+                                    <h6 className="fw-bold">Crédits</h6>
+                                    <ul className="list-unstyled small text-muted">
+                                        {previewData.credits.director &&
+                                            <li><strong>Réalisateur:</strong> {previewData.credits.director}</li>}
+                                        {previewData.credits.producer &&
+                                            <li><strong>Producteur:</strong> {previewData.credits.producer}</li>}
+                                        {previewData.credits.cinematographer &&
+                                            <li><strong>Directeur photo:</strong> {previewData.credits.cinematographer}</li>}
+                                        {previewData.credits.editor &&
+                                            <li><strong>Monteur:</strong> {previewData.credits.editor}</li>}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="outline-secondary" onClick={() => setShowPreview(false)}>
+                        <FontAwesomeIcon icon={faEdit} className="me-2" />
+                        Modifier
+                    </Button>
+                    <Button variant="success" onClick={handleApproval}>
+                        <FontAwesomeIcon icon={faCheck} className="me-2" />
+                        Approuver et publier
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal d'approbation finale */}
+            <Modal show={showApprovalModal} onHide={() => setShowApprovalModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FontAwesomeIcon icon={faCheck} className="me-2" />
+                        Confirmation de publication
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {approvalStep === 1 && (
+                        <div className="text-center">
+                            <FontAwesomeIcon icon={faCheck} size="3x" className="text-success mb-3" />
+                            <h5>Êtes-vous sûr de vouloir publier ce clip ?</h5>
+                            <p className="text-muted">
+                                Une fois publié, votre clip sera visible par tous les utilisateurs de la plateforme.
+                            </p>
+                            <Alert variant="info" className="text-start">
+                                <FontAwesomeIcon icon={faInfoCircle} className="me-2" />
+                                <strong>Rappel :</strong> Assurez-vous que votre contenu respecte nos
+                                conditions d'utilisation et ne contient aucun élément inapproprié.
+                            </Alert>
+                        </div>
+                    )}
+
+                    {uploading && (
+                        <div className="text-center">
+                            <Spinner animation="border" variant="primary" className="mb-3" />
+                            <h5>Publication en cours...</h5>
+                            <ProgressBar now={uploadProgress} className="mb-3" />
+                            <p className="text-muted">Veuillez patienter pendant l'upload de votre clip</p>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    {!uploading && (
+                        <>
+                            <Button variant="outline-secondary" onClick={() => setShowApprovalModal(false)}>
+                                Annuler
+                            </Button>
+                            <Button variant="success" onClick={handleSubmit}>
+                                <FontAwesomeIcon icon={faRocket} className="me-2" />
+                                Confirmer la publication
+                            </Button>
+                        </>
+                    )}
+                </Modal.Footer>
+            </Modal>
+
             <style jsx>{`
                 .upload-area {
                     border: 2px dashed #dee2e6;
@@ -619,10 +874,52 @@ const AddClip = () => {
                     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
                 }
 
+                .category-badge {
+                    font-weight: 600;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    border: 2px solid currentColor;
+                }
+
+                .modal-preview .video-container {
+                    position: relative;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                }
+
+                .modal-preview .thumbnail-container {
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                }
+
+                .category-select {
+                    border-radius: 8px;
+                    transition: all 0.3s ease;
+                }
+
+                .category-select:focus {
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+                }
+
+                .credit-section {
+                    background: linear-gradient(145deg, #f8f9ff 0%, #ffffff 100%);
+                    border-radius: 12px;
+                    padding: 20px;
+                    border: 1px solid #e9ecef;
+                }
+
                 /* Responsive */
                 @media (max-width: 768px) {
                     .upload-area {
                         padding: 30px 15px;
+                    }
+
+                    .modal-preview .video-container,
+                    .modal-preview .thumbnail-container {
+                        margin-bottom: 20px;
                     }
                 }
             `}</style>

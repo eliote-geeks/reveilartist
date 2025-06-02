@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'can_upload_clips' => \App\Http\Middleware\CanUploadClips::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

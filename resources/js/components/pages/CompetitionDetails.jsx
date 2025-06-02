@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Modal, Tab, Tabs, ProgressBar, ListGroup, Form } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Badge, Alert, ProgressBar, Modal, Spinner, Form, Tab, Tabs, ListGroup } from 'react-bootstrap';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -28,12 +28,17 @@ import {
     faComment,
     faDownload,
     faStar,
-    faUpload
+    faUpload,
+    faInfo,
+    faUserPlus,
+    faUserMinus,
+    faCommentDots,
+    faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
-import LoadingScreen from '../common/LoadingScreen';
 import { AnimatedElement } from '../common/PageTransition';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import CategoryBadge from '../common/CategoryBadge';
 
 const CompetitionDetails = () => {
     const { id } = useParams();
@@ -45,83 +50,11 @@ const CompetitionDetails = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [timeLeft, setTimeLeft] = useState('');
     const [isLive, setIsLive] = useState(false);
+    const [userParticipation, setUserParticipation] = useState(null);
+    const [isJoining, setIsJoining] = useState(false);
 
     const toast = useToast();
     const { token, user } = useAuth();
-
-    // Données de démonstration étendues
-    const mockCompetition = {
-        id: 1,
-        title: "Battle de Rap Camerounais",
-        description: "Compétition de rap freestyle en direct. Montrez votre talent et remportez la cagnotte ! Cette compétition met en avant le talent local camerounais et encourage la créativité dans le rap français et en langues locales.",
-        artist: "MC Thunder",
-        artist_id: 15,
-        artist_avatar: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop&crop=face",
-        artist_bio: "MC Thunder est un rappeur camerounais reconnu avec plus de 10 ans d'expérience dans la scène hip-hop locale.",
-        category: "Rap",
-        entry_fee: 5000,
-        prize_pool: 150000,
-        max_participants: 20,
-        current_participants: 15,
-        status: "registration", // registration, active, completed
-        start_time: "2024-01-20T20:00:00",
-        end_time: "2024-01-20T22:00:00",
-        duration: 120, // minutes
-        rules: [
-            "Performance de 3 minutes maximum par participant",
-            "Thème libre ou imposé selon les rounds",
-            "Pas de contenu offensant ou discriminatoire",
-            "Jugement par le public en direct via votes",
-            "Respect total des autres participants",
-            "Utilisation d'instrumentales libres de droits uniquement"
-        ],
-        prizes: [
-            { position: 1, amount: 75000, percentage: 50 },
-            { position: 2, amount: 45000, percentage: 30 },
-            { position: 3, amount: 30000, percentage: 20 }
-        ],
-        image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=400&fit=crop",
-        gallery: [
-            "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop",
-            "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=200&fit=crop",
-            "https://images.unsplash.com/photo-1564186763535-ebb21ef5277f?w=300&h=200&fit=crop"
-        ],
-        created_at: "2024-01-15T10:00:00",
-        participants: [
-            {
-                id: 1,
-                name: "Rap Master CM",
-                avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face",
-                joined_at: "2024-01-16T14:30:00",
-                status: "registered"
-            },
-            {
-                id: 2,
-                name: "Flow Princess",
-                avatar: "https://images.unsplash.com/photo-1494790108755-2616c3b7b572?w=50&h=50&fit=crop&crop=face",
-                joined_at: "2024-01-16T15:45:00",
-                status: "registered"
-            },
-            {
-                id: 3,
-                name: "Freestyle King",
-                avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face",
-                joined_at: "2024-01-17T09:15:00",
-                status: "registered"
-            }
-        ],
-        judge_criteria: [
-            { name: "Flow et rythme", weight: 30 },
-            { name: "Originalité des paroles", weight: 25 },
-            { name: "Présence scénique", weight: 20 },
-            { name: "Technique vocale", weight: 15 },
-            { name: "Connexion avec le public", weight: 10 }
-        ],
-        featured: true,
-        live_stream_url: null,
-        chat_enabled: true,
-        voting_enabled: true
-    };
 
     useEffect(() => {
         loadCompetition();
@@ -141,12 +74,20 @@ const CompetitionDetails = () => {
     const loadCompetition = async () => {
         try {
             setLoading(true);
-            // Simuler un appel API
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setCompetition(mockCompetition);
+
+            const response = await fetch(`/api/competitions/${id}`);
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || 'Compétition non trouvée');
+            }
+
+            setCompetition(result.competition);
+            setUserParticipation(result.user_participation);
+
         } catch (error) {
             console.error('Erreur lors du chargement de la compétition:', error);
-            toast.error('Erreur', 'Compétition non trouvée');
+            toast?.error('Erreur', error.message || 'Compétition non trouvée');
             navigate('/competitions');
         } finally {
             setLoading(false);
@@ -157,8 +98,8 @@ const CompetitionDetails = () => {
         if (!competition) return;
 
         const now = new Date();
-        const start = new Date(competition.start_time);
-        const end = new Date(competition.end_time);
+        const start = new Date(`${competition.start_date} ${competition.start_time}`);
+        const end = new Date(start.getTime() + (competition.duration * 60 * 1000));
 
         if (now >= start && now <= end) {
             setIsLive(true);
@@ -194,8 +135,8 @@ const CompetitionDetails = () => {
         }).format(amount);
     };
 
-    const formatDateTime = (dateString) => {
-        return new Date(dateString).toLocaleString('fr-FR', {
+    const formatDateTime = () => {
+        return new Date(`${competition.start_date} ${competition.start_time}`).toLocaleString('fr-FR', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
@@ -207,8 +148,12 @@ const CompetitionDetails = () => {
 
     const getStatusBadge = (status) => {
         switch (status) {
-            case 'registration':
-                return <Badge bg="primary" className="fs-6"><FontAwesomeIcon icon={faClock} className="me-1" />Inscriptions ouvertes</Badge>;
+            case 'published':
+                if (competition?.can_register) {
+                    return <Badge bg="primary" className="fs-6"><FontAwesomeIcon icon={faClock} className="me-1" />Inscriptions ouvertes</Badge>;
+                } else {
+                    return <Badge bg="warning" className="fs-6"><FontAwesomeIcon icon={faExclamationTriangle} className="me-1" />Complet</Badge>;
+                }
             case 'active':
                 return <Badge bg="success" className="fs-6"><FontAwesomeIcon icon={faPlay} className="me-1" />En cours</Badge>;
             case 'completed':
@@ -220,28 +165,90 @@ const CompetitionDetails = () => {
 
     const handleJoinCompetition = () => {
         if (!token) {
-            toast.warning('Connexion requise', 'Vous devez être connecté pour participer');
+            toast?.warning('Connexion requise', 'Vous devez être connecté pour participer');
             return;
         }
         setShowJoinModal(true);
     };
 
-    const confirmJoinCompetition = () => {
-        toast.success('Inscription confirmée', `Vous êtes inscrit à "${competition.title}"`);
-        setShowJoinModal(false);
-        // Ici on ferait l'appel API pour s'inscrire
+    const confirmJoinCompetition = async () => {
+        try {
+            setIsJoining(true);
+
+            const response = await fetch(`/api/competitions/${id}/register`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || 'Erreur lors de l\'inscription');
+            }
+
+            toast?.success('Inscription confirmée', result.message || `Vous êtes inscrit à "${competition.title}"`);
+            setShowJoinModal(false);
+
+            // Recharger les données de la compétition
+            await loadCompetition();
+
+        } catch (error) {
+            console.error('Erreur lors de l\'inscription:', error);
+            toast?.error('Erreur', error.message || 'Erreur lors de l\'inscription');
+        } finally {
+            setIsJoining(false);
+        }
+    };
+
+    const handleUnregister = async () => {
+        try {
+            const response = await fetch(`/api/competitions/${id}/unregister`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || 'Erreur lors de la désinscription');
+            }
+
+            toast?.success('Désinscription confirmée', result.message || 'Vous êtes désinscrit de la compétition');
+
+            // Recharger les données de la compétition
+            await loadCompetition();
+
+        } catch (error) {
+            console.error('Erreur lors de la désinscription:', error);
+            toast?.error('Erreur', error.message || 'Erreur lors de la désinscription');
+        }
     };
 
     const handleUploadEntry = () => {
         if (!token) {
-            toast.warning('Connexion requise', 'Vous devez être connecté pour soumettre');
+            toast?.warning('Connexion requise', 'Vous devez être connecté pour soumettre');
             return;
         }
         setShowUploadModal(true);
     };
 
     if (loading) {
-        return <LoadingScreen />;
+        return (
+            <div className="min-vh-100 bg-light avoid-header-overlap d-flex align-items-center justify-content-center">
+                <div className="text-center">
+                    <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
+                    <h5 className="mt-3 text-muted">Chargement de la compétition...</h5>
+                </div>
+            </div>
+        );
     }
 
     if (!competition) {
@@ -258,7 +265,9 @@ const CompetitionDetails = () => {
     return (
         <div className="min-vh-100 bg-light avoid-header-overlap">
             {/* Hero Section */}
-            <div className="competition-hero" style={{ backgroundImage: `url(${competition.image})` }}>
+            <div className="competition-hero" style={{
+                backgroundImage: competition.image_url ? `url(${competition.image_url})` : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+            }}>
                 <div className="competition-hero-overlay">
                     <Container>
                         <div className="py-5">
@@ -291,13 +300,13 @@ const CompetitionDetails = () => {
 
                                         <div className="d-flex align-items-center mb-3">
                                             <img
-                                                src={competition.artist_avatar}
-                                                alt={competition.artist}
+                                                src={competition.user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(competition.user.name)}&background=667eea&color=fff`}
+                                                alt={competition.user.name}
                                                 className="rounded-circle me-3"
                                                 style={{ width: '50px', height: '50px', objectFit: 'cover' }}
                                             />
                                             <div>
-                                                <h5 className="text-white mb-0">{competition.artist}</h5>
+                                                <h5 className="text-white mb-0">{competition.user.name}</h5>
                                                 <small className="text-light">Organisateur de la compétition</small>
                                             </div>
                                         </div>
@@ -314,7 +323,7 @@ const CompetitionDetails = () => {
                                                 <div className="mb-3">
                                                     <FontAwesomeIcon icon={faTrophy} size="3x" className="text-warning mb-2" />
                                                     <h3 className="fw-bold text-primary mb-0">
-                                                        {formatCurrency(competition.prize_pool)}
+                                                        {competition.formatted_total_prize_pool}
                                                     </h3>
                                                     <small className="text-muted">Cagnotte totale</small>
                                                 </div>
@@ -323,7 +332,7 @@ const CompetitionDetails = () => {
                                                     <div className="col-6">
                                                         <div className="bg-light rounded p-2">
                                                             <FontAwesomeIcon icon={faCoins} className="text-primary" />
-                                                            <div>{formatCurrency(competition.entry_fee)}</div>
+                                                            <div>{competition.formatted_entry_fee}</div>
                                                             <small className="text-muted">Inscription</small>
                                                         </div>
                                                     </div>
@@ -354,17 +363,40 @@ const CompetitionDetails = () => {
                                                     </div>
                                                 )}
 
-                                                {competition.status === 'registration' && (
-                                                    <Button
-                                                        variant="primary"
-                                                        size="lg"
-                                                        className="w-100 fw-bold"
-                                                        onClick={handleJoinCompetition}
-                                                        disabled={competition.current_participants >= competition.max_participants}
-                                                    >
-                                                        <FontAwesomeIcon icon={faCheck} className="me-2" />
-                                                        {competition.current_participants >= competition.max_participants ? 'Complet' : 'Participer'}
-                                                    </Button>
+                                                {competition.status === 'published' && (
+                                                    <>
+                                                        {userParticipation ? (
+                                                            <div className="d-grid gap-2">
+                                                                <Button
+                                                                    variant="success"
+                                                                    size="lg"
+                                                                    disabled
+                                                                >
+                                                                    <FontAwesomeIcon icon={faCheck} className="me-2" />
+                                                                    Inscrit
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outline-danger"
+                                                                    size="sm"
+                                                                    onClick={handleUnregister}
+                                                                >
+                                                                    <FontAwesomeIcon icon={faUserMinus} className="me-2" />
+                                                                    Se désinscrire
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <Button
+                                                                variant="primary"
+                                                                size="lg"
+                                                                className="w-100 fw-bold"
+                                                                onClick={handleJoinCompetition}
+                                                                disabled={!competition.can_register}
+                                                            >
+                                                                <FontAwesomeIcon icon={faUserPlus} className="me-2" />
+                                                                {competition.can_register ? 'Participer' : 'Complet'}
+                                                            </Button>
+                                                        )}
+                                                    </>
                                                 )}
 
                                                 {competition.status === 'active' && (
@@ -378,13 +410,15 @@ const CompetitionDetails = () => {
                                                             <FontAwesomeIcon icon={faPlay} className="me-2" />
                                                             Regarder en direct
                                                         </Button>
-                                                        <Button
-                                                            variant="outline-primary"
-                                                            onClick={handleUploadEntry}
-                                                        >
-                                                            <FontAwesomeIcon icon={faMicrophone} className="me-2" />
-                                                            Soumettre ma performance
-                                                        </Button>
+                                                        {userParticipation && (
+                                                            <Button
+                                                                variant="outline-primary"
+                                                                onClick={handleUploadEntry}
+                                                            >
+                                                                <FontAwesomeIcon icon={faMicrophone} className="me-2" />
+                                                                Soumettre ma performance
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </Card.Body>
@@ -423,7 +457,7 @@ const CompetitionDetails = () => {
                                         </Card.Header>
                                         <Card.Body>
                                             <ListGroup variant="flush">
-                                                {competition.rules.map((rule, index) => (
+                                                {competition.rules && competition.rules.map((rule, index) => (
                                                     <ListGroup.Item key={index} className="border-0 px-0">
                                                         <FontAwesomeIcon icon={faCheck} className="text-success me-2" />
                                                         {rule}
@@ -441,19 +475,21 @@ const CompetitionDetails = () => {
                                             </h5>
                                         </Card.Header>
                                         <Card.Body>
-                                            {competition.prizes.map((prize, index) => (
+                                            {competition.prizes && competition.prizes.map((prize, index) => (
                                                 <div key={index} className="d-flex align-items-center justify-content-between p-3 mb-2 bg-light rounded">
                                                     <div className="d-flex align-items-center">
                                                         <div className={`prize-medal me-3 ${index === 0 ? 'gold' : index === 1 ? 'silver' : 'bronze'}`}>
-                                                            {index + 1}
+                                                            {prize.position}
                                                         </div>
                                                         <div>
-                                                            <h6 className="mb-0">{index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'} {index + 1}ère place</h6>
+                                                            <h6 className="mb-0">{index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'} {prize.label}</h6>
                                                             <small className="text-muted">{prize.percentage}% de la cagnotte</small>
                                                         </div>
                                                     </div>
                                                     <div className="text-end">
-                                                        <h5 className="mb-0 text-primary fw-bold">{formatCurrency(prize.amount)}</h5>
+                                                        <h5 className="mb-0 text-primary fw-bold">
+                                                            {formatCurrency((competition.entry_fee * competition.max_participants * prize.percentage) / 100)}
+                                                        </h5>
                                                     </div>
                                                 </div>
                                             ))}
@@ -472,7 +508,7 @@ const CompetitionDetails = () => {
                                         <Card.Body>
                                             <div className="mb-3">
                                                 <small className="text-muted">Début</small>
-                                                <div className="fw-bold">{formatDateTime(competition.start_time)}</div>
+                                                <div className="fw-bold">{formatDateTime()}</div>
                                             </div>
                                             <div className="mb-3">
                                                 <small className="text-muted">Durée</small>
@@ -480,7 +516,9 @@ const CompetitionDetails = () => {
                                             </div>
                                             <div className="mb-3">
                                                 <small className="text-muted">Catégorie</small>
-                                                <div className="fw-bold">{competition.category}</div>
+                                                <div>
+                                                    <CategoryBadge category={competition.category} />
+                                                </div>
                                             </div>
                                             <div className="mb-3">
                                                 <small className="text-muted">Places disponibles</small>
@@ -507,14 +545,14 @@ const CompetitionDetails = () => {
                                         </Card.Header>
                                         <Card.Body className="text-center">
                                             <img
-                                                src={competition.artist_avatar}
-                                                alt={competition.artist}
+                                                src={competition.user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(competition.user.name)}&background=667eea&color=fff`}
+                                                alt={competition.user.name}
                                                 className="rounded-circle mb-3"
                                                 style={{ width: '80px', height: '80px', objectFit: 'cover' }}
                                             />
-                                            <h6 className="fw-bold">{competition.artist}</h6>
-                                            <p className="text-muted small">{competition.artist_bio}</p>
-                                            <Button variant="outline-primary" size="sm">
+                                            <h6 className="fw-bold">{competition.user.name}</h6>
+                                            <p className="text-muted small">{competition.user.bio || 'Organisateur de compétitions musicales passionné'}</p>
+                                            <Button variant="outline-primary" size="sm" as={Link} to={`/artists/${competition.user.id}`}>
                                                 <FontAwesomeIcon icon={faEye} className="me-1" />
                                                 Voir le profil
                                             </Button>
@@ -532,20 +570,20 @@ const CompetitionDetails = () => {
                             </span>
                         }>
                             <Row className="g-4">
-                                {competition.participants.length > 0 ? (
+                                {competition.participants && competition.participants.length > 0 ? (
                                     competition.participants.map((participant, index) => (
                                         <Col key={participant.id} md={6} lg={4}>
                                             <Card className="border-0 shadow-sm participant-card">
                                                 <Card.Body className="text-center">
                                                     <img
-                                                        src={participant.avatar}
-                                                        alt={participant.name}
+                                                        src={participant.user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(participant.user.name)}&background=667eea&color=fff`}
+                                                        alt={participant.user.name}
                                                         className="rounded-circle mb-3"
                                                         style={{ width: '60px', height: '60px', objectFit: 'cover' }}
                                                     />
-                                                    <h6 className="fw-bold mb-1">{participant.name}</h6>
+                                                    <h6 className="fw-bold mb-1">{participant.user.name}</h6>
                                                     <small className="text-muted">
-                                                        Inscrit le {new Date(participant.joined_at).toLocaleDateString('fr-FR')}
+                                                        Inscrit le {new Date(participant.created_at).toLocaleDateString('fr-FR')}
                                                     </small>
                                                     <div className="mt-2">
                                                         <Badge bg="success">Confirmé</Badge>
@@ -583,7 +621,7 @@ const CompetitionDetails = () => {
                                     </div>
 
                                     <Row className="g-3">
-                                        {competition.judge_criteria.map((criteria, index) => (
+                                        {competition.judging_criteria && competition.judging_criteria.map((criteria, index) => (
                                             <Col key={index} md={6}>
                                                 <Card className="border-primary border-2">
                                                     <Card.Body className="text-center">
@@ -632,7 +670,7 @@ const CompetitionDetails = () => {
                                 <Card.Body className="text-center">
                                     <FontAwesomeIcon icon={faCoins} size="2x" className="text-primary mb-2" />
                                     <h6 className="fw-bold">Frais d'inscription</h6>
-                                    <h4 className="text-primary">{formatCurrency(competition.entry_fee)}</h4>
+                                    <h4 className="text-primary">{competition.formatted_entry_fee}</h4>
                                 </Card.Body>
                             </Card>
                         </Col>
@@ -641,7 +679,12 @@ const CompetitionDetails = () => {
                                 <Card.Body className="text-center">
                                     <FontAwesomeIcon icon={faTrophy} size="2x" className="text-warning mb-2" />
                                     <h6 className="fw-bold">Vous pourriez gagner</h6>
-                                    <h4 className="text-warning">{formatCurrency(competition.prizes[0].amount)}</h4>
+                                    <h4 className="text-warning">
+                                        {competition.prizes && competition.prizes[0] ?
+                                            formatCurrency((competition.entry_fee * competition.max_participants * competition.prizes[0].percentage) / 100)
+                                            : formatCurrency(competition.entry_fee * competition.max_participants * 0.5)
+                                        }
+                                    </h4>
                                 </Card.Body>
                             </Card>
                         </Col>
@@ -654,12 +697,21 @@ const CompetitionDetails = () => {
                     </div>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowJoinModal(false)}>
+                    <Button variant="secondary" onClick={() => setShowJoinModal(false)} disabled={isJoining}>
                         Annuler
                     </Button>
-                    <Button variant="primary" onClick={confirmJoinCompetition}>
-                        <FontAwesomeIcon icon={faCheck} className="me-2" />
-                        Confirmer l'inscription
+                    <Button variant="primary" onClick={confirmJoinCompetition} disabled={isJoining}>
+                        {isJoining ? (
+                            <>
+                                <Spinner animation="border" size="sm" className="me-2" />
+                                Inscription...
+                            </>
+                        ) : (
+                            <>
+                                <FontAwesomeIcon icon={faCheck} className="me-2" />
+                                Confirmer l'inscription
+                            </>
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -781,3 +833,4 @@ const CompetitionDetails = () => {
 };
 
 export default CompetitionDetails;
+ 
