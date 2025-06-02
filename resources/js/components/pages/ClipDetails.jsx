@@ -524,7 +524,7 @@ const ClipDetails = () => {
         }
     };
 
-    const handleReplyToComment = async (commentId) => {
+    const handleReplyToComment = async (commentId, parentId = null, replyToUser = null) => {
         if (!token) {
             toast?.warning('Connexion requise', 'Vous devez être connecté pour répondre');
             return;
@@ -536,6 +536,12 @@ const ClipDetails = () => {
         }
 
         try {
+            // Nettoyer le texte pour enlever les tags existants
+            let cleanReplyText = replyText;
+            if (replyToUser && replyText.startsWith(`@${replyToUser.name} `)) {
+                cleanReplyText = replyText.substring(`@${replyToUser.name} `.length);
+            }
+
             const response = await fetch(`/api/clips/${id}/comments`, {
                 method: 'POST',
                 headers: {
@@ -544,8 +550,9 @@ const ClipDetails = () => {
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
-                    content: replyText,
-                    parent_id: commentId
+                    content: cleanReplyText,
+                    parent_id: parentId || commentId,
+                    reply_to_user_id: replyToUser?.id
                 })
             });
 
@@ -559,14 +566,15 @@ const ClipDetails = () => {
                         name: user?.name || 'Utilisateur',
                         avatar_url: user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=667eea&color=fff`
                     },
-                    content: replyText,
+                    content: cleanReplyText,
+                    reply_to_user: replyToUser,
                     likes: 0,
                     is_liked: false,
                     created_at: new Date().toISOString()
                 };
 
                 setComments(prev => prev.map(comment => {
-                    if (comment.id === commentId) {
+                    if (comment.id === (parentId || commentId)) {
                         return {
                             ...comment,
                             replies: [...(comment.replies || []), reply],
@@ -585,6 +593,15 @@ const ClipDetails = () => {
         } catch (error) {
             console.error('Erreur réponse:', error);
             toast?.error('Erreur', error.message || 'Impossible d\'ajouter la réponse');
+        }
+    };
+
+    const startReply = (commentId, parentId = null, user = null) => {
+        setReplyingTo({ commentId, parentId, replyToUser: user });
+        if (user) {
+            setReplyText(`@${user.name} `);
+        } else {
+            setReplyText('');
         }
     };
 
@@ -929,40 +946,40 @@ const ClipDetails = () => {
                                     </div>
 
                                     <div className="clip-stats mb-4">
-                                        <Row className="g-3">
+                                        <Row className="g-2">
                                             <Col xs={6} md={3}>
                                                 <div className="stat-item">
-                                                    <FontAwesomeIcon icon={faEye} className="stat-icon text-primary" />
+                                                    <FontAwesomeIcon icon={faEye} className="stat-icon text-primary" size="xs" />
                                                     <div>
                                                         <div className="stat-number">{formatViews(clip.views)}</div>
-                                                        <div className="stat-label">Vues</div>
+                                                        {/* <div className="stat-label">Vues</div> */}
                                                     </div>
                                                 </div>
                                             </Col>
                                             <Col xs={6} md={3}>
                                                 <div className="stat-item">
-                                                    <FontAwesomeIcon icon={faThumbsUp} className="stat-icon text-success" />
+                                                    <FontAwesomeIcon icon={faThumbsUp} className="stat-icon text-success" size="xs" />
                                                     <div>
                                                         <div className="stat-number">{formatViews(likesCount)}</div>
-                                                        <div className="stat-label">J'aime</div>
+                                                        {/* <div className="stat-label">J'aime</div> */}
                                                     </div>
                                                 </div>
                                             </Col>
                                             <Col xs={6} md={3}>
                                                 <div className="stat-item">
-                                                    <FontAwesomeIcon icon={faComment} className="stat-icon text-info" />
+                                                    <FontAwesomeIcon icon={faComment} className="stat-icon text-info" size="xs" />
                                                     <div>
                                                         <div className="stat-number">{formatViews(clip.comments_count)}</div>
-                                                        <div className="stat-label">Commentaires</div>
+                                                        {/* <div className="stat-label">Commentaires</div> */}
                                                     </div>
                                                 </div>
                                             </Col>
                                             <Col xs={6} md={3}>
                                                 <div className="stat-item">
-                                                    <FontAwesomeIcon icon={faShare} className="stat-icon text-warning" />
+                                                    <FontAwesomeIcon icon={faShare} className="stat-icon text-warning" size="xs" />
                                                     <div>
                                                         <div className="stat-number">{formatViews(clip.shares)}</div>
-                                                        <div className="stat-label">Partages</div>
+                                                        {/* <div className="stat-label">Partages</div> */}
                                                     </div>
                                                 </div>
                                             </Col>
@@ -978,7 +995,7 @@ const ClipDetails = () => {
                                                     onClick={handleLike}
                                                     size="sm"
                                                 >
-                                                    <FontAwesomeIcon icon={faThumbsUp} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faThumbsUp} className="me-1" size="xs" />
                                                     {isLiked ? 'Aimé' : 'J\'aime'}
                                                 </Button>
                                             </Col>
@@ -989,7 +1006,7 @@ const ClipDetails = () => {
                                                     onClick={handleBookmark}
                                                     size="sm"
                                                 >
-                                                    <FontAwesomeIcon icon={faBookmark} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faBookmark} className="me-1" size="xs" />
                                                     {isBookmarked ? 'Sauvé' : 'Sauver'}
                                                 </Button>
                                             </Col>
@@ -1000,7 +1017,7 @@ const ClipDetails = () => {
                                                     onClick={handleShare}
                                                     size="sm"
                                                 >
-                                                    <FontAwesomeIcon icon={faShare} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faShare} className="me-1" size="xs" />
                                                     Partager
                                                 </Button>
                                             </Col>
@@ -1011,7 +1028,7 @@ const ClipDetails = () => {
                                                     onClick={handleDownload}
                                                     size="sm"
                                                 >
-                                                    <FontAwesomeIcon icon={faDownload} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faDownload} className="me-1" size="xs" />
                                                     Télécharger
                                                 </Button>
                                             </Col>
@@ -1021,7 +1038,7 @@ const ClipDetails = () => {
                                                     className="w-100 action-btn"
                                                     size="sm"
                                                 >
-                                                    <FontAwesomeIcon icon={faFlag} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faFlag} className="me-1" size="xs" />
                                                     Signaler
                                                 </Button>
                                             </Col>
@@ -1061,17 +1078,17 @@ const ClipDetails = () => {
                                             eventKey="comments"
                                             title={
                                                 <span>
-                                                    <FontAwesomeIcon icon={faComment} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faComment} className="me-1" size="xs" />
                                                     Commentaires ({comments.length})
                                                 </span>
                                             }
                                         >
-                                            <div className="comments-controls mb-4">
-                                                <Row className="g-3">
+                                            <div className="comments-controls mb-3">
+                                                <Row className="g-2">
                                                     <Col md={6}>
                                                         <InputGroup size="sm">
                                                             <InputGroup.Text>
-                                                                <FontAwesomeIcon icon={faSort} />
+                                                                <FontAwesomeIcon icon={faSort} size="xs" />
                                                             </InputGroup.Text>
                                                             <Form.Select
                                                                 value={commentsSort}
@@ -1086,7 +1103,7 @@ const ClipDetails = () => {
                                                     <Col md={6}>
                                                         <InputGroup size="sm">
                                                             <InputGroup.Text>
-                                                                <FontAwesomeIcon icon={faFilter} />
+                                                                <FontAwesomeIcon icon={faFilter} size="xs" />
                                                             </InputGroup.Text>
                                                             <Form.Select
                                                                 value={commentsFilter}
@@ -1104,8 +1121,8 @@ const ClipDetails = () => {
                                             {token ? (
                                                 <div className="mb-4">
                                                     <Form.Group>
-                                                        <Form.Label className="fw-bold">
-                                                            <FontAwesomeIcon icon={faComment} className="me-1" size="sm" />
+                                                        <Form.Label className="fw-bold small">
+                                                            <FontAwesomeIcon icon={faComment} className="me-1" size="xs" />
                                                             Ajouter un commentaire
                                                         </Form.Label>
                                                         <Form.Control
@@ -1127,14 +1144,14 @@ const ClipDetails = () => {
                                                             disabled={!newComment.trim()}
                                                             size="sm"
                                                         >
-                                                            <FontAwesomeIcon icon={faPaperPlane} className="me-1" size="sm" />
+                                                            <FontAwesomeIcon icon={faPaperPlane} className="me-1" size="xs" />
                                                             Publier
                                                         </Button>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <Alert variant="info" className="mb-4">
-                                                    <FontAwesomeIcon icon={faUser} className="me-2" />
+                                                    <FontAwesomeIcon icon={faUser} className="me-2" size="xs" />
                                                     <Link to="/login">Connectez-vous</Link> pour laisser un commentaire
                                                 </Alert>
                                             )}
@@ -1143,11 +1160,11 @@ const ClipDetails = () => {
                                                 {commentsLoading ? (
                                                     <div className="text-center py-4">
                                                         <Spinner animation="border" variant="primary" />
-                                                        <p className="mt-2 text-muted">Chargement des commentaires...</p>
+                                                        <p className="mt-2 text-muted small">Chargement des commentaires...</p>
                                                     </div>
                                                 ) : sortedComments.length === 0 ? (
                                                     <Alert variant="light" className="text-center">
-                                                        <FontAwesomeIcon icon={faComment} size="2x" className="text-muted mb-2" />
+                                                        <FontAwesomeIcon icon={faComment} size="lg" className="text-muted mb-2" />
                                                         <p className="mb-0">Aucun commentaire pour le moment. Soyez le premier à commenter !</p>
                                                     </Alert>
                                                 ) : (
@@ -1157,44 +1174,44 @@ const ClipDetails = () => {
                                                                 <img
                                                                     src={comment.user.avatar_url}
                                                                     alt={comment.user.name}
-                                                                    className="comment-avatar me-3"
+                                                                    className="comment-avatar me-2"
                                                                 />
                                                                 <div className="flex-grow-1">
-                                                                    <div className="comment-header">
-                                                                        <span className="fw-bold">{comment.user.name}</span>
+                                                                    <div className="comment-header mb-1">
+                                                                        <span className="fw-bold small">{comment.user.name}</span>
                                                                         <small className="text-muted ms-2">
                                                                             {formatDate(comment.created_at)}
                                                                         </small>
                                                                     </div>
-                                                                    <p className="comment-content mb-2">{comment.content}</p>
+                                                                    <p className="comment-content mb-2 small">{comment.content}</p>
                                                                     <div className="comment-actions">
                                                                         <Button
                                                                             variant="link"
                                                                             size="sm"
-                                                                            className="p-0 me-3"
+                                                                            className="p-0 me-3 comment-action-btn"
                                                                             onClick={() => handleLikeComment(comment.id)}
                                                                         >
                                                                             <FontAwesomeIcon
                                                                                 icon={faThumbsUp}
                                                                                 className={comment.is_liked ? "text-primary" : "text-muted"}
-                                                                                size="sm"
+                                                                                size="xs"
                                                                             />
                                                                             <span className="ms-1">{comment.likes}</span>
                                                                         </Button>
                                                                         <Button
                                                                             variant="link"
                                                                             size="sm"
-                                                                            className="p-0 me-3"
-                                                                            onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                                                                            className="p-0 me-3 comment-action-btn"
+                                                                            onClick={() => startReply(comment.id, null, comment.user)}
                                                                         >
-                                                                            <FontAwesomeIcon icon={faReply} className="text-muted" size="sm" />
+                                                                            <FontAwesomeIcon icon={faReply} className="text-muted" size="xs" />
                                                                             <span className="ms-1">Répondre</span>
                                                                         </Button>
                                                                         {comment.replies_count > 0 && (
                                                                             <Button
                                                                                 variant="link"
                                                                                 size="sm"
-                                                                                className="p-0"
+                                                                                className="p-0 comment-action-btn"
                                                                                 onClick={() => toggleRepliesVisibility(comment.id)}
                                                                             >
                                                                                 <FontAwesomeIcon
@@ -1209,12 +1226,12 @@ const ClipDetails = () => {
                                                                         )}
                                                                     </div>
 
-                                                                    {replyingTo === comment.id && (
+                                                                    {replyingTo?.commentId === comment.id && !replyingTo?.parentId && (
                                                                         <div className="reply-form mt-3">
                                                                             <Form.Control
                                                                                 as="textarea"
                                                                                 rows={2}
-                                                                                placeholder="Écrivez votre réponse..."
+                                                                                placeholder={`Répondre à ${replyingTo.replyToUser?.name || 'ce commentaire'}...`}
                                                                                 value={replyText}
                                                                                 onChange={(e) => setReplyText(e.target.value)}
                                                                                 className="mb-2"
@@ -1223,7 +1240,7 @@ const ClipDetails = () => {
                                                                                 <Button
                                                                                     variant="primary"
                                                                                     size="sm"
-                                                                                    onClick={() => handleReplyToComment(comment.id)}
+                                                                                    onClick={() => handleReplyToComment(comment.id, null, replyingTo.replyToUser)}
                                                                                     disabled={!replyText.trim()}
                                                                                 >
                                                                                     <FontAwesomeIcon icon={faPaperPlane} className="me-1" size="xs" />
@@ -1254,26 +1271,76 @@ const ClipDetails = () => {
                                                                                             className="reply-avatar me-2"
                                                                                         />
                                                                                         <div className="flex-grow-1">
-                                                                                            <div className="reply-header">
+                                                                                            <div className="reply-header mb-1">
                                                                                                 <span className="fw-bold small">{reply.user.name}</span>
+                                                                                                {reply.reply_to_user && (
+                                                                                                    <span className="text-primary small ms-1">
+                                                                                                        @{reply.reply_to_user.name}
+                                                                                                    </span>
+                                                                                                )}
                                                                                                 <small className="text-muted ms-2">
                                                                                                     {formatDate(reply.created_at)}
                                                                                                 </small>
                                                                                             </div>
                                                                                             <p className="reply-content small mb-1">{reply.content}</p>
-                                                                                            <Button
-                                                                                                variant="link"
-                                                                                                size="sm"
-                                                                                                className="p-0"
-                                                                                                onClick={() => handleLikeComment(reply.id, true, comment.id)}
-                                                                                            >
-                                                                                                <FontAwesomeIcon
-                                                                                                    icon={faThumbsUp}
-                                                                                                    className={reply.is_liked ? "text-primary" : "text-muted"}
-                                                                                                    size="xs"
-                                                                                                />
-                                                                                                <span className="ms-1 small">{reply.likes}</span>
-                                                                                            </Button>
+                                                                                            <div className="reply-actions">
+                                                                                                <Button
+                                                                                                    variant="link"
+                                                                                                    size="sm"
+                                                                                                    className="p-0 me-3 comment-action-btn"
+                                                                                                    onClick={() => handleLikeComment(reply.id, true, comment.id)}
+                                                                                                >
+                                                                                                    <FontAwesomeIcon
+                                                                                                        icon={faThumbsUp}
+                                                                                                        className={reply.is_liked ? "text-primary" : "text-muted"}
+                                                                                                        size="xs"
+                                                                                                    />
+                                                                                                    <span className="ms-1">{reply.likes}</span>
+                                                                                                </Button>
+                                                                                                <Button
+                                                                                                    variant="link"
+                                                                                                    size="sm"
+                                                                                                    className="p-0 comment-action-btn"
+                                                                                                    onClick={() => startReply(reply.id, comment.id, reply.user)}
+                                                                                                >
+                                                                                                    <FontAwesomeIcon icon={faReply} className="text-muted" size="xs" />
+                                                                                                    <span className="ms-1">Répondre</span>
+                                                                                                </Button>
+                                                                                            </div>
+
+                                                                                            {replyingTo?.commentId === reply.id && replyingTo?.parentId === comment.id && (
+                                                                                                <div className="reply-form mt-2">
+                                                                                                    <Form.Control
+                                                                                                        as="textarea"
+                                                                                                        rows={2}
+                                                                                                        placeholder={`Répondre à ${replyingTo.replyToUser?.name || 'cette réponse'}...`}
+                                                                                                        value={replyText}
+                                                                                                        onChange={(e) => setReplyText(e.target.value)}
+                                                                                                        className="mb-2"
+                                                                                                    />
+                                                                                                    <div className="d-flex gap-2">
+                                                                                                        <Button
+                                                                                                            variant="primary"
+                                                                                                            size="sm"
+                                                                                                            onClick={() => handleReplyToComment(reply.id, comment.id, replyingTo.replyToUser)}
+                                                                                                            disabled={!replyText.trim()}
+                                                                                                        >
+                                                                                                            <FontAwesomeIcon icon={faPaperPlane} className="me-1" size="xs" />
+                                                                                                            Répondre
+                                                                                                        </Button>
+                                                                                                        <Button
+                                                                                                            variant="outline-secondary"
+                                                                                                            size="sm"
+                                                                                                            onClick={() => {
+                                                                                                                setReplyingTo(null);
+                                                                                                                setReplyText('');
+                                                                                                            }}
+                                                                                                        >
+                                                                                                            Annuler
+                                                                                                        </Button>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            )}
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
@@ -1292,7 +1359,7 @@ const ClipDetails = () => {
                                             eventKey="credits"
                                             title={
                                                 <span>
-                                                    <FontAwesomeIcon icon={faVideo} className="me-1" size="sm" />
+                                                    <FontAwesomeIcon icon={faVideo} className="me-1" size="xs" />
                                                     Crédits
                                                 </span>
                                             }
@@ -1364,14 +1431,14 @@ const ClipDetails = () => {
                                             to={`/artists/${clip.user?.id}`}
                                             variant="primary"
                                         >
-                                            <FontAwesomeIcon icon={faUser} className="me-2" />
+                                            <FontAwesomeIcon icon={faUser} className="me-1" size="xs" />
                                             Voir le profil
                                         </Button>
                                         <Button
                                             variant={isFollowing ? "success" : "outline-primary"}
                                             onClick={handleFollow}
                                         >
-                                            <FontAwesomeIcon icon={isFollowing ? faUser : faUserPlus} className="me-1" size="sm" />
+                                            <FontAwesomeIcon icon={isFollowing ? faUser : faUserPlus} className="me-1" size="xs" />
                                             {isFollowing ? 'Suivi' : 'Suivre'}
                                         </Button>
                                     </div>
@@ -1382,8 +1449,8 @@ const ClipDetails = () => {
                         <AnimatedElement animation="slideInRight" delay={300}>
                             <Card className="border-0 shadow-sm">
                                 <Card.Header className="bg-white border-0">
-                                    <h6 className="fw-bold mb-0">
-                                        <FontAwesomeIcon icon={faVideo} className="me-2" size="sm" />
+                                    <h6 className="fw-bold mb-0 small">
+                                        <FontAwesomeIcon icon={faVideo} className="me-2" size="xs" />
                                         Clips similaires
                                     </h6>
                                 </Card.Header>
@@ -1421,7 +1488,7 @@ const ClipDetails = () => {
                                                                 <h6 className="mb-1 line-clamp-2 related-title">{relatedClip.title}</h6>
                                                                 <small className="text-primary fw-bold">{relatedClip.user?.name}</small>
                                                                 <div className="text-muted small mt-1">
-                                                                    <FontAwesomeIcon icon={faEye} className="me-1" />
+                                                                    <FontAwesomeIcon icon={faEye} className="me-1" size="xs" />
                                                                     {formatViews(relatedClip.views)} vues
                                                                 </div>
                                                                 {relatedClip.score && (
@@ -1648,75 +1715,54 @@ const ClipDetails = () => {
                 .stat-item {
                     display: flex;
                     align-items: center;
-                    gap: 12px;
-                    padding: 20px;
+                    gap: 8px;
+                    padding: 12px 16px;
                     background: #f8f9fa;
-                    border-radius: 12px;
+                    border-radius: 8px;
                     transition: all 0.3s ease;
+                    border: 1px solid #e9ecef;
                 }
 
                 .stat-item:hover {
                     background: #e9ecef;
-                    transform: translateY(-2px);
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 }
 
                 .stat-icon {
-                    font-size: 1.5rem;
+                    font-size: 1rem;
                 }
 
                 .stat-number {
-                    font-weight: bold;
-                    font-size: 1.2rem;
+                    font-weight: 600;
+                    font-size: 1rem;
                     line-height: 1;
+                    color: #212529;
                 }
 
                 .stat-label {
                     color: #6c757d;
-                    font-size: 0.8rem;
+                    font-size: 0.75rem;
                     margin-top: 2px;
-                }
-
-                .action-btn {
-                    transition: all 0.3s ease;
                     font-weight: 500;
                 }
 
-                .action-btn:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                }
-
-                .reward-badge-inline {
-                    border: 2px solid white;
-                    font-weight: bold;
-                    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-                }
-
-                .tag-badge {
+                .action-btn {
                     transition: all 0.2s ease;
-                    cursor: pointer;
+                    font-weight: 500;
+                    font-size: 0.8rem;
+                    padding: 8px 12px;
+                    border-radius: 6px;
                 }
 
-                .tag-badge:hover {
-                    background: #667eea !important;
-                    color: white !important;
-                    transform: scale(1.05);
-                }
-
-                .comment-textarea {
-                    border-radius: 8px;
-                    border: 2px solid #e9ecef;
-                    transition: border-color 0.3s ease;
-                }
-
-                .comment-textarea:focus {
-                    border-color: #667eea;
-                    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+                .action-btn:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
                 }
 
                 .comment-item {
-                    padding: 20px 0;
-                    border-bottom: 1px solid #e9ecef;
+                    padding: 16px 0;
+                    border-bottom: 1px solid #f0f0f0;
                     transition: background 0.2s ease;
                 }
 
@@ -1729,57 +1775,75 @@ const ClipDetails = () => {
                 }
 
                 .comment-avatar {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    object-fit: cover;
-                    border: 2px solid #e9ecef;
-                }
-
-                .reply-avatar {
                     width: 32px;
                     height: 32px;
                     border-radius: 50%;
                     object-fit: cover;
-                    border: 2px solid #e9ecef;
+                    border: 1px solid #e9ecef;
+                }
+
+                .reply-avatar {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                    border: 1px solid #e9ecef;
                 }
 
                 .comment-content {
-                    line-height: 1.5;
-                    font-size: 0.9rem;
+                    line-height: 1.4;
+                    font-size: 0.875rem;
+                    color: #333;
                 }
 
                 .reply-content {
-                    line-height: 1.4;
+                    line-height: 1.3;
                     font-size: 0.8rem;
+                    color: #333;
                 }
 
                 .comment-actions {
                     display: flex;
                     align-items: center;
-                    gap: 5px;
+                    gap: 4px;
+                }
+
+                .comment-action-btn {
+                    font-size: 0.75rem;
+                    color: #6c757d;
+                    text-decoration: none;
+                    transition: color 0.2s ease;
+                }
+
+                .comment-action-btn:hover {
+                    color: #667eea;
+                    text-decoration: none;
                 }
 
                 .reply-form {
                     background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 8px;
-                    border-left: 3px solid #667eea;
+                    padding: 12px;
+                    border-radius: 6px;
+                    border-left: 2px solid #667eea;
                 }
 
                 .replies {
-                    border-left: 3px solid #e9ecef;
-                    margin-left: 20px;
-                    padding-left: 15px;
+                    border-left: 2px solid #e9ecef;
+                    margin-left: 16px;
+                    padding-left: 12px;
                 }
 
                 .reply-item {
-                    padding: 10px 0;
-                    border-bottom: 1px solid #f0f0f0;
+                    padding: 8px 0;
+                    border-bottom: 1px solid #f5f5f5;
                 }
 
                 .reply-item:last-child {
                     border-bottom: none;
+                }
+
+                .reply-actions {
+                    margin-top: 4px;
                 }
 
                 .artist-avatar {

@@ -50,7 +50,9 @@ import {
     faBackward,
     faStop,
     faExternalLinkAlt,
-    faUserMinus
+    faUserMinus,
+    faVideo,
+    faComment
 } from '@fortawesome/free-solid-svg-icons';
 import LoadingSpinner, { LoadingOverlay } from '../common/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
@@ -75,6 +77,8 @@ const Profile = () => {
     // Données des créations
     const [mySounds, setMySounds] = useState([]);
     const [pendingSounds, setPendingSounds] = useState([]);
+    const [myClips, setMyClips] = useState([]);
+    const [myCompetitions, setMyCompetitions] = useState([]);
 
     // Notifications
     const [notifications, setNotifications] = useState([]);
@@ -219,12 +223,14 @@ const Profile = () => {
         setIsLoading(true);
         try {
             // Charger toutes les données en parallèle
-            const [sounds, favorites, artists, tickets, stats] = await Promise.all([
+            const [sounds, favorites, artists, tickets, stats, clips, competitions] = await Promise.all([
                 loadPurchasedSounds(),
                 loadFavoriteSounds(),
                 loadFollowedArtists(),
                 loadPurchasedTickets(),
-                loadUserStatsFromAPI()
+                loadUserStatsFromAPI(),
+                loadMyClips(),
+                loadMyCompetitions()
             ]);
 
             // Si les statistiques de l'API sont disponibles, les utiliser
@@ -603,11 +609,20 @@ const Profile = () => {
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('fr-CM', {
+        if (!amount) return '0 FCFA';
+        return new Intl.NumberFormat('fr-FR', {
             style: 'currency',
             currency: 'XAF',
             minimumFractionDigits: 0
         }).format(amount);
+    };
+
+    // Ajouter la fonction formatNumber manquante
+    const formatNumber = (num) => {
+        if (!num || num === 0) return '0';
+        if (num < 1000) return num.toString();
+        if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
+        return (num / 1000000).toFixed(1) + 'M';
     };
 
     const downloadSound = (sound) => {
@@ -725,9 +740,10 @@ const Profile = () => {
     const getStatusBadge = (status) => {
         const statusConfig = {
             pending: { variant: 'warning', text: 'En attente' },
-            approved: { variant: 'success', text: 'Approuvé' },
-            rejected: { variant: 'danger', text: 'Rejeté' },
-            published: { variant: 'success', text: 'Publié' }
+            published: { variant: 'success', text: 'Publié' },
+            active: { variant: 'primary', text: 'Actif' },
+            completed: { variant: 'secondary', text: 'Terminé' },
+            rejected: { variant: 'danger', text: 'Rejeté' }
         };
         const config = statusConfig[status] || { variant: 'secondary', text: status };
         return <Badge bg={config.variant}>{config.text}</Badge>;
@@ -1285,12 +1301,427 @@ const Profile = () => {
         </div>
     );
 
+    const loadMyClips = async () => {
+        try {
+            const response = await fetch('/api/user/clips', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const clips = Array.isArray(data) ? data : data.data || [];
+                setMyClips(clips);
+                return clips;
+            }
+        } catch (error) {
+            console.error('Erreur my clips:', error);
+        }
+
+        // Données de fallback
+        const fallbackClips = [
+            {
+                id: 1,
+                title: "Mon Premier Clip",
+                description: "Un clip test de ma première chanson",
+                thumbnail_url: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=225&fit=crop",
+                duration: "3:45",
+                views: 1250,
+                likes: 89,
+                comments_count: 15,
+                created_at: "2024-03-15",
+                status: "published"
+            },
+            {
+                id: 2,
+                title: "Clip en Cours",
+                description: "En attente de validation",
+                thumbnail_url: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=225&fit=crop",
+                duration: "4:12",
+                views: 0,
+                likes: 0,
+                comments_count: 0,
+                created_at: "2024-03-20",
+                status: "pending"
+            }
+        ];
+        setMyClips(fallbackClips);
+        return fallbackClips;
+    };
+
+    const loadMyCompetitions = async () => {
+        try {
+            const response = await fetch('/api/user/competitions', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const competitions = Array.isArray(data) ? data : data.data || [];
+                setMyCompetitions(competitions);
+                return competitions;
+            }
+        } catch (error) {
+            console.error('Erreur my competitions:', error);
+        }
+
+        // Données de fallback
+        const fallbackCompetitions = [
+            {
+                id: 1,
+                title: "Battle Rap Cameroun 2024",
+                description: "Compétition de rap ouvert à tous les artistes camerounais",
+                image_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop",
+                total_prize_pool: 500000,
+                current_participants: 25,
+                max_participants: 50,
+                start_date: "2024-04-01",
+                end_date: "2024-04-30",
+                created_at: "2024-03-15",
+                status: "active",
+                is_ended: false
+            },
+            {
+                id: 2,
+                title: "Concours Makossa Fusion",
+                description: "Compétition terminée - fusion makossa moderne",
+                image_url: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=250&fit=crop",
+                total_prize_pool: 300000,
+                current_participants: 30,
+                max_participants: 30,
+                start_date: "2024-02-01",
+                end_date: "2024-02-28",
+                created_at: "2024-01-15",
+                status: "completed",
+                is_ended: true
+            }
+        ];
+        setMyCompetitions(fallbackCompetitions);
+        return fallbackCompetitions;
+    };
+
+    const handleDeleteClip = async (clipId) => {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer ce clip ?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/clips/${clipId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                setMyClips(prev => prev.filter(clip => clip.id !== clipId));
+                toast.success('Succès', 'Clip supprimé avec succès');
+            } else {
+                const data = await response.json();
+                toast.error('Erreur', data.message || 'Impossible de supprimer le clip');
+            }
+        } catch (error) {
+            console.error('Erreur suppression clip:', error);
+            toast.error('Erreur', 'Erreur de connexion');
+        }
+    };
+
+    const handleDeleteCompetition = async (competitionId) => {
+        const competition = myCompetitions.find(c => c.id === competitionId);
+
+        if (competition && competition.is_ended) {
+            toast.warning('Action interdite', 'Impossible de supprimer une compétition terminée');
+            return;
+        }
+
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette compétition ? Cette action est irréversible.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/competitions/${competitionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                setMyCompetitions(prev => prev.filter(comp => comp.id !== competitionId));
+                toast.success('Succès', 'Compétition supprimée avec succès');
+            } else {
+                const data = await response.json();
+                toast.error('Erreur', data.message || 'Impossible de supprimer la compétition');
+            }
+        } catch (error) {
+            console.error('Erreur suppression compétition:', error);
+            toast.error('Erreur', 'Erreur de connexion');
+        }
+    };
+
+    const canEditCompetition = (competition) => {
+        return !competition.is_ended && competition.status !== 'completed';
+    };
+
+    const canDeleteCompetition = (competition) => {
+        return !competition.is_ended && competition.status !== 'completed';
+    };
+
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('fr-FR');
+    };
+
+    const renderMyContent = () => (
+        <div className="fade-in">
+            {renderUserStats()}
+
+            {/* Mes Clips */}
+            <Card className="border-0 shadow-sm mb-4" style={{ borderRadius: '16px' }}>
+                <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
+                    <h5 className="fw-bold mb-0">
+                        <FontAwesomeIcon icon={faVideo} className="me-2 text-info" />
+                        Mes Clips ({myClips.length})
+                    </h5>
+                    <Button
+                        as={Link}
+                        to="/add-clip"
+                        variant="outline-primary"
+                        size="sm"
+                    >
+                        <FontAwesomeIcon icon={faPlus} className="me-1" />
+                        Ajouter
+                    </Button>
+                </Card.Header>
+                <Card.Body className="p-0">
+                    {myClips.length > 0 ? (
+                        <Table className="mb-0 align-middle">
+                            <thead className="bg-light">
+                                <tr>
+                                    <th className="border-0 p-3">Clip</th>
+                                    <th className="border-0 p-3 text-center">Statut</th>
+                                    <th className="border-0 p-3 text-center">Vues</th>
+                                    <th className="border-0 p-3 text-center">J'aime</th>
+                                    <th className="border-0 p-3 text-center">Date</th>
+                                    <th className="border-0 p-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {myClips.map(clip => (
+                                    <tr key={clip.id} className="border-bottom">
+                                        <td className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <img
+                                                    src={clip.thumbnail_url}
+                                                    alt={clip.title}
+                                                    className="rounded me-3"
+                                                    style={{ width: '80px', height: '45px', objectFit: 'cover' }}
+                                                />
+                                                <div>
+                                                    <h6 className="fw-bold mb-1">{clip.title}</h6>
+                                                    <p className="text-muted mb-0 small">
+                                                        {clip.description?.substring(0, 60)}...
+                                                    </p>
+                                                    <small className="text-primary">
+                                                        <FontAwesomeIcon icon={faClock} className="me-1" />
+                                                        {clip.duration}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            {getStatusBadge(clip.status)}
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="fw-bold">{formatNumber(clip.views)}</span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="fw-bold text-danger">{formatNumber(clip.likes)}</span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <small className="text-muted">{formatDate(clip.created_at)}</small>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <div className="d-flex gap-2 justify-content-center">
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    as={Link}
+                                                    to={`/clips/${clip.id}`}
+                                                    title="Voir"
+                                                >
+                                                    <FontAwesomeIcon icon={faEye} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline-secondary"
+                                                    size="sm"
+                                                    as={Link}
+                                                    to={`/clips/${clip.id}/edit`}
+                                                    title="Modifier"
+                                                >
+                                                    <FontAwesomeIcon icon={faEdit} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline-danger"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteClip(clip.id)}
+                                                    title="Supprimer"
+                                                >
+                                                    <FontAwesomeIcon icon={faTrash} />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    ) : (
+                        <div className="text-center p-5">
+                            <FontAwesomeIcon icon={faVideo} size="3x" className="text-muted mb-3" />
+                            <h5 className="text-muted">Aucun clip créé</h5>
+                            <p className="text-muted mb-4">Commencez par ajouter votre premier clip vidéo</p>
+                            <Button as={Link} to="/add-clip" variant="primary">
+                                <FontAwesomeIcon icon={faPlus} className="me-2" />
+                                Ajouter un clip
+                            </Button>
+                        </div>
+                    )}
+                </Card.Body>
+            </Card>
+
+            {/* Mes Compétitions */}
+            <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
+                <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
+                    <h5 className="fw-bold mb-0">
+                        <FontAwesomeIcon icon={faTrophy} className="me-2 text-warning" />
+                        Mes Compétitions ({myCompetitions.length})
+                    </h5>
+                    <Button
+                        as={Link}
+                        to="/create-competition"
+                        variant="outline-primary"
+                        size="sm"
+                    >
+                        <FontAwesomeIcon icon={faPlus} className="me-1" />
+                        Créer
+                    </Button>
+                </Card.Header>
+                <Card.Body className="p-0">
+                    {myCompetitions.length > 0 ? (
+                        <Table className="mb-0 align-middle">
+                            <thead className="bg-light">
+                                <tr>
+                                    <th className="border-0 p-3">Compétition</th>
+                                    <th className="border-0 p-3 text-center">Statut</th>
+                                    <th className="border-0 p-3 text-center">Participants</th>
+                                    <th className="border-0 p-3 text-center">Prix</th>
+                                    <th className="border-0 p-3 text-center">Fin</th>
+                                    <th className="border-0 p-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {myCompetitions.map(competition => (
+                                    <tr key={competition.id} className="border-bottom">
+                                        <td className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <img
+                                                    src={competition.image_url}
+                                                    alt={competition.title}
+                                                    className="rounded me-3"
+                                                    style={{ width: '80px', height: '50px', objectFit: 'cover' }}
+                                                />
+                                                <div>
+                                                    <h6 className="fw-bold mb-1">{competition.title}</h6>
+                                                    <p className="text-muted mb-0 small">
+                                                        {competition.description?.substring(0, 60)}...
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            {getStatusBadge(competition.status)}
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="fw-bold">
+                                                {competition.current_participants}/{competition.max_participants || '∞'}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="fw-bold text-success">
+                                                {formatCurrency(competition.total_prize_pool)}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <small className="text-muted">
+                                                {formatDate(competition.end_date)}
+                                            </small>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <div className="d-flex gap-2 justify-content-center">
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    as={Link}
+                                                    to={`/competitions/${competition.id}`}
+                                                    title="Voir"
+                                                >
+                                                    <FontAwesomeIcon icon={faEye} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline-secondary"
+                                                    size="sm"
+                                                    as={Link}
+                                                    to={`/competitions/${competition.id}/edit`}
+                                                    title="Modifier"
+                                                    disabled={!canEditCompetition(competition)}
+                                                >
+                                                    <FontAwesomeIcon icon={faEdit} />
+                                                </Button>
+                                                <Button
+                                                    variant="outline-danger"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteCompetition(competition.id)}
+                                                    title="Supprimer"
+                                                    disabled={!canDeleteCompetition(competition)}
+                                                >
+                                                    <FontAwesomeIcon icon={faTrash} />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    ) : (
+                        <div className="text-center p-5">
+                            <FontAwesomeIcon icon={faTrophy} size="3x" className="text-muted mb-3" />
+                            <h5 className="text-muted">Aucune compétition créée</h5>
+                            <p className="text-muted mb-4">Organisez votre première compétition musicale</p>
+                            <Button as={Link} to="/create-competition" variant="primary">
+                                <FontAwesomeIcon icon={faPlus} className="me-2" />
+                                Créer une compétition
+                            </Button>
+                        </div>
+                    )}
+                </Card.Body>
+            </Card>
+        </div>
+    );
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'sounds':
                 return renderSounds();
             case 'events':
                 return renderEvents();
+            case 'content':
+                return renderMyContent();
             default:
                 return renderSounds();
         }
@@ -1366,6 +1797,17 @@ const Profile = () => {
                                         >
                                             <FontAwesomeIcon icon={faCalendar} className="me-2" />
                                             Événements & Billets
+                                        </Nav.Link>
+                                    </Nav.Item>
+                                    <Nav.Item>
+                                        <Nav.Link
+                                            eventKey="content"
+                                            onClick={() => setActiveTab('content')}
+                                            className="px-4 py-2 mx-1"
+                                            style={{ borderRadius: '12px' }}
+                                        >
+                                            <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                            Mes Créations
                                         </Nav.Link>
                                     </Nav.Item>
                                 </Nav>

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class Competition extends Model
@@ -63,6 +64,22 @@ class Competition extends Model
     public function participants(): HasMany
     {
         return $this->hasMany(CompetitionParticipant::class);
+    }
+
+    /**
+     * Relation avec les paiements de compétition
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(CompetitionPayment::class);
+    }
+
+    /**
+     * Paiements complétés pour cette compétition
+     */
+    public function completedPayments()
+    {
+        return $this->payments()->where('status', 'completed');
     }
 
     /**
@@ -155,7 +172,21 @@ class Competition extends Model
      */
     public function getStartDateTimeAttribute()
     {
-        return Carbon::parse($this->start_date->format('Y-m-d') . ' ' . $this->start_time->format('H:i:s'));
+        try {
+            if (!$this->start_date || !$this->start_time) {
+                return null;
+            }
+
+            // Convertir start_time en format H:i si c'est un datetime
+            $timeString = $this->start_time instanceof \DateTime
+                ? $this->start_time->format('H:i:s')
+                : $this->start_time;
+
+            return Carbon::parse($this->start_date->format('Y-m-d') . ' ' . $timeString);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du parsing de start_date_time pour la compétition ' . $this->id . ': ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
@@ -163,13 +194,23 @@ class Competition extends Model
      */
     public function getEndDateTimeAttribute()
     {
-        return $this->start_date_time->addMinutes($this->duration);
+        try {
+            $startDateTime = $this->start_date_time;
+            if (!$startDateTime || !$this->duration) {
+                return null;
+            }
+
+            return $startDateTime->copy()->addMinutes($this->duration);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du calcul de end_date_time pour la compétition ' . $this->id . ': ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
      * Vérifier si la compétition est pleine
      */
-    public function isFullAttribute()
+    public function getIsFullAttribute()
     {
         return $this->current_participants >= $this->max_participants;
     }
@@ -177,30 +218,141 @@ class Competition extends Model
     /**
      * Vérifier si les inscriptions sont ouvertes
      */
-    public function canRegisterAttribute()
+    public function getCanRegisterAttribute()
     {
-        return $this->status === 'published'
-            && !$this->is_full
-            && ($this->registration_deadline ? now() <= $this->registration_deadline : true)
-            && $this->start_date_time > now();
+        try {
+            // Vérifications de base
+            if ($this->status !== 'published') {
+                return false;
+            }
+
+            if ($this->is_full) {
+                return false;
+            }
+
+            // Vérifier la deadline d'inscription si elle existe
+            if ($this->registration_deadline && now() > $this->registration_deadline) {
+                return false;
+            }
+
+            // Vérifier que la compétition n'a pas encore commencé
+            $startDateTime = $this->start_date_time;
+            if (!$startDateTime) {
+                // Si on ne peut pas déterminer la date de début, permettre l'inscription par sécurité
+                return true;
+            }
+
+            return $startDateTime > now();
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la vérification can_register pour la compétition ' . $this->id . ': ' . $e->getMessage());
+            // En cas d'erreur, permettre l'inscription par sécurité si les conditions de base sont remplies
+            return $this->status === 'published' && !$this->is_full;
+        }
     }
 
     /**
      * Vérifier si la compétition est en cours
      */
-    public function isOngoingAttribute()
+    public function getIsOngoingAttribute()
     {
-        return $this->status === 'active'
-            && now() >= $this->start_date_time
-            && now() <= $this->end_date_time;
+        try {
+            if ($this->status !== 'active') {
+                return false;
+            }
+
+            $startDateTime = $this->start_date_time;
+            $endDateTime = $this->end_date_time;
+
+            if (!$startDateTime || !$endDateTime) {
+                return false;
+            }
+
+            $now = now();
+            return $now >= $startDateTime && $now <= $endDateTime;
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la vérification is_ongoing pour la compétition ' . $this->id . ': ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
      * Vérifier si la compétition est terminée
      */
-    public function isFinishedAttribute()
+    public function getIsFinishedAttribute()
     {
-        return $this->status === 'completed' || now() > $this->end_date_time;
+        try {
+            if ($this->status === 'completed') {
+                return true;
+            }
+
+            $endDateTime = $this->end_date_time;
+            if (!$endDateTime) {
+                return false;
+            }
+
+            return now() > $endDateTime;
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la vérification is_finished pour la compétition ' . $this->id . ': ' . $e->getMessage());
+            return $this->status === 'completed';
+        }
+    }
+
+    /**
+     * Obtenir des informations détaillées sur l'état de la compétition
+     */
+    public function getRegistrationStatusAttribute()
+    {
+        try {
+            if ($this->status !== 'published') {
+                return [
+                    'can_register' => false,
+                    'reason' => 'La compétition n\'est pas encore ouverte aux inscriptions',
+                    'status_code' => 'not_published'
+                ];
+            }
+
+            if ($this->is_full) {
+                return [
+                    'can_register' => false,
+                    'reason' => 'Toutes les places ont été prises',
+                    'status_code' => 'full'
+                ];
+            }
+
+            if ($this->registration_deadline && now() > $this->registration_deadline) {
+                return [
+                    'can_register' => false,
+                    'reason' => 'La période d\'inscription est terminée',
+                    'status_code' => 'deadline_passed'
+                ];
+            }
+
+            $startDateTime = $this->start_date_time;
+            if ($startDateTime && now() >= $startDateTime) {
+                return [
+                    'can_register' => false,
+                    'reason' => 'La compétition a déjà commencé',
+                    'status_code' => 'already_started'
+                ];
+            }
+
+            return [
+                'can_register' => true,
+                'reason' => 'Inscriptions ouvertes',
+                'status_code' => 'open'
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la vérification du statut d\'inscription pour la compétition ' . $this->id . ': ' . $e->getMessage());
+            return [
+                'can_register' => false,
+                'reason' => 'Erreur lors de la vérification du statut',
+                'status_code' => 'error'
+            ];
+        }
     }
 
     /**

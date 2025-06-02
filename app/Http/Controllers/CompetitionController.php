@@ -462,4 +462,105 @@ class CompetitionController extends Controller
             'message' => 'Compétitions populaires récupérées'
         ]);
     }
+
+    /**
+     * Obtenir les compétitions de l'utilisateur connecté
+     */
+    public function getUserCompetitions(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $query = Competition::where('user_id', $user->id)->with('user');
+
+            // Filtrage par statut
+            if ($request->filled('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+
+            // Tri
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $competitions = $query->paginate($request->get('per_page', 12));
+
+            // Ajouter les informations supplémentaires
+            $competitions->getCollection()->transform(function ($competition) {
+                $competition->can_register = $competition->can_register;
+                $competition->is_full = $competition->is_full;
+                $competition->formatted_entry_fee = $competition->formatted_entry_fee;
+                $competition->formatted_total_prize_pool = $competition->formatted_total_prize_pool;
+                $competition->formatted_duration = $competition->formatted_duration;
+                return $competition;
+            });
+
+            return response()->json([
+                'success' => true,
+                'competitions' => $competitions->items(),
+                'pagination' => [
+                    'current_page' => $competitions->currentPage(),
+                    'last_page' => $competitions->lastPage(),
+                    'per_page' => $competitions->perPage(),
+                    'total' => $competitions->total(),
+                    'has_more' => $competitions->hasMorePages()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des compétitions',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les compétitions d'un artiste spécifique
+     */
+    public function getArtistCompetitions(Request $request, $id)
+    {
+        try {
+            $query = Competition::where('user_id', $id)
+                               ->where('status', 'published')
+                               ->with('user');
+
+            // Tri
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $competitions = $query->paginate($request->get('per_page', 12));
+
+            // Ajouter les informations supplémentaires
+            $competitions->getCollection()->transform(function ($competition) {
+                $competition->can_register = $competition->can_register;
+                $competition->is_full = $competition->is_full;
+                $competition->formatted_entry_fee = $competition->formatted_entry_fee;
+                $competition->formatted_total_prize_pool = $competition->formatted_total_prize_pool;
+                $competition->formatted_duration = $competition->formatted_duration;
+                return $competition;
+            });
+
+            return response()->json([
+                'success' => true,
+                'competitions' => $competitions->items(),
+                'pagination' => [
+                    'current_page' => $competitions->currentPage(),
+                    'last_page' => $competitions->lastPage(),
+                    'per_page' => $competitions->perPage(),
+                    'total' => $competitions->total(),
+                    'has_more' => $competitions->hasMorePages()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des compétitions de l\'artiste',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

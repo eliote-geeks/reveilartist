@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -12,13 +13,27 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('clip_likes', function (Blueprint $table) {
-            // Ajouter les colonnes manquantes
+            // Ajouter les colonnes comme nullable d'abord
             if (!Schema::hasColumn('clip_likes', 'clip_id')) {
-                $table->foreignId('clip_id')->constrained()->onDelete('cascade');
+                $table->foreignId('clip_id')->nullable()->constrained()->onDelete('cascade');
             }
 
             if (!Schema::hasColumn('clip_likes', 'user_id')) {
-                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade');
+            }
+        });
+
+        // Supprimer les enregistrements existants qui n'ont pas de données valides
+        // ou mettre des valeurs par défaut si nécessaire
+        DB::table('clip_likes')->whereNull('clip_id')->orWhereNull('user_id')->delete();
+
+        // Maintenant rendre les colonnes NOT NULL
+        Schema::table('clip_likes', function (Blueprint $table) {
+            if (Schema::hasColumn('clip_likes', 'clip_id')) {
+                $table->foreignId('clip_id')->nullable(false)->change();
+            }
+            if (Schema::hasColumn('clip_likes', 'user_id')) {
+                $table->foreignId('user_id')->nullable(false)->change();
             }
         });
 

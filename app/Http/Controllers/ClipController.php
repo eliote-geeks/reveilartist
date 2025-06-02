@@ -644,4 +644,104 @@ class ClipController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Obtenir les clips de l'utilisateur connecté
+     */
+    public function getUserClips(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $query = Clip::where('user_id', $user->id)->with('user');
+
+            // Filtrage par statut
+            if ($request->filled('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+
+            // Tri
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $clips = $query->paginate($request->get('per_page', 12));
+
+            // Ajouter les informations supplémentaires
+            $clips->getCollection()->transform(function ($clip) {
+                $clip->is_liked = false; // L'utilisateur ne peut pas liker ses propres clips
+                $clip->formatted_views = $clip->formatted_views;
+                return $clip;
+            });
+
+            return response()->json([
+                'success' => true,
+                'clips' => $clips->items(),
+                'pagination' => [
+                    'current_page' => $clips->currentPage(),
+                    'last_page' => $clips->lastPage(),
+                    'per_page' => $clips->perPage(),
+                    'total' => $clips->total(),
+                    'has_more' => $clips->hasMorePages()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des clips',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les clips d'un artiste spécifique
+     */
+    public function getArtistClips(Request $request, $id)
+    {
+        try {
+            $query = Clip::where('user_id', $id)
+                         ->where('status', 'published')
+                         ->with('user');
+
+            // Tri
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $query->orderBy($sortBy, $sortOrder);
+
+            $clips = $query->paginate($request->get('per_page', 12));
+
+            // Ajouter les informations supplémentaires
+            $clips->getCollection()->transform(function ($clip) {
+                $isLiked = false;
+                if (Auth::check()) {
+                    $isLiked = $clip->isLikedBy(Auth::id());
+                }
+
+                $clip->is_liked = $isLiked;
+                $clip->formatted_views = $clip->formatted_views;
+                return $clip;
+            });
+
+            return response()->json([
+                'success' => true,
+                'clips' => $clips->items(),
+                'pagination' => [
+                    'current_page' => $clips->currentPage(),
+                    'last_page' => $clips->lastPage(),
+                    'per_page' => $clips->perPage(),
+                    'total' => $clips->total(),
+                    'has_more' => $clips->hasMorePages()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des clips de l\'artiste',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -1586,4 +1586,218 @@ class UserController extends Controller
         if ($earnings > 0) return 'rookie';         // Quelques ventes
         return 'new';                               // Nouveau
     }
+
+    /**
+     * Obtenir tous les artistes
+     */
+    public function getArtists(Request $request)
+    {
+        try {
+            $query = User::where('role', 'artist')
+                         ->orWhere('role', 'producer');
+
+            // Filtres
+            if ($request->has('role') && $request->role !== 'all') {
+                $query->where('role', $request->role);
+            }
+
+            if ($request->has('search') && !empty($request->search)) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('bio', 'LIKE', "%{$search}%")
+                      ->orWhere('city', 'LIKE', "%{$search}%");
+                });
+            }
+
+            // Pagination
+            $perPage = $request->get('per_page', 16);
+            $artists = $query->withCount(['sounds', 'followers'])
+                            ->with(['sounds' => function($q) {
+                                $q->where('status', 'published')
+                                  ->orderBy('plays_count', 'desc')
+                                  ->limit(3);
+                            }])
+                            ->orderByDesc('followers_count')
+                            ->paginate($perPage);
+
+            // Formatter les données
+            $artists->getCollection()->transform(function ($artist) {
+                return [
+                    'id' => $artist->id,
+                    'name' => $artist->name,
+                    'email' => $artist->email,
+                    'role' => $artist->role,
+                    'bio' => $artist->bio,
+                    'city' => $artist->city,
+                    'profile_photo_url' => $artist->profile_photo_url ?? null,
+                    'sounds_count' => $artist->sounds_count ?? 0,
+                    'followers_count' => $artist->followers_count ?? 0,
+                    'total_plays' => $artist->sounds->sum('plays_count') ?? 0,
+                    'latest_sounds' => $artist->sounds->map(function($sound) {
+                        return [
+                            'id' => $sound->id,
+                            'title' => $sound->title,
+                            'plays_count' => $sound->plays_count ?? 0
+                        ];
+                    }),
+                    'created_at' => $artist->created_at
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'artists' => $artists->items(),
+                'pagination' => [
+                    'current_page' => $artists->currentPage(),
+                    'last_page' => $artists->lastPage(),
+                    'per_page' => $artists->perPage(),
+                    'total' => $artists->total(),
+                    'has_more' => $artists->hasMorePages()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des artistes',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir un artiste spécifique
+     */
+    public function getArtist($id)
+    {
+        try {
+            $artist = User::where('id', $id)
+                         ->where(function($q) {
+                             $q->where('role', 'artist')->orWhere('role', 'producer');
+                         })
+                         ->withCount(['sounds', 'followers', 'following'])
+                         ->first();
+
+            if (!$artist) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Artiste non trouvé'
+                ], 404);
+            }
+
+            // Vérifier si l'utilisateur connecté suit cet artiste
+            $isFollowing = false;
+            if (auth('sanctum')->check()) {
+                $currentUser = auth('sanctum')->user();
+                $isFollowing = $currentUser->following()->where('followed_id', $artist->id)->exists();
+            }
+
+            // Statistiques
+            $stats = [
+                'total_plays' => $artist->sounds()->sum('plays_count') ?? 0,
+                'total_downloads' => $artist->sounds()->sum('downloads_count') ?? 0,
+                'total_likes' => $artist->sounds()->sum('likes_count') ?? 0,
+            ];
+
+            // Sons populaires
+            $popularSounds = $artist->sounds()
+                                   ->where('status', 'published')
+                                   ->orderBy('plays_count', 'desc')
+                                   ->limit(5)
+                                   ->get();
+
+            // Sons récents
+            $recentSounds = $artist->sounds()
+                                  ->where('status', 'published')
+                                  ->orderBy('created_at', 'desc')
+                                  ->limit(5)
+                                  ->get();
+
+            return response()->json([
+                'success' => true,
+                'artist' => [
+                    'id' => $artist->id,
+                    'name' => $artist->name,
+                    'email' => $artist->email,
+                    'role' => $artist->role,
+                    'bio' => $artist->bio,
+                    'city' => $artist->city,
+                    'profile_photo_url' => $artist->profile_photo_url,
+                    'sounds_count' => $artist->sounds_count,
+                    'followers_count' => $artist->followers_count,
+                    'following_count' => $artist->following_count,
+                    'created_at' => $artist->created_at
+                ],
+                'is_following' => $isFollowing,
+                'stats' => $stats,
+                'popular_sounds' => $popularSounds,
+                'recent_sounds' => $recentSounds,
+                'upcoming_events' => [], // À implémenter si nécessaire
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement de l\'artiste',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Suivre/Ne plus suivre un artiste
+     */
+    public function toggleFollow(Request $request, $id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            $artist = User::find($id);
+
+            if (!$artist) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Artiste non trouvé'
+                ], 404);
+            }
+
+            if ($user->id === $artist->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas vous suivre vous-même'
+                ], 400);
+            }
+
+            $isFollowing = $user->following()->where('followed_id', $artist->id)->exists();
+
+            if ($isFollowing) {
+                // Ne plus suivre
+                $user->following()->detach($artist->id);
+                $message = 'Vous ne suivez plus cet artiste';
+                $isFollowing = false;
+            } else {
+                // Suivre
+                $user->following()->attach($artist->id);
+                $message = 'Vous suivez maintenant cet artiste';
+                $isFollowing = true;
+            }
+
+            // Compter les followers
+            $followersCount = $artist->followers()->count();
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'is_following' => $isFollowing,
+                'followers_count' => $followersCount
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'action',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

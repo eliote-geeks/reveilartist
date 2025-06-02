@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Payment;
 use App\Models\Sound;
 use App\Models\Event;
+use App\Models\Competition;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,7 @@ class PaymentController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Payment::with(['user', 'seller', 'sound', 'event']);
+        $query = Payment::with(['user', 'seller', 'sound', 'event', 'competition']);
 
         // Filtres
         if ($request->has('status')) {
@@ -47,6 +48,9 @@ class PaymentController extends Controller
                   })
                   ->orWhereHas('event', function ($eventQuery) use ($search) {
                       $eventQuery->where('title', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('competition', function ($competitionQuery) use ($search) {
+                      $competitionQuery->where('title', 'like', "%{$search}%");
                   });
             });
         }
@@ -72,9 +76,10 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'user_id' => 'required|exists:users,id',
-            'type' => 'required|in:sound,event',
+            'type' => 'required|in:sound,event,competition_entry',
             'sound_id' => 'nullable|exists:sounds,id|required_if:type,sound',
             'event_id' => 'nullable|exists:events,id|required_if:type,event',
+            'competition_id' => 'nullable|exists:competitions,id|required_if:type,competition_entry',
             'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|string',
             'payment_provider' => 'nullable|string',
@@ -86,9 +91,12 @@ class PaymentController extends Controller
         if ($validated['type'] === 'sound') {
             $sound = Sound::findOrFail($validated['sound_id']);
             $validated['seller_id'] = $sound->user_id;
-        } else {
+        } elseif ($validated['type'] === 'event') {
             $event = Event::findOrFail($validated['event_id']);
             $validated['seller_id'] = $event->user_id;
+        } elseif ($validated['type'] === 'competition_entry') {
+            $competition = Competition::findOrFail($validated['competition_id']);
+            $validated['seller_id'] = $competition->user_id;
         }
 
         try {
@@ -96,7 +104,7 @@ class PaymentController extends Controller
 
             return response()->json([
                 'message' => 'Paiement créé avec succès',
-                'payment' => $payment->load(['user', 'seller', 'sound', 'event'])
+                'payment' => $payment->load(['user', 'seller', 'sound', 'event', 'competition'])
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -112,7 +120,7 @@ class PaymentController extends Controller
     public function show(Payment $payment): JsonResponse
     {
         return response()->json(
-            $payment->load(['user', 'seller', 'sound', 'event'])
+            $payment->load(['user', 'seller', 'sound', 'event', 'competition'])
         );
     }
 
@@ -156,7 +164,7 @@ class PaymentController extends Controller
 
             return response()->json([
                 'message' => 'Paiement mis à jour avec succès',
-                'payment' => $payment->fresh()->load(['user', 'seller', 'sound', 'event'])
+                'payment' => $payment->fresh()->load(['user', 'seller', 'sound', 'event', 'competition'])
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -329,7 +337,7 @@ class PaymentController extends Controller
                     $payment->transaction_id,
                     $payment->user->name ?? 'N/A',
                     $payment->seller->name ?? 'N/A',
-                    $payment->type === 'sound' ? 'Son' : 'Événement',
+                    $payment->type === 'sound' ? 'Son' : ($payment->type === 'event' ? 'Événement' : 'Participation à une compétition'),
                     $payment->product_name,
                     $payment->amount,
                     $payment->commission_amount,

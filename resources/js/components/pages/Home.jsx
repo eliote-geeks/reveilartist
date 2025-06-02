@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Row, Col, Button, Card, Badge, Nav, Spinner, Alert, Form, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Button, Card, Badge, Nav, Spinner, Alert, Form, InputGroup, Modal } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -8,7 +8,8 @@ import {
     faUsers, faMapMarkerAlt, faClock, faEuroSign, faTicketAlt,
     faFilter, faStar, faEye, faHeadphones, faPlus, faStop,
     faStepForward, faStepBackward, faVolumeDown, faVolumeMute,
-    faUserPlus, faShoppingCart, faTimes, faCheck
+    faUserPlus, faShoppingCart, faTimes, faCheck, faArrowUp, faGem,
+    faShare, faVideo, faTrophy, faUser
 } from '@fortawesome/free-solid-svg-icons';
 import { AnimatedElement } from '../common/PageTransition';
 import { useAuth } from '../../context/AuthContext';
@@ -31,11 +32,26 @@ const Home = () => {
 
     // États pour les données
     const [sounds, setSounds] = useState([]);
+    const [artists, setArtists] = useState([]);
     const [events, setEvents] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [clips, setClips] = useState([]);
+    const [competitions, setCompetitions] = useState([]);
     const [stats, setStats] = useState({});
     const [likedSounds, setLikedSounds] = useState(new Set());
-    const [followedArtists, setFollowedArtists] = useState(new Set());
+    const [followingArtists, setFollowingArtists] = useState(new Set());
+    const [activeFilter, setActiveFilter] = useState('trending');
+
+    // États pour la recherche
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState({
+        sounds: [],
+        artists: [],
+        clips: [],
+        competitions: [],
+        events: []
+    });
+    const [showSearchResults, setShowSearchResults] = useState(false);
 
     const audioRef = useRef(null);
     const navigate = useNavigate();
@@ -53,35 +69,152 @@ const Home = () => {
     const loadInitialData = async () => {
         try {
             setLoading(true);
-
-            // Charger toutes les données en parallèle
-            const [statsRes, categoriesRes, eventsRes] = await Promise.all([
-                fetch('/api/stats'),
+            const [soundsRes, artistsRes, eventsRes, categoriesRes, clipsRes, competitionsRes] = await Promise.all([
+                fetch('/api/sounds?featured=true&limit=12'),
+                fetch('/api/artists?featured=true&limit=8'),
+                fetch('/api/events?upcoming=true&limit=6'),
                 fetch('/api/categories'),
-                fetch('/api/events?status=active&limit=4')
+                fetch('/api/clips?limit=6'),
+                fetch('/api/competitions?featured=true&limit=6')
             ]);
 
-            if (statsRes.ok) {
-                const statsData = await statsRes.json();
-                setStats(statsData.stats || {});
+            const [soundsData, artistsData, eventsData, categoriesData, clipsData, competitionsData] = await Promise.all([
+                soundsRes.json(),
+                artistsRes.json(),
+                eventsRes.json(),
+                categoriesRes.json(),
+                clipsRes.json(),
+                competitionsRes.json()
+            ]);
+
+            // Sons
+            if (soundsData.success) {
+                setSounds(soundsData.sounds || []);
+            } else {
+                // Fallback sons
+                setSounds([
+                    { id: 1, title: "Afrobeat Vibes", artist: "Artist 1", genre: "Afrobeat", plays_count: 12500, likes_count: 890, downloads_count: 234 },
+                    { id: 2, title: "Makossa Modern", artist: "Artist 2", genre: "Makossa", plays_count: 8900, likes_count: 567, downloads_count: 123 }
+                ]);
             }
 
-            if (categoriesRes.ok) {
-                const categoriesData = await categoriesRes.json();
-                setCategories(categoriesData.categories || []);
+            // Artistes
+            if (artistsData.success) {
+                setArtists(artistsData.artists || []);
+            } else {
+                // Fallback artistes
+                setArtists([
+                    { id: 1, name: "Artist 1", followers_count: 12500 },
+                    { id: 2, name: "Artist 2", followers_count: 8900 }
+                ]);
             }
 
-            if (eventsRes.ok) {
-                const eventsData = await eventsRes.json();
+            // Événements
+            if (eventsData.success) {
                 setEvents(eventsData.events || []);
+            } else {
+                // Fallback événements
+                setEvents([
+                    { id: 1, title: "Concert Live", city: "Douala", event_date: "2024-04-15" },
+                    { id: 2, title: "Festival de Musique", city: "Yaoundé", event_date: "2024-04-20" }
+                ]);
             }
 
-            // Charger les sons initiaux
-            await loadSounds();
+            // Catégories
+            if (categoriesData.success) {
+                setCategories(categoriesData.categories || []);
+            } else {
+                // Fallback catégories
+                setCategories([
+                    { id: 1, name: "Afrobeat" },
+                    { id: 2, name: "Rap" },
+                    { id: 3, name: "Makossa" },
+                    { id: 4, name: "Gospel" }
+                ]);
+            }
 
+            // Clips
+            if (clipsData && (clipsData.clips || clipsData.data)) {
+                setClips(clipsData.clips?.data || clipsData.clips || clipsData.data || []);
+            } else {
+                // Fallback clips
+                setClips([
+                    {
+                        id: 1,
+                        title: "Afrobeat Vibes - Clip Official",
+                        user: { id: 1, name: "Artist 1" },
+                        views: 125000,
+                        likes: 8500,
+                        duration: "3:45",
+                        category: "Afrobeat",
+                        thumbnail_url: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=225&fit=crop",
+                        created_at: "2024-03-15"
+                    },
+                    {
+                        id: 2,
+                        title: "Rap Camerounais",
+                        user: { id: 2, name: "Artist 2" },
+                        views: 89000,
+                        likes: 6200,
+                        duration: "4:12",
+                        category: "Rap",
+                        thumbnail_url: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=225&fit=crop",
+                        created_at: "2024-03-10"
+                    }
+                ]);
+            }
+
+            // Compétitions
+            if (competitionsData && (competitionsData.competitions || competitionsData.data)) {
+                setCompetitions(competitionsData.competitions?.data || competitionsData.competitions || competitionsData.data || []);
+            } else {
+                // Fallback compétitions
+                setCompetitions([
+                    {
+                        id: 1,
+                        title: "Battle Rap Cameroun 2024",
+                        description: "Compétition de rap ouvert à tous les artistes camerounais",
+                        user: { id: 1, name: "Organisateur 1" },
+                        current_participants: 25,
+                        max_participants: 50,
+                        total_prize_pool: 500000,
+                        entry_fee: 10000,
+                        end_date: "2024-04-30",
+                        days_left: "20",
+                        status: "active",
+                        category: "Rap",
+                        image_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop"
+                    },
+                    {
+                        id: 2,
+                        title: "Concours Makossa Fusion",
+                        description: "Fusion makossa moderne",
+                        user: { id: 2, name: "Organisateur 2" },
+                        current_participants: 18,
+                        max_participants: 30,
+                        total_prize_pool: 300000,
+                        entry_fee: 8000,
+                        end_date: "2024-05-15",
+                        days_left: "35",
+                        status: "active",
+                        category: "Makossa",
+                        image_url: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=250&fit=crop"
+                    }
+                ]);
+            }
+
+            if (token && (soundsData.sounds || sounds.length > 0)) {
+                loadLikesStatus((soundsData.sounds || sounds).map(s => s.id));
+            }
         } catch (error) {
-            console.error('Erreur lors du chargement:', error);
-            toast.error('Erreur', 'Impossible de charger les données');
+            console.error('Erreur chargement:', error);
+            // En cas d'erreur totale, utiliser des données minimales
+            setSounds([]);
+            setArtists([]);
+            setEvents([]);
+            setCategories([]);
+            setClips([]);
+            setCompetitions([]);
         } finally {
             setLoading(false);
         }
@@ -144,22 +277,24 @@ const Home = () => {
     };
 
     const loadLikesStatus = async (soundIds) => {
+        if (!token || soundIds.length === 0) return;
+
         try {
             const response = await fetch('/api/sounds/likes/status', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ sound_ids: soundIds })
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                setLikedSounds(new Set(data.likes || []));
+            const data = await response.json();
+            if (data.success) {
+                setLikedSounds(new Set(data.likes));
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des likes:', error);
+            console.error('Erreur chargement likes:', error);
         }
     };
 
@@ -169,12 +304,89 @@ const Home = () => {
             return;
         }
 
-        navigate(`/catalog?search=${encodeURIComponent(searchTerm)}`);
+        try {
+            setIsSearching(true);
+            setShowSearchResults(true);
+
+            // Recherche parallèle dans toutes les catégories
+            const searchPromises = [
+                fetch(`/api/sounds/search?q=${encodeURIComponent(searchTerm)}&limit=6`, {
+                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }), 'Content-Type': 'application/json' }
+                }),
+                fetch(`/api/artists/search?q=${encodeURIComponent(searchTerm)}&limit=6`, {
+                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }), 'Content-Type': 'application/json' }
+                }),
+                fetch(`/api/clips/search?q=${encodeURIComponent(searchTerm)}&limit=6`, {
+                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }), 'Content-Type': 'application/json' }
+                }),
+                fetch(`/api/competitions/search?q=${encodeURIComponent(searchTerm)}&limit=6`, {
+                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }), 'Content-Type': 'application/json' }
+                }),
+                fetch(`/api/events/search?q=${encodeURIComponent(searchTerm)}&limit=6`, {
+                    headers: { ...(token && { 'Authorization': `Bearer ${token}` }), 'Content-Type': 'application/json' }
+                })
+            ];
+
+            const responses = await Promise.all(searchPromises);
+            const [soundsRes, artistsRes, clipsRes, competitionsRes, eventsRes] = responses;
+
+            const results = {
+                sounds: [],
+                artists: [],
+                clips: [],
+                competitions: [],
+                events: []
+            };
+
+            // Parser les résultats
+            if (soundsRes.ok) {
+                const soundsData = await soundsRes.json();
+                results.sounds = soundsData.sounds || soundsData.data || [];
+            }
+
+            if (artistsRes.ok) {
+                const artistsData = await artistsRes.json();
+                results.artists = artistsData.artists || artistsData.data || [];
+            }
+
+            if (clipsRes.ok) {
+                const clipsData = await clipsRes.json();
+                results.clips = clipsData.clips || clipsData.data || [];
+            }
+
+            if (competitionsRes.ok) {
+                const competitionsData = await competitionsRes.json();
+                results.competitions = competitionsData.competitions || competitionsData.data || [];
+            }
+
+            if (eventsRes.ok) {
+                const eventsData = await eventsRes.json();
+                results.events = eventsData.events || eventsData.data || [];
+            }
+
+            setSearchResults(results);
+
+            const totalResults = Object.values(results).reduce((total, items) => total + items.length, 0);
+            if (totalResults === 0) {
+                toast.info('Recherche', 'Aucun résultat trouvé pour cette recherche');
+            } else {
+                toast.success('Recherche', `${totalResults} résultat(s) trouvé(s)`);
+            }
+
+        } catch (error) {
+            console.error('Erreur recherche:', error);
+            toast.error('Erreur', 'Erreur lors de la recherche');
+
+            // Fallback vers la page catalog
+            navigate(`/catalog?search=${encodeURIComponent(searchTerm)}`);
+        } finally {
+            setIsSearching(false);
+        }
     };
 
     const handleLike = async (soundId) => {
-        if (!user || !token) {
-            toast.error('Connexion requise', 'Vous devez être connecté pour aimer un son');
+        if (!token) {
+            toast.warning('Connexion requise', 'Connectez-vous pour aimer ce son');
             return;
         }
 
@@ -187,38 +399,30 @@ const Home = () => {
                 }
             });
 
-            if (response.ok) {
-                const data = await response.json();
+            const data = await response.json();
+            if (data.success) {
+                const newLikedSounds = new Set(likedSounds);
+                if (data.is_liked) {
+                    newLikedSounds.add(soundId);
+                } else {
+                    newLikedSounds.delete(soundId);
+                }
+                setLikedSounds(newLikedSounds);
 
-                // Mettre à jour l'état local
-                setLikedSounds(prev => {
-                    const newSet = new Set(prev);
-                    if (data.is_liked) {
-                        newSet.add(soundId);
-                    } else {
-                        newSet.delete(soundId);
-                    }
-                    return newSet;
-                });
-
-                // Mettre à jour le compteur dans la liste
                 setSounds(prev => prev.map(sound =>
                     sound.id === soundId
-                        ? { ...sound, likes: data.likes_count }
+                        ? { ...sound, likes_count: data.likes_count }
                         : sound
                 ));
-
-                toast.success('Succès', data.message);
             }
         } catch (error) {
-            console.error('Erreur lors du like:', error);
-            toast.error('Erreur', 'Erreur de connexion');
+            console.error('Erreur like:', error);
         }
     };
 
     const handleFollowArtist = async (artistId) => {
-        if (!user || !token) {
-            toast.error('Connexion requise', 'Vous devez être connecté pour suivre un artiste');
+        if (!token) {
+            toast.warning('Connexion requise', 'Connectez-vous pour suivre cet artiste');
             return;
         }
 
@@ -231,23 +435,24 @@ const Home = () => {
                 }
             });
 
-            if (response.ok) {
-                const data = await response.json();
+            const data = await response.json();
+            if (data.success) {
+                const newFollowing = new Set(followingArtists);
+                if (data.is_following) {
+                    newFollowing.add(artistId);
+                } else {
+                    newFollowing.delete(artistId);
+                }
+                setFollowingArtists(newFollowing);
 
-                setFollowedArtists(prev => {
-                    const newSet = new Set(prev);
-                    if (data.is_following) {
-                        newSet.add(artistId);
-                    } else {
-                        newSet.delete(artistId);
-                    }
-                    return newSet;
-                });
-
-                toast.success('Succès', data.message);
+                setArtists(prev => prev.map(artist =>
+                    artist.id === artistId
+                        ? { ...artist, followers_count: data.followers_count }
+                        : artist
+                ));
             }
         } catch (error) {
-            console.error('Erreur lors du follow:', error);
+            console.error('Erreur follow:', error);
         }
     };
 
@@ -332,602 +537,908 @@ const Home = () => {
         setActiveTab('populaires');
     };
 
+    const FilterButton = ({ filter, icon, label, count, isActive, onClick }) => (
+        <Button
+            variant={isActive ? "primary" : "light"}
+            size="sm"
+            className={`filter-btn ${isActive ? 'active' : ''}`}
+            onClick={onClick}
+        >
+            <FontAwesomeIcon icon={icon} className="me-2" />
+            {label}
+            {count && <Badge bg="secondary" className="ms-2">{count}</Badge>}
+        </Button>
+    );
+
+    if (loading) {
+        return (
+            <div className="feed-loading">
+                <Container>
+                    <Row className="justify-content-center">
+                        <Col md={6} className="text-center py-5">
+                            <div className="loading-animation">
+                                <Spinner animation="border" variant="primary" size="lg" />
+                                <h5 className="mt-3 text-muted">Chargement du feed...</h5>
+                            </div>
+                        </Col>
+                    </Row>
+                </Container>
+            </div>
+        );
+    }
+
     return (
-        <div className="bg-light min-vh-100 avoid-header-overlap">
-            {/* Lecteur audio invisible */}
-            <audio
-                ref={audioRef}
-                preload="metadata"
-                onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
-                onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-                onEnded={() => {
-                    playNextSound(); // Auto-play du son suivant
-                }}
-                onError={(e) => {
-                    console.error('Erreur audio:', e);
-                    setIsPlaying(false);
-                    setCurrentPlaying(null);
-                }}
-            />
-
-            {/* Hero Section Feed */}
-            <section className="hero-gradient text-white">
+        <div className="social-feed">
+            {/* Header épuré */}
+            <div className="feed-header">
                 <Container>
-                    <Row className="justify-content-center">
-                        <Col lg={8} md={10} className="text-center">
-                            <AnimatedElement animation="fadeIn" delay={100}>
-                                <div className="mb-4">
-                                    <AnimatedElement animation="bounceIn" delay={300}>
-                                        <img
-                                            src="/images/reveilart-logo.svg"
-                                            alt="reveilart"
-                                            style={{ height: '40px' }}
-                                            className="mb-3"
-                                        />
-                                    </AnimatedElement>
-                                    <AnimatedElement animation="slideInUp" delay={500}>
-                                        <h1 className="display-6 fw-bold text-white mb-3">
-                                            Découvrez la musique camerounaise
-                                        </h1>
-                                    </AnimatedElement>
-                                    <AnimatedElement animation="slideInUp" delay={600}>
-                                        <p className="fs-6 text-white opacity-75">
-                                            Feed musical interactif avec lecteur intégré
-                                        </p>
-                                    </AnimatedElement>
-                                </div>
+                    <Row className="align-items-center py-3">
+                        <Col md={6}>
+                            <div className="search-container">
+                                <InputGroup size="lg">
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Rechercher sons, artistes, événements..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="search-input"
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                    />
+                                    <Button
+                                        variant="primary"
+                                        className="search-btn"
+                                        onClick={handleSearch}
+                                        disabled={isSearching}
+                                    >
+                                        {isSearching ? (
+                                            <Spinner animation="border" size="sm" />
+                                        ) : (
+                                            <FontAwesomeIcon icon={faSearch} />
+                                        )}
+                                    </Button>
+                                </InputGroup>
+                            </div>
+                        </Col>
+                        <Col md={6} className="d-flex justify-content-end">
+                            <div className="filter-tabs">
+                                <FilterButton
+                                    filter="trending"
+                                    icon={faArrowUp}
+                                    label="Tendances"
+                                    isActive={activeFilter === 'trending'}
+                                    onClick={() => setActiveFilter('trending')}
+                                />
+                                <FilterButton
+                                    filter="new"
+                                    icon={faGem}
+                                    label="Nouveautés"
+                                    isActive={activeFilter === 'new'}
+                                    onClick={() => setActiveFilter('new')}
+                                />
+                                <FilterButton
+                                    filter="popular"
+                                    icon={faFire}
+                                    label="Populaires"
+                                    isActive={activeFilter === 'popular'}
+                                    onClick={() => setActiveFilter('popular')}
+                                />
+                            </div>
+                        </Col>
+                    </Row>
+                </Container>
+            </div>
 
-                                {/* Search Bar */}
-                                <AnimatedElement animation="slideInUp" delay={750}>
-                                    <Row className="justify-content-center mb-4">
-                                        <Col lg={6} md={8}>
-                                            <div className="search-container">
-                                                <InputGroup size="lg" className="search-input-group">
-                                                    <div className="search-input-wrapper">
-                                                        <FontAwesomeIcon
-                                                            icon={faSearch}
-                                                            className="search-icon"
-                                                        />
-                                                        <Form.Control
-                                                            type="text"
-                                                            placeholder="Rechercher des sons, artistes..."
-                                                            value={searchTerm}
-                                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                                                            className="search-input"
-                                                        />
-                                                        <Button
-                                                            variant="warning"
-                                                            onClick={handleSearch}
-                                                            className="search-button"
-                                                            disabled={!searchTerm.trim()}
-                                                        >
-                                                            <FontAwesomeIcon icon={faArrowRight} />
-                                                        </Button>
-                                                    </div>
-                                                </InputGroup>
-                                            </div>
-                                        </Col>
+            {/* Résultats de recherche */}
+            {showSearchResults && (
+                <Container className="search-results-section">
+                    <Row>
+                        <Col xs={12}>
+                            <div className="search-results-header">
+                                <h4 className="fw-bold mb-3">
+                                    <FontAwesomeIcon icon={faSearch} className="me-2 text-primary" />
+                                    Résultats de recherche pour "{searchTerm}"
+                                </h4>
+                                <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={() => {
+                                        setShowSearchResults(false);
+                                        setSearchTerm('');
+                                        setSearchResults({
+                                            sounds: [],
+                                            artists: [],
+                                            clips: [],
+                                            competitions: [],
+                                            events: []
+                                        });
+                                    }}
+                                    className="close-search-btn"
+                                >
+                                    <FontAwesomeIcon icon={faTimes} className="me-1" />
+                                    Fermer
+                                </Button>
+                            </div>
+
+                            {/* Résultats Sons */}
+                            {searchResults.sounds.length > 0 && (
+                                <div className="search-category-section">
+                                    <h6 className="category-title">
+                                        <FontAwesomeIcon icon={faMusic} className="me-2" />
+                                        Sons ({searchResults.sounds.length})
+                                    </h6>
+                                    <Row className="g-3">
+                                        {searchResults.sounds.map((sound, index) => (
+                                            <Col md={4} sm={6} key={sound.id}>
+                                                <Card className="search-result-card">
+                                                    <Card.Body className="p-3">
+                                                        <div className="d-flex align-items-center">
+                                                            <div className="result-icon-container me-3">
+                                                                <FontAwesomeIcon icon={faMusic} className="result-icon" />
+                                                            </div>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="result-title">{sound.title}</h6>
+                                                                <p className="result-subtitle">par {sound.artist || sound.user?.name}</p>
+                                                                <div className="result-stats">
+                                                                    <span className="me-3">
+                                                                        <FontAwesomeIcon icon={faHeadphones} className="me-1" />
+                                                                        {formatNumber(sound.plays_count || 0)}
+                                                                    </span>
+                                                                    <span>
+                                                                        <FontAwesomeIcon icon={faHeart} className="me-1" />
+                                                                        {formatNumber(sound.likes_count || 0)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                onClick={() => handlePlayPause(sound, index)}
+                                                                className="result-action-btn"
+                                                            >
+                                                                <FontAwesomeIcon icon={faPlay} />
+                                                            </Button>
+                                                        </div>
+                                                    </Card.Body>
+                                                </Card>
+                                            </Col>
+                                        ))}
                                     </Row>
-                                </AnimatedElement>
-                            </AnimatedElement>
-                        </Col>
-                    </Row>
-                </Container>
-            </section>
+                                </div>
+                            )}
 
-            {/* Stats Section avec vraies données */}
-            <section className="section-padding bg-white">
-                <Container>
-                    <Row className="text-center g-3">
-                        <Col md={3} sm={6}>
-                            <AnimatedElement animation="scaleIn" delay={200}>
-                                <div className="stat-card">
-                                    <div className="stat-number">{formatNumber(stats.total_sounds || 0)}</div>
-                                    <div className="stat-label">Sons disponibles</div>
+                            {/* Résultats Artistes */}
+                            {searchResults.artists.length > 0 && (
+                                <div className="search-category-section">
+                                    <h6 className="category-title">
+                                        <FontAwesomeIcon icon={faUser} className="me-2" />
+                                        Artistes ({searchResults.artists.length})
+                                    </h6>
+                                    <Row className="g-3">
+                                        {searchResults.artists.map((artist, index) => (
+                                            <Col md={4} sm={6} key={artist.id}>
+                                                <Card className="search-result-card">
+                                                    <Card.Body className="p-3">
+                                                        <div className="d-flex align-items-center">
+                                                            <div className="result-icon-container me-3">
+                                                                <FontAwesomeIcon icon={faUser} className="result-icon" />
+                                                            </div>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="result-title">{artist.name}</h6>
+                                                                <p className="result-subtitle">{artist.role || 'Artiste'}</p>
+                                                                <div className="result-stats">
+                                                                    <span className="me-3">
+                                                                        <FontAwesomeIcon icon={faUsers} className="me-1" />
+                                                                        {formatNumber(artist.followers_count || 0)} followers
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                as={Link}
+                                                                to={`/artists/${artist.id}`}
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                className="result-action-btn"
+                                                            >
+                                                                <FontAwesomeIcon icon={faEye} />
+                                                            </Button>
+                                                        </div>
+                                                    </Card.Body>
+                                                </Card>
+                                            </Col>
+                                        ))}
+                                    </Row>
                                 </div>
-                            </AnimatedElement>
-                        </Col>
-                        <Col md={3} sm={6}>
-                            <AnimatedElement animation="scaleIn" delay={300}>
-                                <div className="stat-card">
-                                    <div className="stat-number">{formatNumber(stats.total_artists || 0)}</div>
-                                    <div className="stat-label">Artistes</div>
-                                </div>
-                            </AnimatedElement>
-                        </Col>
-                        <Col md={3} sm={6}>
-                            <AnimatedElement animation="scaleIn" delay={400}>
-                                <div className="stat-card">
-                                    <div className="stat-number">{formatNumber(stats.total_events || 0)}</div>
-                                    <div className="stat-label">Événements</div>
-                                </div>
-                            </AnimatedElement>
-                        </Col>
-                        <Col md={3} sm={6}>
-                            <AnimatedElement animation="scaleIn" delay={500}>
-                                <div className="stat-card">
-                                    <div className="stat-number">{formatNumber(stats.total_users || 0)}</div>
-                                    <div className="stat-label">Utilisateurs</div>
-                                </div>
-                            </AnimatedElement>
-                        </Col>
-                    </Row>
-                </Container>
-            </section>
+                            )}
 
-            {/* Actions rapides Section */}
-            <section className="section-padding">
-                <Container>
-                    <Row className="mb-4">
-                        <Col>
-                            <AnimatedElement animation="slideInUp" delay={100}>
-                                <div className="text-center">
-                                    <h2 className="h4 fw-bold mb-2">Partagez votre talent</h2>
-                                    <p className="text-secondary text-sm">Ajoutez vos créations sur reveilart</p>
+                            {/* Résultats Clips avec icônes verticales */}
+                            {searchResults.clips.length > 0 && (
+                                <div className="search-category-section">
+                                    <h6 className="category-title">
+                                        <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                        Clips ({searchResults.clips.length})
+                                    </h6>
+                                    <Row className="g-3">
+                                        {searchResults.clips.map((clip, index) => (
+                                            <Col md={4} sm={6} key={clip.id}>
+                                                <Card className="search-result-card clip-result-card">
+                                                    <Card.Body className="p-3">
+                                                        <div className="d-flex align-items-start">
+                                                            <div className="clip-icon-stack me-3">
+                                                                <div className="clip-icon-container">
+                                                                    <FontAwesomeIcon icon={faVideo} className="clip-main-icon" />
+                                                                </div>
+                                                                <div className="clip-icons-vertical">
+                                                                    <div className="clip-icon-item">
+                                                                        <FontAwesomeIcon icon={faPlay} className="clip-sub-icon" />
+                                                                    </div>
+                                                                    <div className="clip-icon-item">
+                                                                        <FontAwesomeIcon icon={faEye} className="clip-sub-icon" />
+                                                                        <span className="icon-count">{formatNumber(clip.views || 0)}</span>
+                                                                    </div>
+                                                                    <div className="clip-icon-item">
+                                                                        <FontAwesomeIcon icon={faHeart} className="clip-sub-icon" />
+                                                                        <span className="icon-count">{formatNumber(clip.likes || 0)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="result-title">{clip.title}</h6>
+                                                                <p className="result-subtitle">par {clip.user?.name}</p>
+                                                                <div className="clip-metadata">
+                                                                    <span className="clip-duration">
+                                                                        <FontAwesomeIcon icon={faClock} className="me-1" />
+                                                                        {clip.duration || '0:00'}
+                                                                    </span>
+                                                                    {clip.category && (
+                                                                        <Badge bg="light" text="dark" className="ms-2">
+                                                                            {clip.category}
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                as={Link}
+                                                                to={`/clips/${clip.id}`}
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                className="result-action-btn"
+                                                            >
+                                                                <FontAwesomeIcon icon={faPlay} />
+                                                            </Button>
+                                                        </div>
+                                                    </Card.Body>
+                                                </Card>
+                                            </Col>
+                                        ))}
+                                    </Row>
                                 </div>
-                            </AnimatedElement>
-                        </Col>
-                    </Row>
-                    <Row className="justify-content-center">
-                        <Col lg={8}>
-                            <Row className="g-3">
-                                <Col md={6}>
-                                    <AnimatedElement animation="slideInLeft" delay={200}>
-                                        <Card className="quick-action-card h-100 border-0 shadow-sm">
-                                            <Card.Body className="text-center p-4">
-                                                <div className="quick-action-icon mb-3">
-                                                    <FontAwesomeIcon icon={faMusic} className="fa-2x text-primary" />
-                                                </div>
-                                                <Card.Title className="h5 mb-2">Ajouter un Son</Card.Title>
-                                                <Card.Text className="text-secondary mb-3">
-                                                    Partagez vos beats, instrumentales et compositions musicales
-                                                </Card.Text>
-                                                <Button
-                                                    as={Link}
-                                                    to="/add-sound"
-                                                    variant="primary"
-                                                    className="btn-action-quick"
-                                                >
-                                                    <FontAwesomeIcon icon={faMusic} className="me-2" />
-                                                    Ajouter un son
-                                                </Button>
-                                            </Card.Body>
-                                        </Card>
-                                    </AnimatedElement>
-                                </Col>
-                                <Col md={6}>
-                                    <AnimatedElement animation="slideInRight" delay={300}>
-                                        <Card className="quick-action-card h-100 border-0 shadow-sm">
-                                            <Card.Body className="text-center p-4">
-                                                <div className="quick-action-icon mb-3">
-                                                    <FontAwesomeIcon icon={faCalendarAlt} className="fa-2x text-success" />
-                                                </div>
-                                                <Card.Title className="h5 mb-2">Créer un Événement</Card.Title>
-                                                <Card.Text className="text-secondary mb-3">
-                                                    Organisez concerts, showcases et événements musicaux
-                                                </Card.Text>
-                                                <Button
-                                                    as={Link}
-                                                    to="/add-event"
-                                                    variant="success"
-                                                    className="btn-action-quick"
-                                                >
-                                                    <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
-                                                    Créer un événement
-                                                </Button>
-                                            </Card.Body>
-                                        </Card>
-                                    </AnimatedElement>
-                                </Col>
-                            </Row>
-                        </Col>
-                    </Row>
-                </Container>
-            </section>
+                            )}
 
-            {/* Categories Section avec filtrage */}
-            <section className="section-padding">
-                <Container>
-                    <Row className="mb-4">
-                        <Col>
-                            <AnimatedElement animation="slideInUp" delay={100}>
-                                <div className="text-center">
-                                    <h2 className="h4 fw-bold mb-2">Explorer par catégories</h2>
-                                    <p className="text-secondary text-sm">Filtrez le feed par style musical</p>
+                            {/* Résultats Compétitions avec icônes */}
+                            {searchResults.competitions.length > 0 && (
+                                <div className="search-category-section">
+                                    <h6 className="category-title">
+                                        <FontAwesomeIcon icon={faTrophy} className="me-2" />
+                                        Compétitions ({searchResults.competitions.length})
+                                    </h6>
+                                    <Row className="g-3">
+                                        {searchResults.competitions.map((competition, index) => (
+                                            <Col md={4} sm={6} key={competition.id}>
+                                                <Card className="search-result-card competition-result-card">
+                                                    <Card.Body className="p-3">
+                                                        <div className="d-flex align-items-start">
+                                                            <div className="competition-icon-stack me-3">
+                                                                <div className="competition-icon-container">
+                                                                    <FontAwesomeIcon icon={faTrophy} className="competition-main-icon" />
+                                                                </div>
+                                                                <div className="competition-icons-vertical">
+                                                                    <div className="competition-icon-item">
+                                                                        <FontAwesomeIcon icon={faUsers} className="competition-sub-icon" />
+                                                                        <span className="icon-count">{competition.current_participants || 0}</span>
+                                                                    </div>
+                                                                    <div className="competition-icon-item">
+                                                                        <FontAwesomeIcon icon={faClock} className="competition-sub-icon" />
+                                                                        <span className="icon-count">{competition.days_left || 'Bientôt'}</span>
+                                                                    </div>
+                                                                    <div className="competition-icon-item">
+                                                                        <FontAwesomeIcon icon={faGem} className="competition-sub-icon" />
+                                                                        <span className="icon-count">Prix</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="result-title">{competition.title}</h6>
+                                                                <p className="result-subtitle">
+                                                                    {competition.description?.substring(0, 60) || 'Compétition ouverte'}...
+                                                                </p>
+                                                                <div className="competition-metadata">
+                                                                    <div className="prize-info">
+                                                                        <FontAwesomeIcon icon={faGem} className="me-1 text-warning" />
+                                                                        <span className="prize-amount">
+                                                                            {competition.formatted_total_prize_pool || 'Prix à gagner'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="participants-info">
+                                                                        <FontAwesomeIcon icon={faUsers} className="me-1 text-primary" />
+                                                                        <span>
+                                                                            {competition.current_participants || 0}/{competition.max_participants || '∞'} participants
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="time-info">
+                                                                        <FontAwesomeIcon icon={faClock} className="me-1 text-danger" />
+                                                                        <span>
+                                                                            {competition.days_left || 'Bientôt'} jours restants
+                                                                        </span>
+                                                                    </div>
+                                                                    {competition.category && (
+                                                                        <Badge bg="warning" className="category-badge">
+                                                                            <FontAwesomeIcon icon={faTrophy} className="me-1" />
+                                                                            {competition.category}
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="competition-actions mt-3">
+                                                                    <Button
+                                                                        as={Link}
+                                                                        to={`/competitions/${competition.id}`}
+                                                                        variant="warning"
+                                                                        size="sm"
+                                                                        className="w-100"
+                                                                    >
+                                                                        <FontAwesomeIcon icon={faTrophy} className="me-1" />
+                                                                        Participer maintenant
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </Card.Body>
+                                                </Card>
+                                            </Col>
+                                        ))}
+                                    </Row>
                                 </div>
-                            </AnimatedElement>
-                        </Col>
-                    </Row>
-                    <Row className="justify-content-center">
-                        <Col lg={10}>
-                            {loading ? (
-                                <div className="text-center">
-                                    <Spinner animation="border" variant="primary" />
+                            )}
+
+                            {/* Résultats Événements */}
+                            {searchResults.events.length > 0 && (
+                                <div className="search-category-section">
+                                    <h6 className="category-title">
+                                        <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
+                                        Événements ({searchResults.events.length})
+                                    </h6>
+                                    <Row className="g-3">
+                                        {searchResults.events.map((event, index) => (
+                                            <Col md={4} sm={6} key={event.id}>
+                                                <Card className="search-result-card">
+                                                    <Card.Body className="p-3">
+                                                        <div className="d-flex align-items-center">
+                                                            <div className="result-icon-container me-3">
+                                                                <FontAwesomeIcon icon={faCalendarAlt} className="result-icon" />
+                                                            </div>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="result-title">{event.title}</h6>
+                                                                <p className="result-subtitle">{event.city}</p>
+                                                                <div className="result-stats">
+                                                                    <span>
+                                                                        <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
+                                                                        {new Date(event.event_date).toLocaleDateString('fr-FR')}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                as={Link}
+                                                                to={`/events/${event.id}`}
+                                                                variant="outline-warning"
+                                                                size="sm"
+                                                                className="result-action-btn"
+                                                            >
+                                                                <FontAwesomeIcon icon={faTicketAlt} />
+                                                            </Button>
+                                                        </div>
+                                                    </Card.Body>
+                                                </Card>
+                                            </Col>
+                                        ))}
+                                    </Row>
                                 </div>
-                            ) : (
-                                <div className="d-flex flex-wrap justify-content-center gap-2">
-                                    <AnimatedElement animation="bounceIn" delay={100}>
-                                        <button
-                                            onClick={clearFilters}
-                                            className={`category-pill category-pill-animated text-decoration-none ${!activeCategory && activeTab === 'populaires' ? 'active' : ''}`}
+                            )}
+
+                            {/* Aucun résultat */}
+                            {Object.values(searchResults).every(items => items.length === 0) && !isSearching && (
+                                <div className="no-results">
+                                    <div className="text-center py-5">
+                                        <FontAwesomeIcon icon={faSearch} size="3x" className="text-muted mb-3" />
+                                        <h5 className="text-muted">Aucun résultat trouvé</h5>
+                                        <p className="text-muted">Essayez avec d'autres mots-clés</p>
+                                        <Button
+                                            as={Link}
+                                            to="/catalog"
+                                            variant="primary"
                                         >
-                                            Tous les sons
-                                            <Badge bg="light" text="dark" className="ms-2 text-xs">
-                                                {stats.total_sounds || 0}
-                                            </Badge>
-                                        </button>
-                                    </AnimatedElement>
-
-                                    {categories.map((category, index) => (
-                                        <AnimatedElement key={category.id} animation="bounceIn" delay={200 + (index * 100)}>
-                                            <button
-                                                onClick={() => handleCategoryFilter(category.id)}
-                                                className={`category-pill category-pill-animated text-decoration-none ${activeCategory === category.id ? 'active' : ''}`}
-                                            >
-                                                {category.name}
-                                                <Badge bg="light" text="dark" className="ms-2 text-xs">
-                                                    {category.sounds_count || 0}
-                                                </Badge>
-                                            </button>
-                                        </AnimatedElement>
-                                    ))}
+                                            Explorer le catalogue
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </Col>
                     </Row>
                 </Container>
-            </section>
+            )}
 
-            {/* Feed Principal des Sons */}
-            <section className="section-padding bg-white">
-                <Container>
-                    <Row className="mb-4">
-                        <Col md={8}>
-                            <AnimatedElement animation="slideInLeft" delay={100}>
-                                <h3 className="h4 fw-bold mb-2">
-                                    <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
-                                    Feed Musical
-                                    {activeCategory && ` - ${categories.find(c => c.id === activeCategory)?.name}`}
-                                </h3>
-                                <p className="text-secondary text-sm">
-                                    Découvrez, écoutez et interagissez avec les dernières créations
-                                </p>
-                            </AnimatedElement>
-                        </Col>
-                        <Col md={4} className="text-md-end">
-                            <AnimatedElement animation="slideInRight" delay={200}>
-                                <Button
-                                    as={Link}
-                                    to="/catalog"
-                                    variant="outline-primary"
-                                    size="sm"
-                                    className="rounded-lg btn-hover-lift"
-                                >
-                                    Voir tout le catalogue
-                                    <FontAwesomeIcon icon={faArrowRight} className="ms-2" />
-                                </Button>
-                            </AnimatedElement>
-                        </Col>
-                    </Row>
-
-                    {/* Navigation Pills pour le tri */}
-                    {!activeCategory && (
-                        <Row className="mb-4">
-                            <Col>
-                                <AnimatedElement animation="slideInUp" delay={300}>
-                                    <Nav variant="pills" className="nav-fill justify-content-center">
-                                        {[
-                                            { key: 'populaires', label: 'Populaires', icon: faFire },
-                                            { key: 'recents', label: 'Récents', icon: faStopwatch },
-                                            { key: 'gratuits', label: 'Gratuits', icon: faHeart },
-                                            { key: 'premium', label: 'Premium', icon: faStar }
-                                        ].map((tab) => (
-                                            <Nav.Item key={tab.key} className="mx-1">
-                                                <Nav.Link
-                                                    active={activeTab === tab.key}
-                                                    className="text-sm rounded-lg nav-pill-animated"
-                                                    onClick={() => handleTabFilter(tab.key)}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <FontAwesomeIcon icon={tab.icon} className="me-2" />
-                                                    {tab.label}
-                                                </Nav.Link>
-                                            </Nav.Item>
-                                        ))}
-                                    </Nav>
-                                </AnimatedElement>
-                            </Col>
-                        </Row>
-                    )}
-
-                    {/* Feed des Sons */}
-                    {soundsLoading ? (
-                        <div className="text-center py-5">
-                            <Spinner animation="border" variant="primary" size="lg" />
-                            <p className="mt-2 text-muted">Chargement du feed...</p>
-                        </div>
-                    ) : sounds.length === 0 ? (
-                        <div className="text-center py-5">
-                            <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucun son trouvé</h5>
-                            <p className="text-muted">Aucun son ne correspond à vos critères.</p>
-                            <Button variant="outline-primary" onClick={clearFilters}>
-                                <FontAwesomeIcon icon={faArrowRight} className="me-2" />
-                                Voir tous les sons
-                            </Button>
-                        </div>
-                    ) : (
-                        <Row className="g-4">
-                            {sounds.map((sound, index) => (
-                                <Col key={sound.id} lg={4} md={6}>
-                                    <AnimatedElement
-                                        animation={index % 2 === 0 ? "slideInLeft" : "slideInRight"}
-                                        delay={400 + (index * 100)}
-                                    >
-                                        <Card className="sound-feed-card border-0 shadow-sm h-100">
-                                            {/* Header de la carte avec info artiste */}
-                                            <div className="p-3 border-bottom">
-                                                <div className="d-flex align-items-center justify-content-between">
-                                                    <div className="d-flex align-items-center">
-                                                        <div className="avatar-circle me-3">
-                                                            <img
-                                                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(sound.artist)}&background=667eea&color=fff&size=40`}
-                                                                alt={sound.artist}
-                                                                className="rounded-circle"
-                                                                style={{ width: '40px', height: '40px' }}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <h6 className="mb-0">
-                                                                <Link
-                                                                    to={`/artist/${sound.artistId}`}
-                                                                    className="text-decoration-none fw-bold"
-                                                                >
-                                                                    {sound.artist}
-                                                                </Link>
-                                                            </h6>
-                                                            <small className="text-muted">
-                                                                {sound.created_at} • {sound.category}
-                                                            </small>
-                                                        </div>
-                                                    </div>
-                                                    {user && (
-                                                        <Button
-                                                            variant={followedArtists.has(sound.artistId) ? "primary" : "outline-primary"}
-                                                            size="sm"
-                                                            onClick={() => handleFollowArtist(sound.artistId)}
-                                                            className="btn-follow"
-                                                        >
-                                                            <FontAwesomeIcon
-                                                                icon={followedArtists.has(sound.artistId) ? faCheck : faUserPlus}
-                                                                className="me-1"
-                                                            />
-                                                            {followedArtists.has(sound.artistId) ? 'Suivi' : 'Suivre'}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Image et lecteur */}
-                                            <div className="position-relative">
-                                                <Card.Img
-                                                    variant="top"
-                                                    src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop`}
-                                                    alt={sound.title}
-                                                    className="sound-feed-image"
+            <Container fluid className="feed-container">
+                <Row className="g-0">
+                    {/* Sidebar gauche - Artistes à suivre */}
+                    <Col xl={3} lg={4} className="sidebar-left d-none d-lg-block">
+                        <div className="sticky-sidebar">
+                            <Card className="artist-suggestions">
+                                <Card.Header className="border-0 bg-transparent">
+                                    <h6 className="fw-bold mb-0">
+                                        <FontAwesomeIcon icon={faUsers} className="me-2 text-primary" />
+                                        Artistes suggérés
+                                    </h6>
+                                </Card.Header>
+                                <Card.Body className="p-0">
+                                    {(artists && Array.isArray(artists) ? artists : []).slice(0, 5).map((artist, index) => (
+                                        <div key={artist.id} className="artist-suggestion-item" style={{ animationDelay: `${index * 0.1}s` }}>
+                                            <div className="d-flex align-items-center p-3">
+                                                <img
+                                                    src={artist.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&size=50`}
+                                                    alt={artist.name}
+                                                    className="artist-avatar"
                                                 />
-                                                <div className="sound-overlay">
+                                                <div className="flex-grow-1 ms-3">
+                                                    <h6 className="mb-1">{artist.name}</h6>
+                                                    <small className="text-muted">{formatNumber(artist.followers_count)} followers</small>
+                                                </div>
+                                                <Button
+                                                    variant={followingArtists.has(artist.id) ? "outline-primary" : "primary"}
+                                                    size="sm"
+                                                    className="follow-btn"
+                                                    onClick={() => handleFollowArtist(artist.id)}
+                                                >
+                                                    <FontAwesomeIcon
+                                                        icon={followingArtists.has(artist.id) ? faUsers : faUserPlus}
+                                                    />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="p-3 border-top">
+                                        <Button
+                                            as={Link}
+                                            to="/artists"
+                                            variant="outline-primary"
+                                            size="sm"
+                                            className="w-100"
+                                        >
+                                            Voir tous les artistes
+                                        </Button>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+
+                            {/* Catégories rapides */}
+                            <Card className="categories-quick mt-4">
+                                <Card.Header className="border-0 bg-transparent">
+                                    <h6 className="fw-bold mb-0">
+                                        <FontAwesomeIcon icon={faMusic} className="me-2 text-success" />
+                                        Genres populaires
+                                    </h6>
+                                </Card.Header>
+                                <Card.Body>
+                                    <div className="category-tags">
+                                        {(categories && Array.isArray(categories) ? categories : []).slice(0, 8).map((category, index) => (
+                                            <Badge
+                                                key={category.id}
+                                                as={Link}
+                                                to={`/category/${category.id}`}
+                                                bg="light"
+                                                text="dark"
+                                                className="category-tag"
+                                                style={{ animationDelay: `${index * 0.1}s` }}
+                                            >
+                                                {category.name}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </div>
+                    </Col>
+
+                    {/* Contenu principal - Feed */}
+                    <Col xl={6} lg={8} className="main-feed">
+                        <div className="feed-content">
+                            {/* Hero section simplifié */}
+                            <div className="hero-card">
+                                <Card className="border-0 shadow-sm">
+                                    <Card.Body className="text-center py-5">
+                                        <div className="hero-content">
+                                            <h2 className="fw-bold mb-3">
+                                                Découvrez la musique
+                                                <span className="text-primary"> camerounaise</span>
+                                            </h2>
+                                            <p className="text-muted mb-4">
+                                                Explorez les talents locaux et soutenez la créativité
+                                            </p>
+                                            <div className="hero-actions">
+                                                <Button
+                                                    as={Link}
+                                                    to="/catalog"
+                                                    variant="primary"
+                                                    size="lg"
+                                                    className="me-3"
+                                                >
+                                                    <FontAwesomeIcon icon={faMusic} className="me-2" />
+                                                    Explorer les sons
+                                                </Button>
+                                                <Button
+                                                    as={Link}
+                                                    to="/events"
+                                                    variant="outline-primary"
+                                                    size="lg"
+                                                >
+                                                    <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
+                                                    Événements
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </Card.Body>
+                                </Card>
+                            </div>
+
+                            {/* Feed des sons */}
+                            <div className="sounds-feed">
+                                <h5 className="feed-section-title">
+                                    <FontAwesomeIcon icon={faHeadphones} className="me-2" />
+                                    Sons tendances
+                                </h5>
+
+                                <div className="sounds-grid">
+                                    {(sounds && Array.isArray(sounds) ? sounds : []).map((sound, index) => (
+                                        <Card key={sound.id} className="sound-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                                            <div className="sound-cover">
+                                                <div className="music-icon-cover">
+                                                    <FontAwesomeIcon
+                                                        icon={faMusic}
+                                                        className="music-icon-large"
+                                                    />
+                                                </div>
+                                                <div className="play-overlay">
                                                     <Button
-                                                        className="play-button-large"
+                                                        variant="light"
+                                                        className="play-btn"
+                                                        size="lg"
                                                         onClick={() => handlePlayPause(sound, index)}
                                                     >
-                                                        <FontAwesomeIcon
-                                                            icon={currentPlaying?.id === sound.id && isPlaying ? faPause : faPlay}
-                                                            size="lg"
-                                                        />
+                                                        <FontAwesomeIcon icon={faPlay} />
                                                     </Button>
                                                 </div>
-                                                {sound.is_free && (
-                                                    <Badge bg="success" className="position-absolute top-0 start-0 m-2">
-                                                        Gratuit
-                                                    </Badge>
-                                                )}
-                                                {sound.is_featured && (
-                                                    <Badge bg="danger" className="position-absolute top-0 end-0 m-2">
-                                                        <FontAwesomeIcon icon={faFire} className="me-1" />
-                                                        Vedette
-                                                    </Badge>
-                                                )}
                                             </div>
 
-                                            {/* Contenu */}
                                             <Card.Body className="p-3">
-                                                <h5 className="fw-bold mb-2">{sound.title}</h5>
+                                                <div className="sound-info">
+                                                    <h6 className="sound-title">{sound.title}</h6>
+                                                    <p className="sound-artist">par {sound.artist || sound.user?.name}</p>
 
-                                                {/* Métadonnées du son */}
-                                                <div className="d-flex align-items-center gap-3 mb-3">
-                                                    {sound.genre && (
-                                                        <Badge bg="light" text="dark" className="genre-badge">
-                                                            {sound.genre}
-                                                        </Badge>
-                                                    )}
-                                                    {sound.bpm && (
-                                                        <small className="text-muted">
-                                                            <FontAwesomeIcon icon={faMusic} className="me-1" />
-                                                            {sound.bpm} BPM
-                                                        </small>
-                                                    )}
-                                                    <small className="text-muted">
-                                                        <FontAwesomeIcon icon={faClock} className="me-1" />
-                                                        {sound.duration}
-                                                    </small>
-                                                </div>
-
-                                                {/* Prix */}
-                                                <div className="mb-3">
-                                                    {sound.is_free ? (
-                                                        <span className="h5 text-success fw-bold">Gratuit</span>
-                                                    ) : (
-                                                        <span className="h5 text-primary fw-bold">
-                                                            {formatCurrency(sound.price)}
+                                                    <div className="sound-stats">
+                                                        <span className="stat-item">
+                                                            <FontAwesomeIcon icon={faHeadphones} />
+                                                            {formatNumber(sound.plays_count || 0)}
                                                         </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Statistiques et actions */}
-                                                <div className="d-flex justify-content-between align-items-center">
-                                                    <div className="d-flex gap-3">
-                                                        <Button
-                                                            variant="link"
-                                                            size="sm"
-                                                            className={`p-0 stat-button ${likedSounds.has(sound.id) ? 'text-danger' : 'text-muted'}`}
-                                                            onClick={() => handleLike(sound.id)}
-                                                        >
-                                                            <FontAwesomeIcon icon={faHeart} className="me-1" />
-                                                            {formatNumber(sound.likes || 0)}
-                                                        </Button>
-                                                        <span className="small text-muted">
-                                                            <FontAwesomeIcon icon={faPlay} className="me-1" />
-                                                            {formatNumber(sound.plays || 0)}
+                                                        <span className="stat-item">
+                                                            <FontAwesomeIcon icon={faHeart} />
+                                                            {formatNumber(sound.likes_count || 0)}
                                                         </span>
-                                                        <span className="small text-muted">
-                                                            <FontAwesomeIcon icon={faDownload} className="me-1" />
-                                                            {formatNumber(sound.downloads || 0)}
+                                                        <span className="stat-item">
+                                                            <FontAwesomeIcon icon={faDownload} />
+                                                            {formatNumber(sound.downloads_count || 0)}
                                                         </span>
                                                     </div>
+                                                </div>
 
-                                                    <div className="d-flex gap-2">
-                                                        <Button
-                                                            variant="outline-primary"
-                                                            size="sm"
-                                                            className="btn-cart"
-                                                        >
-                                                            <FontAwesomeIcon icon={faShoppingCart} />
-                                                        </Button>
+                                                <div className="sound-actions">
+                                                    <Button
+                                                        variant={likedSounds.has(sound.id) ? "danger" : "outline-secondary"}
+                                                        size="sm"
+                                                        className="action-btn"
+                                                        onClick={() => handleLike(sound.id)}
+                                                    >
+                                                        <FontAwesomeIcon icon={faHeart} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline-secondary"
+                                                        size="sm"
+                                                        className="action-btn"
+                                                    >
+                                                        <FontAwesomeIcon icon={faShare} />
+                                                    </Button>
+                                                    <Button
+                                                        as={Link}
+                                                        to={`/sounds/${sound.id}`}
+                                                        variant="primary"
+                                                        size="sm"
+                                                        className="flex-grow-1 ms-2"
+                                                    >
+                                                        Écouter
+                                                    </Button>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                </div>
+
+                                <div className="text-center mt-4">
+                                    <Button
+                                        as={Link}
+                                        to="/catalog"
+                                        variant="outline-primary"
+                                        size="lg"
+                                    >
+                                        Voir plus de sons
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Feed des clips */}
+                            <div className="clips-feed mt-5">
+                                <h5 className="feed-section-title">
+                                    <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                    Clips tendances
+                                </h5>
+
+                                <div className="clips-grid">
+                                    {(clips && Array.isArray(clips) ? clips : []).slice(0, 6).map((clip, index) => (
+                                        <Card key={clip.id} className="clip-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                                            <Card.Body className="p-3">
+                                                <div className="d-flex align-items-start">
+                                                    <div className="clip-icon-stack me-3">
+                                                        <div className="clip-icon-container">
+                                                            <FontAwesomeIcon icon={faVideo} className="clip-main-icon" />
+                                                        </div>
+                                                        <div className="clip-icons-vertical">
+                                                            <div className="clip-icon-item">
+                                                                <FontAwesomeIcon icon={faPlay} className="clip-sub-icon" />
+                                                            </div>
+                                                            <div className="clip-icon-item">
+                                                                <FontAwesomeIcon icon={faEye} className="clip-sub-icon" />
+                                                                <span className="icon-count">{formatNumber(clip.views || 0)}</span>
+                                                            </div>
+                                                            <div className="clip-icon-item">
+                                                                <FontAwesomeIcon icon={faHeart} className="clip-sub-icon" />
+                                                                <span className="icon-count">{formatNumber(clip.likes || 0)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex-grow-1">
+                                                        <h6 className="clip-title">{clip.title}</h6>
+                                                        <div className="clip-artist">
+                                                            <FontAwesomeIcon icon={faUser} className="me-1 text-muted" />
+                                                            par {clip.user?.name}
+                                                        </div>
+
+                                                        <div className="clip-metadata">
+                                                            <span className="clip-duration">
+                                                                <FontAwesomeIcon icon={faClock} className="me-1" />
+                                                                {clip.duration || '0:00'}
+                                                            </span>
+                                                            {clip.category && (
+                                                                <Badge bg="light" text="dark" className="ms-2">
+                                                                    <FontAwesomeIcon icon={faVideo} className="me-1" />
+                                                                    {clip.category}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="clip-actions mt-3">
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                className="action-btn me-2"
+                                                                title="J'aime"
+                                                            >
+                                                                <FontAwesomeIcon icon={faHeart} />
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline-primary"
+                                                                size="sm"
+                                                                className="action-btn me-2"
+                                                                title="Partager"
+                                                            >
+                                                                <FontAwesomeIcon icon={faShare} />
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline-secondary"
+                                                                size="sm"
+                                                                className="action-btn me-2"
+                                                                title="Ajouter aux favoris"
+                                                            >
+                                                                <FontAwesomeIcon icon={faStar} />
+                                                            </Button>
+                                                            <Button
+                                                                as={Link}
+                                                                to={`/clips/${clip.id}`}
+                                                                variant="primary"
+                                                                size="sm"
+                                                                className="flex-grow-1"
+                                                            >
+                                                                <FontAwesomeIcon icon={faPlay} className="me-1" />
+                                                                Regarder
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                </div>
+
+                                <div className="text-center mt-4">
+                                    <Button
+                                        as={Link}
+                                        to="/clips"
+                                        variant="outline-primary"
+                                        size="lg"
+                                    >
+                                        <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                        Voir plus de clips
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Feed des compétitions */}
+                            <div className="competitions-feed mt-5">
+                                <h5 className="feed-section-title">
+                                    <FontAwesomeIcon icon={faTrophy} className="me-2" />
+                                    Compétitions ouvertes
+                                </h5>
+
+                                <div className="competitions-grid">
+                                    {(competitions && Array.isArray(competitions) ? competitions : []).slice(0, 4).map((competition, index) => (
+                                        <Card key={competition.id} className="competition-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                                            <Card.Body className="p-3">
+                                                <div className="d-flex align-items-start">
+                                                    <div className="competition-icon-stack me-3">
+                                                        <div className="competition-icon-container">
+                                                            <FontAwesomeIcon icon={faTrophy} className="competition-main-icon" />
+                                                        </div>
+                                                        <div className="competition-icons-vertical">
+                                                            <div className="competition-icon-item">
+                                                                <FontAwesomeIcon icon={faUsers} className="competition-sub-icon" />
+                                                                <span className="icon-count">{competition.current_participants || 0}</span>
+                                                            </div>
+                                                            <div className="competition-icon-item">
+                                                                <FontAwesomeIcon icon={faClock} className="competition-sub-icon" />
+                                                                <span className="icon-count">{competition.days_left || 'Bientôt'}</span>
+                                                            </div>
+                                                            <div className="competition-icon-item">
+                                                                <FontAwesomeIcon icon={faGem} className="competition-sub-icon" />
+                                                                <span className="icon-count">Prix</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex-grow-1">
+                                                        <h6 className="competition-title">{competition.title}</h6>
+                                                        <p className="competition-description">
+                                                            {competition.description?.substring(0, 80) || 'Participez à cette compétition'}...
+                                                        </p>
+
+                                                        <div className="competition-metadata">
+                                                            <div className="prize-info">
+                                                                <FontAwesomeIcon icon={faGem} className="me-1 text-warning" />
+                                                                <span className="prize-amount">
+                                                                    {competition.formatted_total_prize_pool || 'Prix à gagner'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="participants-info">
+                                                                <FontAwesomeIcon icon={faUsers} className="me-1 text-primary" />
+                                                                <span>
+                                                                    {competition.current_participants || 0}/{competition.max_participants || '∞'} participants
+                                                                </span>
+                                                            </div>
+                                                            <div className="time-info">
+                                                                <FontAwesomeIcon icon={faClock} className="me-1 text-danger" />
+                                                                <span>
+                                                                    {competition.days_left || 'Bientôt'} jours restants
+                                                                </span>
+                                                            </div>
+                                                            {competition.category && (
+                                                                <Badge bg="warning" className="category-badge">
+                                                                    <FontAwesomeIcon icon={faTrophy} className="me-1" />
+                                                                    {competition.category}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="competition-actions mt-3">
+                                                            <Button
+                                                                as={Link}
+                                                                to={`/competitions/${competition.id}`}
+                                                                variant="warning"
+                                                                size="sm"
+                                                                className="w-100"
+                                                            >
+                                                                <FontAwesomeIcon icon={faTrophy} className="me-1" />
+                                                                Participer maintenant
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    ))}
+                                </div>
+
+                                <div className="text-center mt-4">
+                                    <Button
+                                        as={Link}
+                                        to="/competitions"
+                                        variant="outline-warning"
+                                        size="lg"
+                                    >
+                                        <FontAwesomeIcon icon={faTrophy} className="me-2" />
+                                        Voir toutes les compétitions
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </Col>
+
+                    {/* Sidebar droite - Événements */}
+                    <Col xl={3} className="sidebar-right d-none d-xl-block">
+                        <div className="sticky-sidebar">
+                            <Card className="events-sidebar">
+                                <Card.Header className="border-0 bg-transparent">
+                                    <h6 className="fw-bold mb-0">
+                                        <FontAwesomeIcon icon={faCalendarAlt} className="me-2 text-warning" />
+                                        Événements à venir
+                                    </h6>
+                                </Card.Header>
+                                <Card.Body className="p-0">
+                                    {(events && Array.isArray(events) ? events : []).slice(0, 4).map((event, index) => (
+                                        <div key={event.id} className="event-item" style={{ animationDelay: `${index * 0.1}s` }}>
+                                            <div className="p-3 border-bottom">
+                                                <div className="d-flex">
+                                                    <div className="event-date">
+                                                        <div className="date-day">{new Date(event.event_date).getDate()}</div>
+                                                        <div className="date-month">
+                                                            {new Date(event.event_date).toLocaleDateString('fr-FR', { month: 'short' })}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex-grow-1 ms-3">
+                                                        <h6 className="event-title">{event.title}</h6>
+                                                        <p className="event-location">{event.city}</p>
                                                         <Button
                                                             as={Link}
-                                                            to={`/sound/${sound.id}`}
-                                                            variant="primary"
+                                                            to={`/events/${event.id}`}
+                                                            variant="outline-primary"
                                                             size="sm"
-                                                            className="btn-details"
                                                         >
-                                                            <FontAwesomeIcon icon={faEye} className="me-1" />
                                                             Détails
                                                         </Button>
                                                     </div>
                                                 </div>
-                                            </Card.Body>
-                                        </Card>
-                                    </AnimatedElement>
-                                </Col>
-                            ))}
-                        </Row>
-                    )}
-                </Container>
-            </section>
-
-            {/* Section Événements à venir */}
-            {events.length > 0 && (
-                <section className="section-padding">
-                    <Container>
-                        <Row className="mb-4">
-                            <Col md={8}>
-                                <AnimatedElement animation="slideInLeft" delay={100}>
-                                    <h3 className="h4 fw-bold mb-2">
-                                        <FontAwesomeIcon icon={faCalendarAlt} className="me-2 text-success" />
-                                        Événements à venir
-                                    </h3>
-                                    <p className="text-secondary text-sm">
-                                        Ne ratez pas les prochains événements musicaux
-                                    </p>
-                                </AnimatedElement>
-                            </Col>
-                            <Col md={4} className="text-md-end">
-                                <AnimatedElement animation="slideInRight" delay={200}>
-                                    <Button
-                                        as={Link}
-                                        to="/events"
-                                        variant="outline-success"
-                                        size="sm"
-                                        className="rounded-lg btn-hover-lift"
-                                    >
-                                        Tous les événements
-                                        <FontAwesomeIcon icon={faArrowRight} className="ms-2" />
-                                    </Button>
-                                </AnimatedElement>
-                            </Col>
-                        </Row>
-                        <Row className="g-4">
-                            {events.map((event, index) => (
-                                <Col key={event.id} lg={6} md={6}>
-                                    <AnimatedElement animation="slideInUp" delay={300 + (index * 100)}>
-                                        <Card className="event-card border-0 shadow-sm h-100">
-                                            <div className="position-relative">
-                                                <Card.Img
-                                                    variant="top"
-                                                    src={event.poster_image || `https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=200&fit=crop`}
-                                                    alt={event.title}
-                                                    className="event-image"
-                                                />
-                                                <div className="event-date-badge">
-                                                    <div className="text-center">
-                                                        <div className="fw-bold">{new Date(event.event_date).getDate()}</div>
-                                                        <small>{new Date(event.event_date).toLocaleDateString('fr-FR', { month: 'short' })}</small>
-                                                    </div>
-                                                </div>
                                             </div>
-                                            <Card.Body>
-                                                <h5 className="fw-bold mb-2">{event.title}</h5>
-                                                <div className="mb-2">
-                                                    <small className="text-muted">
-                                                        <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                                                        {event.venue || event.location} • {event.city}
-                                                    </small>
-                                                </div>
-                                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                                    <div>
-                                                        <small className="text-muted">
-                                                            <FontAwesomeIcon icon={faClock} className="me-1" />
-                                                            {event.start_time}
-                                                        </small>
-                                                    </div>
-                                                    <div>
-                                                        <small className="text-muted">
-                                                            <FontAwesomeIcon icon={faUsers} className="me-1" />
-                                                            {event.current_attendees}/{event.capacity}
-                                                        </small>
-                                                    </div>
-                                                </div>
-                                                <div className="d-flex justify-content-between align-items-center">
-                                                    <div>
-                                                        {event.is_free ? (
-                                                            <span className="h6 text-success fw-bold">Gratuit</span>
-                                                        ) : (
-                                                            <span className="h6 text-primary fw-bold">
-                                                                {formatCurrency(event.ticket_price)}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <Button
-                                                        as={Link}
-                                                        to={`/events/${event.id}`}
-                                                        variant="primary"
-                                                        size="sm"
-                                                    >
-                                                        <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
-                                                        Réserver
-                                                    </Button>
-                                                </div>
-                                            </Card.Body>
-                                        </Card>
-                                    </AnimatedElement>
-                                </Col>
-                            ))}
-                        </Row>
-                    </Container>
-                </section>
-            )}
+                                        </div>
+                                    ))}
+                                    <div className="p-3">
+                                        <Button
+                                            as={Link}
+                                            to="/events"
+                                            variant="outline-warning"
+                                            size="sm"
+                                            className="w-100"
+                                        >
+                                            Tous les événements
+                                        </Button>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+                        </div>
+                    </Col>
+                </Row>
+            </Container>
 
             {/* Lecteur Audio Flottant */}
             {showAudioPlayer && currentPlaying && (
@@ -1103,180 +1614,520 @@ const Home = () => {
             )}
 
             <style jsx>{`
-                /* Enhanced animations and effects */
-                .btn-glow {
-                    position: relative;
-                    overflow: hidden;
-                    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+                .social-feed {
+                    min-height: 100vh;
+                    background: #f8f9fa;
+                    padding-top: 80px;
+                }
+
+                .feed-header {
+                    background: white;
+                    border-bottom: 1px solid #e9ecef;
+                    position: sticky;
+                    top: 70px;
+                    z-index: 10;
+                }
+
+                /* Styles pour la recherche */
+                .search-results-section {
+                    background: white;
+                    border-bottom: 1px solid #e9ecef;
+                    padding: 20px 0;
+                    animation: slideInDown 0.5s ease-out;
+                }
+
+                .search-results-header {
+                    display: flex;
+                    justify-content: between;
+                    align-items: center;
+                    margin-bottom: 30px;
+                }
+
+                .close-search-btn {
+                    border-radius: 20px;
                     transition: all 0.3s ease;
                 }
 
-                .btn-glow:hover {
-                    box-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
-                    transform: translateY(-2px);
-                }
-
-                .btn-pulse {
-                    animation: pulse 2s infinite;
-                }
-
-                .btn-hover-lift:hover {
-                    transform: translateY(-3px);
-                    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.2);
-                }
-
-                .stat-card {
-                    padding: 1rem;
-                    border-radius: 12px;
-                    transition: all 0.3s ease;
-                    background: rgba(139, 92, 246, 0.05);
-                    border: 1px solid rgba(139, 92, 246, 0.1);
-                }
-
-                .stat-card:hover {
-                    transform: translateY(-5px);
-                    background: rgba(139, 92, 246, 0.1);
-                    box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15);
-                }
-
-                .stat-number {
-                    font-size: 1.8rem;
-                    font-weight: bold;
-                    color: #8B5CF6;
-                    margin-bottom: 0.5rem;
-                }
-
-                .stat-label {
-                    color: #6B7280;
-                    font-size: 0.9rem;
-                }
-
-                .category-pill {
-                    display: inline-block;
-                    padding: 0.5rem 1rem;
-                    margin: 0.25rem;
-                    background: rgba(139, 92, 246, 0.1);
-                    border: 1px solid rgba(139, 92, 246, 0.2);
-                    border-radius: 25px;
-                    color: #8B5CF6;
-                    text-decoration: none;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-
-                .category-pill.active {
-                    background: #8B5CF6;
-                    color: white;
-                    border-color: #8B5CF6;
+                .close-search-btn:hover {
                     transform: scale(1.05);
-                    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                 }
 
-                .category-pill.active .badge {
-                    background: rgba(255, 255, 255, 0.2) !important;
-                    color: white !important;
+                .search-category-section {
+                    margin-bottom: 40px;
+                    animation: fadeInUp 0.6s ease-out;
                 }
 
-                .category-pill-animated {
-                    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-                    position: relative;
-                    overflow: hidden;
+                .category-title {
+                    color: #333;
+                    font-weight: 600;
+                    margin-bottom: 20px;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #667eea;
                 }
 
-                .category-pill-animated::before {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: -100%;
-                    width: 100%;
-                    height: 100%;
-                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-                    transition: left 0.5s;
-                }
-
-                .category-pill-animated:hover::before {
-                    left: 100%;
-                }
-
-                .category-pill-animated:hover {
-                    transform: translateY(-3px) scale(1.05);
-                    box-shadow: 0 8px 20px rgba(139, 92, 246, 0.25);
-                    color: white;
-                    background: #8B5CF6;
-                }
-
-                .quick-action-card {
-                    transition: all 0.3s ease;
+                .search-result-card {
+                    border: none;
                     border-radius: 15px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    transition: all 0.3s ease;
+                    animation: slideInUp 0.5s ease-out;
                 }
 
-                .quick-action-card:hover {
+                .search-result-card:hover {
                     transform: translateY(-5px);
-                    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
                 }
 
-                .quick-action-icon {
-                    width: 60px;
-                    height: 60px;
-                    margin: 0 auto;
+                .result-icon-container {
+                    width: 50px;
+                    height: 50px;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    border-radius: 15px;
-                    background: rgba(139, 92, 246, 0.1);
+                    flex-shrink: 0;
                 }
 
-                .nav-pill-animated {
-                    position: relative;
-                    overflow: hidden;
+                .result-icon {
+                    color: white;
+                    font-size: 20px;
+                }
+
+                .result-title {
+                    font-weight: 600;
+                    color: #333;
+                    margin-bottom: 5px;
+                    font-size: 16px;
+                }
+
+                .result-subtitle {
+                    color: #666;
+                    font-size: 14px;
+                    margin-bottom: 10px;
+                }
+
+                .result-stats {
+                    font-size: 12px;
+                    color: #999;
+                }
+
+                .result-action-btn {
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
                     transition: all 0.3s ease;
                 }
 
-                .nav-pill-animated::after {
-                    content: '';
-                    position: absolute;
-                    bottom: 0;
-                    left: 50%;
-                    width: 0;
-                    height: 3px;
-                    background: var(--bs-primary);
-                    transition: all 0.3s ease;
-                    transform: translateX(-50%);
+                .result-action-btn:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
                 }
 
-                .nav-pill-animated:hover::after,
-                .nav-pill-animated.active::after {
-                    width: 80%;
+                /* Styles spéciaux pour les clips avec icônes verticales */
+                .clip-result-card, .clip-card {
+                    min-height: 200px;
                 }
 
-                .sound-card-enhanced {
-                    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-                    transform-origin: center;
-                    will-change: transform;
+                .clip-icon-stack {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 10px;
+                    flex-shrink: 0;
+                }
+
+                .clip-icon-container {
+                    width: 60px;
+                    height: 60px;
+                    background: linear-gradient(135deg, #FF6B6B, #4ECDC4);
                     border-radius: 15px;
-                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
                 }
 
-                .sound-card-enhanced:hover {
-                    transform: translateY(-8px);
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+                .clip-main-icon {
+                    color: white;
+                    font-size: 28px;
                 }
 
-                .sound-image {
-                    height: 160px;
+                .clip-icons-vertical {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    align-items: center;
+                }
+
+                .clip-icon-item {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 2px;
+                    padding: 6px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    min-width: 50px;
+                    transition: all 0.3s ease;
+                }
+
+                .clip-icon-item:hover {
+                    background: #e9ecef;
+                    transform: scale(1.05);
+                }
+
+                .clip-sub-icon {
+                    color: #667eea;
+                    font-size: 14px;
+                }
+
+                .icon-count {
+                    font-size: 10px;
+                    color: #666;
+                    font-weight: 500;
+                    line-height: 1;
+                }
+
+                .clip-metadata {
+                    margin: 10px 0;
+                    display: flex;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                }
+
+                .clip-duration {
+                    color: #666;
+                    font-size: 14px;
+                }
+
+                .clip-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                }
+
+                /* Styles spéciaux pour les compétitions avec icônes */
+                .competition-result-card, .competition-card {
+                    min-height: 220px;
+                }
+
+                .competition-icon-stack {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 10px;
+                    flex-shrink: 0;
+                }
+
+                .competition-icon-container {
+                    width: 60px;
+                    height: 60px;
+                    background: linear-gradient(135deg, #FFD700, #FFA500);
+                    border-radius: 15px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+                }
+
+                .competition-main-icon {
+                    color: white;
+                    font-size: 28px;
+                }
+
+                .competition-icons-vertical {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    align-items: center;
+                }
+
+                .competition-icon-item {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 2px;
+                    padding: 4px 6px;
+                    background: #fff3cd;
+                    border-radius: 6px;
+                    min-width: 45px;
+                    transition: all 0.3s ease;
+                    border: 1px solid #ffeaa7;
+                }
+
+                .competition-icon-item:hover {
+                    background: #ffeaa7;
+                    transform: scale(1.05);
+                }
+
+                .competition-sub-icon {
+                    color: #f39c12;
+                    font-size: 12px;
+                }
+
+                .competition-metadata {
+                    margin: 15px 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .prize-info, .participants-info, .time-info {
+                    font-size: 13px;
+                    display: flex;
+                    align-items: center;
+                }
+
+                .prize-amount {
+                    font-weight: 600;
+                    color: #f39c12;
+                }
+
+                .category-badge {
+                    margin-top: 10px;
+                    align-self: flex-start;
+                }
+
+                .no-results {
+                    animation: fadeInUp 0.8s ease-out;
+                }
+
+                .search-input {
+                    border: none;
+                    border-radius: 25px 0 0 25px;
+                    padding: 12px 20px;
+                    font-size: 16px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+
+                .search-btn {
+                    border-radius: 0 25px 25px 0;
+                    border: none;
+                    padding: 12px 20px;
+                    transition: all 0.3s ease;
+                }
+
+                .search-btn:disabled {
+                    opacity: 0.7;
+                }
+
+                .filter-tabs {
+                    display: flex;
+                    gap: 10px;
+                }
+
+                .filter-btn {
+                    border-radius: 20px;
+                    padding: 8px 16px;
+                    border: none;
+                    transition: all 0.3s ease;
+                    animation: slideInRight 0.5s ease-out;
+                }
+
+                .filter-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+
+                .filter-btn.active {
+                    transform: scale(1.05);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+                }
+
+                .feed-container {
+                    max-width: 1400px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+
+                .sidebar-left, .sidebar-right {
+                    padding: 0 15px;
+                }
+
+                .sticky-sidebar {
+                    position: sticky;
+                    top: 150px;
+                }
+
+                .main-feed {
+                    padding: 0 15px;
+                }
+
+                .hero-card {
+                    margin-bottom: 30px;
+                    animation: fadeInUp 0.8s ease-out;
+                }
+
+                .hero-content {
+                    animation: slideInUp 0.8s ease-out 0.2s both;
+                }
+
+                .hero-actions {
+                    animation: slideInUp 0.8s ease-out 0.4s both;
+                }
+
+                .artist-suggestions, .categories-quick, .events-sidebar {
+                    border: none;
+                    border-radius: 15px;
+                    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+                }
+
+                .artist-suggestion-item {
+                    transition: all 0.3s ease;
+                    animation: slideInLeft 0.5s ease-out both;
+                    border-bottom: 1px solid #f8f9fa;
+                }
+
+                .artist-suggestion-item:hover {
+                    background: #f8f9fa;
+                    transform: translateX(5px);
+                }
+
+                .artist-avatar {
+                    width: 45px;
+                    height: 45px;
+                    border-radius: 50%;
                     object-fit: cover;
+                    border: 2px solid #e9ecef;
+                }
+
+                .follow-btn {
+                    border-radius: 50%;
+                    width: 35px;
+                    height: 35px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     transition: all 0.3s ease;
                 }
 
-                .sound-play-overlay {
+                .follow-btn:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                }
+
+                .category-tags {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+
+                .category-tag {
+                    padding: 6px 12px;
+                    border-radius: 15px;
+                    text-decoration: none;
+                    transition: all 0.3s ease;
+                    animation: slideInUp 0.5s ease-out both;
+                    border: 1px solid #e9ecef !important;
+                }
+
+                .category-tag:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                    background: #667eea !important;
+                    color: white !important;
+                }
+
+                .feed-section-title {
+                    margin: 30px 0 20px 0;
+                    color: #333;
+                    font-weight: 600;
+                    animation: slideInLeft 0.6s ease-out;
+                }
+
+                .sounds-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+
+                .clips-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+
+                .competitions-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+
+                .sound-card, .clip-card, .competition-card {
+                    border: none;
+                    border-radius: 15px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+                    transition: all 0.4s ease;
+                    animation: slideInUp 0.6s ease-out both;
+                }
+
+                .sound-card:hover, .clip-card:hover, .competition-card:hover {
+                    transform: translateY(-8px);
+                    box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+                }
+
+                .sound-cover, .clip-cover, .competition-cover {
+                    position: relative;
+                    height: 200px;
+                    overflow: hidden;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .music-icon-cover {
+                    width: 100%;
+                    height: 100%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                }
+
+                .music-icon-large {
+                    font-size: 4rem;
+                    color: rgba(255, 255, 255, 0.3);
+                    transition: all 0.3s ease;
+                }
+
+                .sound-card:hover .music-icon-large {
+                    color: rgba(255, 255, 255, 0.5);
+                    transform: scale(1.1);
+                }
+
+                .cover-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    transition: transform 0.4s ease;
+                }
+
+                .sound-card:hover .cover-image,
+                .clip-card:hover .cover-image,
+                .competition-card:hover .cover-image {
+                    transform: scale(1.1);
+                }
+
+                .play-overlay, .competition-overlay {
                     position: absolute;
                     top: 0;
                     left: 0;
                     right: 0;
                     bottom: 0;
-                    background: rgba(0, 0, 0, 0.3);
+                    background: rgba(0,0,0,0.6);
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -1284,208 +2135,227 @@ const Home = () => {
                     transition: all 0.3s ease;
                 }
 
-                .sound-card:hover .sound-play-overlay {
+                .sound-card:hover .play-overlay,
+                .clip-card:hover .play-overlay {
                     opacity: 1;
                 }
 
-                .play-button-enhanced {
-                    width: 50px;
-                    height: 50px;
-                    border-radius: 50%;
-                    background: rgba(139, 92, 246, 0.9);
-                    border: none;
+                .competition-overlay {
+                    opacity: 1;
+                    background: linear-gradient(45deg, rgba(0,0,0,0.7), rgba(0,0,0,0.3));
+                    justify-content: flex-end;
+                    align-items: flex-start;
+                    padding: 15px;
+                }
+
+                .prize-badge {
+                    background: rgba(255,215,0,0.9);
+                    color: #333;
+                    padding: 8px 12px;
+                    border-radius: 20px;
+                    font-weight: 600;
+                    font-size: 12px;
+                }
+
+                .video-duration {
+                    position: absolute;
+                    bottom: 8px;
+                    right: 8px;
+                    background: rgba(0,0,0,0.8);
                     color: white;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
                     display: flex;
                     align-items: center;
-                    justify-content: center;
-                    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-                    backdrop-filter: blur(10px);
                 }
 
-                .play-button-enhanced:hover {
-                    transform: scale(1.2);
-                    box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
-                    background: rgba(139, 92, 246, 1);
+                .clip-badges {
+                    position: absolute;
+                    bottom: 8px;
+                    left: 8px;
+                    right: 8px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-end;
                 }
 
-                .badge-pulse {
-                    animation: badgePulse 2s infinite;
+                .clip-category-badge {
+                    background: rgba(102, 126, 234, 0.9);
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 0.7rem;
+                    font-weight: 500;
+                    display: flex;
+                    align-items: center;
+                    max-width: 120px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
 
-                .badge-fire {
-                    animation: fire 1.5s infinite alternate;
+                .clip-artist {
+                    color: #666;
+                    font-size: 14px;
+                    margin-bottom: 10px;
+                    display: flex;
+                    align-items: center;
                 }
 
-                .badge-category {
-                    transition: all 0.3s ease;
+                .stat-icon {
+                    margin-right: 4px;
+                    color: #999;
+                    font-size: 12px;
                 }
 
-                .sound-card-enhanced:hover .badge-category {
-                    background: var(--bs-primary) !important;
-                    color: white !important;
-                    transform: scale(1.1);
+                .sound-title {
+                    font-weight: 600;
+                    margin-bottom: 5px;
+                    color: #333;
+                }
+
+                .sound-artist {
+                    color: #666;
+                    font-size: 14px;
+                    margin-bottom: 10px;
+                }
+
+                .sound-stats {
+                    display: flex;
+                    gap: 15px;
+                    margin-bottom: 15px;
                 }
 
                 .stat-item {
-                    transition: all 0.3s ease;
-                    text-decoration: none;
-                    border: none;
-                    background: none;
+                    font-size: 12px;
+                    color: #999;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
                 }
 
-                .stat-item:hover {
-                    transform: scale(1.1);
+                .sound-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                 }
 
-                .price-tag {
-                    font-weight: 600;
-                }
-
-                .btn-view {
+                .action-btn {
+                    width: 35px;
+                    height: 35px;
                     border-radius: 50%;
-                    width: 32px;
-                    height: 32px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    padding: 0;
                     transition: all 0.3s ease;
                 }
 
-                .btn-view:hover {
+                .action-btn:hover {
                     transform: scale(1.1);
                 }
 
-                .event-card {
-                    transition: all 0.3s ease;
-                    border-radius: 12px;
-                }
-
-                .event-card:hover {
-                    transform: translateY(-5px);
-                    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1) !important;
-                }
-
-                .hero-gradient {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    padding: 4rem 0;
-                }
-
-                .section-padding {
-                    padding: 3rem 0;
-                }
-
-                /* Styles pour la barre de recherche moderne */
-                .search-container {
-                    position: relative;
-                }
-
-                .search-input-group {
-                    border-radius: 50px;
-                    overflow: hidden;
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-                    background: white;
-                    border: 3px solid rgba(255, 255, 255, 0.3);
+                .event-item {
+                    animation: slideInRight 0.5s ease-out both;
                     transition: all 0.3s ease;
                 }
 
-                .search-input-group:hover {
-                    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
-                    border-color: rgba(245, 158, 11, 0.5);
-                    transform: translateY(-2px);
+                .event-item:hover {
+                    background: #f8f9fa;
+                    transform: translateX(-5px);
                 }
 
-                .search-input-wrapper {
-                    display: flex;
-                    align-items: center;
-                    position: relative;
-                    width: 100%;
-                    background: white;
-                    border-radius: 50px;
+                .event-date {
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    color: white;
+                    padding: 10px;
+                    border-radius: 10px;
+                    text-align: center;
+                    min-width: 60px;
                 }
 
-                .search-icon {
-                    position: absolute;
-                    left: 20px;
-                    color: #8B5CF6;
-                    font-size: 1.1rem;
-                    z-index: 2;
-                    transition: all 0.3s ease;
+                .date-day {
+                    font-size: 18px;
+                    font-weight: bold;
+                    line-height: 1;
                 }
 
-                .search-input {
-                    border: none !important;
-                    background: transparent !important;
-                    padding: 18px 20px 18px 55px !important;
-                    font-size: 1rem !important;
-                    color: #2D3748 !important;
-                    border-radius: 50px !important;
-                    box-shadow: none !important;
-                    outline: none !important;
-                    flex: 1;
-                    font-weight: 500;
+                .date-month {
+                    font-size: 12px;
+                    text-transform: uppercase;
                 }
 
-                .search-input::placeholder {
-                    color: #A0AEC0 !important;
-                    font-weight: 400;
+                .event-title {
+                    font-size: 14px;
+                    font-weight: 600;
+                    margin-bottom: 5px;
+                    color: #333;
                 }
 
-                .search-input:focus {
-                    box-shadow: none !important;
-                    border: none !important;
-                    outline: none !important;
+                .event-location {
+                    font-size: 12px;
+                    color: #666;
+                    margin-bottom: 10px;
                 }
 
-                .search-input:focus + .search-button {
-                    background: #F59E0B !important;
-                        transform: scale(1.05);
+                .loading-animation {
+                    animation: pulse 1.5s ease-in-out infinite;
                 }
 
-                .search-button {
-                    background: #FDB930 !important;
-                    border: none !important;
-                    border-radius: 50% !important;
-                    width: 50px !important;
-                    height: 50px !important;
-                    position: absolute !important;
-                    right: 5px !important;
-                    top: 50% !important;
-                    transform: translateY(-50%) !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
-                    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55) !important;
-                    z-index: 3;
-                    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3) !important;
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
-                .search-button:hover {
-                    background: #F59E0B !important;
-                    transform: translateY(-50%) scale(1.1) !important;
-                    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4) !important;
+                @keyframes slideInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(40px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
-                .search-button:active {
-                    transform: translateY(-50%) scale(0.95) !important;
+                @keyframes slideInLeft {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
                 }
 
-                .search-button:disabled {
-                    background: #E5E7EB !important;
-                    color: #9CA3AF !important;
-                    cursor: not-allowed !important;
-                    transform: translateY(-50%) !important;
-                    box-shadow: none !important;
+                @keyframes slideInRight {
+                    from {
+                        opacity: 0;
+                        transform: translateX(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
                 }
 
-                .search-container:focus-within .search-icon {
-                    color: #F59E0B;
-                    transform: scale(1.1);
-                }
-
-                .search-container:focus-within .search-input-group {
-                    border-color: rgba(245, 158, 11, 0.6);
-                    box-shadow: 0 15px 40px rgba(245, 158, 11, 0.2);
+                @keyframes slideInDown {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
                 @keyframes pulse {
@@ -1497,23 +2367,55 @@ const Home = () => {
                     }
                 }
 
-                @keyframes badgePulse {
-                    0%, 100% {
-                        transform: scale(1);
-                        opacity: 1;
+                @media (max-width: 1200px) {
+                    .sounds-grid {
+                        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
                     }
-                    50% {
-                        transform: scale(1.1);
-                        opacity: 0.8;
+
+                    .clips-grid {
+                        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                    }
+
+                    .competitions-grid {
+                        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
                     }
                 }
 
-                @keyframes fire {
-                    0% {
-                        transform: scale(1) rotate(-1deg);
+                @media (max-width: 768px) {
+                    .filter-tabs {
+                        flex-wrap: wrap;
+                        gap: 5px;
                     }
-                    100% {
-                        transform: scale(1.05) rotate(1deg);
+
+                    .filter-btn {
+                        font-size: 12px;
+                        padding: 6px 12px;
+                    }
+
+                    .sounds-grid, .clips-grid, .competitions-grid {
+                        grid-template-columns: 1fr;
+                        gap: 15px;
+                    }
+
+                    .hero-actions {
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+
+                    .search-results-header {
+                        flex-direction: column;
+                        gap: 15px;
+                        align-items: flex-start;
+                    }
+
+                    .clip-icon-stack, .competition-icon-stack {
+                        flex-direction: row;
+                        align-items: center;
+                    }
+
+                    .clip-icons-vertical, .competition-icons-vertical {
+                        flex-direction: row;
+                        gap: 5px;
                     }
                 }
             `}</style>

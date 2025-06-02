@@ -6,27 +6,25 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Payment extends Model
+class CompetitionPayment extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
-        'seller_id',
-        'sound_id',
-        'event_id',
         'competition_id',
+        'organizer_id',
         'amount',
-        'seller_amount',
+        'organizer_amount',
         'commission_amount',
         'commission_rate',
-        'type',
-        'status',
         'payment_method',
         'payment_provider',
         'transaction_id',
         'external_payment_id',
+        'status',
         'failure_reason',
+        'currency',
         'metadata',
         'paid_at',
         'refunded_at'
@@ -34,7 +32,7 @@ class Payment extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'seller_amount' => 'decimal:2',
+        'organizer_amount' => 'decimal:2',
         'commission_amount' => 'decimal:2',
         'commission_rate' => 'decimal:2',
         'metadata' => 'array',
@@ -43,35 +41,11 @@ class Payment extends Model
     ];
 
     /**
-     * Relation avec l'utilisateur (acheteur)
+     * Relation avec l'utilisateur (participant)
      */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    /**
-     * Relation avec le vendeur
-     */
-    public function seller(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'seller_id');
-    }
-
-    /**
-     * Relation avec le son
-     */
-    public function sound(): BelongsTo
-    {
-        return $this->belongsTo(Sound::class);
-    }
-
-    /**
-     * Relation avec l'événement
-     */
-    public function event(): BelongsTo
-    {
-        return $this->belongsTo(Event::class);
     }
 
     /**
@@ -83,18 +57,27 @@ class Payment extends Model
     }
 
     /**
+     * Relation avec l'organisateur
+     */
+    public function organizer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'organizer_id');
+    }
+
+    /**
      * Calculer les montants de commission
      */
-    public static function calculateCommission(float $amount, string $type): array
+    public static function calculateCommission(float $amount): array
     {
-        $commissionRate = CommissionSetting::getRate($type . '_commission');
+        // Taux de commission fixe pour les compétitions (ex: 10%)
+        $commissionRate = 10.0;
         $commissionAmount = ($amount * $commissionRate) / 100;
-        $sellerAmount = $amount - $commissionAmount;
+        $organizerAmount = $amount - $commissionAmount;
 
         return [
             'commission_rate' => $commissionRate,
             'commission_amount' => round($commissionAmount, 2),
-            'seller_amount' => round($sellerAmount, 2),
+            'organizer_amount' => round($organizerAmount, 2),
         ];
     }
 
@@ -103,11 +86,12 @@ class Payment extends Model
      */
     public static function createPayment(array $data): self
     {
-        $commission = self::calculateCommission($data['amount'], $data['type']);
+        $commission = self::calculateCommission($data['amount']);
 
         return self::create(array_merge($data, $commission, [
-            'transaction_id' => 'TXN_' . time() . '_' . rand(1000, 9999),
+            'transaction_id' => 'COMP_' . time() . '_' . rand(1000, 9999),
             'status' => 'pending',
+            'currency' => 'XAF',
         ]));
     }
 
@@ -167,39 +151,14 @@ class Payment extends Model
         return $query->where('status', 'refunded');
     }
 
-    public function scopeSounds($query)
+    public function scopeByCompetition($query, $competitionId)
     {
-        return $query->where('type', 'sound');
+        return $query->where('competition_id', $competitionId);
     }
 
-    public function scopeEvents($query)
+    public function scopeByUser($query, $userId)
     {
-        return $query->where('type', 'event');
-    }
-
-    public function scopeCompetitions($query)
-    {
-        return $query->where('type', 'competition_entry');
-    }
-
-    /**
-     * Obtenir le nom du produit acheté
-     */
-    public function getProductNameAttribute(): string
-    {
-        if ($this->type === 'sound' && $this->sound) {
-            return $this->sound->title;
-        }
-
-        if ($this->type === 'event' && $this->event) {
-            return $this->event->title;
-        }
-
-        if ($this->type === 'competition_entry' && $this->competition) {
-            return 'Inscription: ' . $this->competition->title;
-        }
-
-        return 'Produit inconnu';
+        return $query->where('user_id', $userId);
     }
 
     /**
@@ -209,11 +168,37 @@ class Payment extends Model
     {
         return match($this->status) {
             'pending' => 'En attente',
-            'completed' => 'Complété',
-            'failed' => 'Échoué',
+            'completed' => 'Paiement réussi',
+            'failed' => 'Échec du paiement',
             'refunded' => 'Remboursé',
             'cancelled' => 'Annulé',
             default => $this->status,
         };
+    }
+
+    /**
+     * Obtenir le montant formaté
+     */
+    public function getFormattedAmountAttribute(): string
+    {
+        return number_format($this->amount, 0, ',', ' ') . ' XAF';
+    }
+
+    /**
+     * Vérifier si le paiement peut être remboursé
+     */
+    public function canBeRefunded(): bool
+    {
+        return $this->status === 'completed' &&
+               $this->paid_at &&
+               $this->paid_at->diffInDays(now()) <= 30; // Remboursement possible dans les 30 jours
+    }
+
+    /**
+     * Obtenir la description du paiement
+     */
+    public function getDescriptionAttribute(): string
+    {
+        return "Inscription à la compétition: {$this->competition->title}";
     }
 }

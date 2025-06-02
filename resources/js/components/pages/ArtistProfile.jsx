@@ -6,7 +6,8 @@ import {
     faUser, faMusic, faHeart, faPlay, faDownload, faShare,
     faMapMarkerAlt, faCalendar, faCheckCircle, faUsers,
     faHeadphones, faPlus, faUserPlus, faUserCheck, faSpinner,
-    faTicketAlt, faClock, faEuroSign, faArrowLeft, faEye, faStar
+    faTicketAlt, faClock, faEuroSign, faArrowLeft, faEye, faStar,
+    faVideo, faTrophy, faCoins
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -20,6 +21,8 @@ const ArtistProfile = () => {
     const [upcomingEvents, setUpcomingEvents] = useState([]);
     const [popularSounds, setPopularSounds] = useState([]);
     const [recentSounds, setRecentSounds] = useState([]);
+    const [artistClips, setArtistClips] = useState([]);
+    const [artistCompetitions, setArtistCompetitions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
 
@@ -49,6 +52,10 @@ const ArtistProfile = () => {
                 setUpcomingEvents(data.upcoming_events);
                 setPopularSounds(data.popular_sounds);
                 setRecentSounds(data.recent_sounds);
+
+                // Charger les clips et compétitions
+                loadArtistClips();
+                loadArtistCompetitions();
             } else {
                 toast.error('Erreur', 'Artiste non trouvé');
             }
@@ -57,6 +64,40 @@ const ArtistProfile = () => {
             toast.error('Erreur', 'Erreur de connexion au serveur');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadArtistClips = async () => {
+        try {
+            const response = await fetch(`/api/artists/${id}/clips`, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setArtistClips(data.clips || []);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des clips:', error);
+        }
+    };
+
+    const loadArtistCompetitions = async () => {
+        try {
+            const response = await fetch(`/api/artists/${id}/competitions`, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setArtistCompetitions(data.competitions || []);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des compétitions:', error);
         }
     };
 
@@ -392,6 +433,18 @@ const ArtistProfile = () => {
                                         </Nav.Link>
                                     </Nav.Item>
                                     <Nav.Item>
+                                        <Nav.Link eventKey="clips" className="rounded-pill px-4 mx-2">
+                                            <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                            Clips ({artistClips.length})
+                                        </Nav.Link>
+                                    </Nav.Item>
+                                    <Nav.Item>
+                                        <Nav.Link eventKey="competitions" className="rounded-pill px-4 mx-2">
+                                            <FontAwesomeIcon icon={faTrophy} className="me-2" />
+                                            Compétitions ({artistCompetitions.length})
+                                        </Nav.Link>
+                                    </Nav.Item>
+                                    <Nav.Item>
                                         <Nav.Link eventKey="events" className="rounded-pill px-4 mx-2">
                                             <FontAwesomeIcon icon={faCalendar} className="me-2" />
                                             Événements ({upcomingEvents.length})
@@ -424,12 +477,13 @@ const ArtistProfile = () => {
                                                             <Col lg={3} md={4} sm={6} key={sound.id}>
                                                                 <Card className="sound-card border-0 shadow-sm h-100 overflow-hidden">
                                                                     <div className="position-relative">
-                                                                        <img
-                                                                            src={sound.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop`}
-                                                                            alt={sound.title}
-                                                                            className="card-img-top"
-                                                                            style={{ height: '200px', objectFit: 'cover' }}
-                                                                        />
+                                                                        <div className="music-icon-cover" style={{ height: '200px' }}>
+                                                                            <FontAwesomeIcon
+                                                                                icon={faMusic}
+                                                                                className="music-icon-large"
+                                                                                style={{ fontSize: '3rem', color: 'rgba(255,255,255,0.4)' }}
+                                                                            />
+                                                                        </div>
                                                                         <div className="position-absolute top-0 end-0 p-2">
                                                                             {sound.is_featured && (
                                                                                 <Badge bg="warning" className="rounded-pill">
@@ -501,12 +555,13 @@ const ArtistProfile = () => {
                                                                 <Col lg={3} md={4} sm={6} key={sound.id}>
                                                                     <Card className="sound-card border-0 shadow-sm h-100 overflow-hidden">
                                                                         <div className="position-relative">
-                                                                            <img
-                                                                                src={sound.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop`}
-                                                                                alt={sound.title}
-                                                                                className="card-img-top"
-                                                                                style={{ height: '200px', objectFit: 'cover' }}
-                                                                            />
+                                                                            <div className="music-icon-cover" style={{ height: '200px' }}>
+                                                                                <FontAwesomeIcon
+                                                                                    icon={faMusic}
+                                                                                    className="music-icon-large"
+                                                                                    style={{ fontSize: '3rem', color: 'rgba(255,255,255,0.4)' }}
+                                                                                />
+                                                                            </div>
                                                                             <div className="position-absolute top-0 start-0 p-2">
                                                                                 <Badge bg="dark" className="rounded-pill opacity-75">
                                                                                     {sound.formatted_duration || '0:00'}
@@ -567,6 +622,134 @@ const ArtistProfile = () => {
                                                     </div>
                                                 )}
                                             </>
+                                        )}
+                                    </Tab.Pane>
+
+                                    {/* Clips Tab */}
+                                    <Tab.Pane eventKey="clips">
+                                        {artistClips.length === 0 ? (
+                                            <div className="text-center py-5">
+                                                <FontAwesomeIcon icon={faVideo} size="3x" className="text-muted mb-3" />
+                                                <h5 className="text-muted">Aucun clip disponible</h5>
+                                                <p className="text-muted">Cet artiste n'a pas encore publié de clips</p>
+                                            </div>
+                                        ) : (
+                                            <Row className="g-4">
+                                                {artistClips.map((clip) => (
+                                                    <Col lg={4} md={6} key={clip.id}>
+                                                        <Card className="clip-card border-0 shadow-sm h-100">
+                                                            <div className="position-relative">
+                                                                <img
+                                                                    src={clip.thumbnail_url || `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=225&fit=crop`}
+                                                                    alt={clip.title}
+                                                                    className="card-img-top"
+                                                                    style={{ height: '200px', objectFit: 'cover' }}
+                                                                />
+                                                                <div className="position-absolute top-50 start-50 translate-middle">
+                                                                    <Button variant="light" className="rounded-circle" style={{ width: '60px', height: '60px' }}>
+                                                                        <FontAwesomeIcon icon={faPlay} className="text-primary" />
+                                                                    </Button>
+                                                                </div>
+                                                                <div className="position-absolute bottom-0 end-0 p-2">
+                                                                    <Badge bg="dark" className="rounded-pill opacity-75">
+                                                                        {clip.duration || '0:00'}
+                                                                    </Badge>
+                                                                </div>
+                                                            </div>
+                                                            <Card.Body className="p-3">
+                                                                <h6 className="fw-bold mb-2">{clip.title}</h6>
+                                                                <p className="text-muted small mb-2">
+                                                                    {clip.description?.substring(0, 100)}...
+                                                                </p>
+                                                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                                                    <div className="d-flex gap-3">
+                                                                        <small className="text-primary">
+                                                                            <FontAwesomeIcon icon={faEye} className="me-1" />
+                                                                            {formatNumber(clip.views || 0)}
+                                                                        </small>
+                                                                        <small className="text-danger">
+                                                                            <FontAwesomeIcon icon={faHeart} className="me-1" />
+                                                                            {formatNumber(clip.likes || 0)}
+                                                                        </small>
+                                                                    </div>
+                                                                </div>
+                                                                <Button
+                                                                    as={Link}
+                                                                    to={`/clips/${clip.id}`}
+                                                                    variant="primary"
+                                                                    size="sm"
+                                                                    className="w-100"
+                                                                >
+                                                                    <FontAwesomeIcon icon={faEye} className="me-2" />
+                                                                    Voir le clip
+                                                                </Button>
+                                                            </Card.Body>
+                                                        </Card>
+                                                    </Col>
+                                                ))}
+                                            </Row>
+                                        )}
+                                    </Tab.Pane>
+
+                                    {/* Competitions Tab */}
+                                    <Tab.Pane eventKey="competitions">
+                                        {artistCompetitions.length === 0 ? (
+                                            <div className="text-center py-5">
+                                                <FontAwesomeIcon icon={faTrophy} size="3x" className="text-muted mb-3" />
+                                                <h5 className="text-muted">Aucune compétition créée</h5>
+                                                <p className="text-muted">Cet artiste n'a pas encore créé de compétitions</p>
+                                            </div>
+                                        ) : (
+                                            <Row className="g-4">
+                                                {artistCompetitions.map((competition) => (
+                                                    <Col lg={6} key={competition.id}>
+                                                        <Card className="competition-card border-0 shadow-sm h-100">
+                                                            <div className="position-relative">
+                                                                <img
+                                                                    src={competition.image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop`}
+                                                                    alt={competition.title}
+                                                                    className="card-img-top"
+                                                                    style={{ height: '200px', objectFit: 'cover' }}
+                                                                />
+                                                                <div className="position-absolute top-0 end-0 p-3">
+                                                                    <Badge bg="warning" className="rounded-pill">
+                                                                        <FontAwesomeIcon icon={faTrophy} className="me-1" />
+                                                                        {competition.formatted_total_prize_pool || 'Prix à gagner'}
+                                                                    </Badge>
+                                                                </div>
+                                                            </div>
+                                                            <Card.Body className="p-3">
+                                                                <h6 className="fw-bold mb-2">{competition.title}</h6>
+                                                                <p className="text-muted small mb-2">
+                                                                    {competition.description?.substring(0, 150)}...
+                                                                </p>
+                                                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                                                    <div className="d-flex gap-3">
+                                                                        <small className="text-primary">
+                                                                            <FontAwesomeIcon icon={faUsers} className="me-1" />
+                                                                            {competition.current_participants || 0} participants
+                                                                        </small>
+                                                                        <small className="text-warning">
+                                                                            <FontAwesomeIcon icon={faClock} className="me-1" />
+                                                                            {competition.days_left || 'Terminé'}
+                                                                        </small>
+                                                                    </div>
+                                                                </div>
+                                                                <Button
+                                                                    as={Link}
+                                                                    to={`/competitions/${competition.id}`}
+                                                                    variant="primary"
+                                                                    size="sm"
+                                                                    className="w-100"
+                                                                >
+                                                                    <FontAwesomeIcon icon={faEye} className="me-2" />
+                                                                    Voir la compétition
+                                                                </Button>
+                                                            </Card.Body>
+                                                        </Card>
+                                                    </Col>
+                                                ))}
+                                            </Row>
                                         )}
                                     </Tab.Pane>
 
@@ -762,6 +945,23 @@ const ArtistProfile = () => {
             </section>
 
             <style jsx>{`
+                .music-icon-cover {
+                    width: 100%;
+                    height: 100%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                }
+
+                .music-icon-large {
+                    transition: all 0.3s ease;
+                }
+
+                .sound-card:hover .music-icon-large {
+                    transform: scale(1.1);
+                }
+
                 .sound-card {
                     transition: all 0.3s ease;
                     border-radius: 15px !important;
@@ -781,6 +981,16 @@ const ArtistProfile = () => {
                 .sound-card:hover .play-btn {
                     opacity: 1 !important;
                     transform: translate(-50%, -50%) scale(1.1);
+                }
+
+                .clip-card, .competition-card {
+                    transition: all 0.3s ease;
+                    border-radius: 15px !important;
+                }
+
+                .clip-card:hover, .competition-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15) !important;
                 }
 
                 .event-card {

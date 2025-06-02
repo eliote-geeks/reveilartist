@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Dropdown, Spinner, Alert, ProgressBar } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Spinner, ProgressBar } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort, faRefresh, faPlay, faDownload, faEye, faUser } from '@fortawesome/free-solid-svg-icons';
+import {
+    faSearch, faFilter, faMusic, faHeart, faShoppingCart, faPlay, faDownload, faEye,
+    faUser, faArrowUp, faGem, faFire, faGlobe, faTag, faClock
+} from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -14,16 +17,14 @@ const Catalog = () => {
     const toast = useToast();
     const { addToCart } = useCart();
     const { purchasedSounds, checkIfPurchased } = usePurchasedSounds();
+
     const [sounds, setSounds] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [filteredSounds, setFilteredSounds] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedPrice, setSelectedPrice] = useState('all');
-    const [sortBy, setSortBy] = useState('popular');
-    const [viewMode, setViewMode] = useState('grid');
+    const [activeFilter, setActiveFilter] = useState('trending');
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [likedSounds, setLikedSounds] = useState(new Set());
     const [downloadingTracks, setDownloadingTracks] = useState(new Map());
     const [showModal, setShowModal] = useState(false);
@@ -31,7 +32,7 @@ const Catalog = () => {
     const [pagination, setPagination] = useState({
         current_page: 1,
         last_page: 1,
-        per_page: 12,
+        per_page: 16,
         total: 0,
         has_more: false
     });
@@ -44,25 +45,14 @@ const Catalog = () => {
         { value: '3000+', label: '3 000+ FCFA' }
     ];
 
-    const sortOptions = [
-        { value: 'popular', label: 'Plus populaires' },
-        { value: 'recent', label: 'Plus récents' },
-        { value: 'price-low', label: 'Prix croissant' },
-        { value: 'price-high', label: 'Prix décroissant' },
-        { value: 'likes', label: 'Plus aimés' }
-    ];
-
-    // Charger les catégories
     useEffect(() => {
         loadCategories();
     }, []);
 
-    // Charger les sons
     useEffect(() => {
         loadSounds();
-    }, [selectedCategory, selectedPrice, sortBy, searchTerm]);
+    }, [selectedCategory, selectedPrice, activeFilter, searchTerm]);
 
-    // Charger les statuts de likes
     useEffect(() => {
         if (token && sounds.length > 0) {
             loadLikesStatus();
@@ -87,19 +77,18 @@ const Catalog = () => {
                 setCategories(categoriesWithAll);
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des catégories:', error);
+            console.error('Erreur chargement catégories:', error);
         }
     };
 
     const loadSounds = async (page = 1) => {
         try {
             setLoading(true);
-            setError(null);
 
             const params = new URLSearchParams({
                 page: page.toString(),
                 per_page: pagination.per_page.toString(),
-                sort: sortBy
+                sort: activeFilter
             });
 
             if (selectedCategory !== 'all') {
@@ -117,14 +106,11 @@ const Catalog = () => {
 
             if (data.success) {
                 setSounds(data.sounds);
-                setFilteredSounds(data.sounds);
                 setPagination(data.pagination);
-            } else {
-                throw new Error(data.message || 'Erreur lors du chargement');
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des sons:', error);
-            setError('Erreur lors du chargement des sons. Veuillez réessayer.');
+            console.error('Erreur chargement sons:', error);
+            toast.error('Erreur', 'Erreur lors du chargement des sons');
         } finally {
             setLoading(false);
         }
@@ -151,13 +137,13 @@ const Catalog = () => {
                 setLikedSounds(new Set(data.likes));
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des likes:', error);
+            console.error('Erreur chargement likes:', error);
         }
     };
 
     const handleLike = async (soundId) => {
         if (!token) {
-            toast.warning('Connexion requise', 'Veuillez vous connecter pour liker des sons');
+            toast.warning('Connexion requise', 'Connectez-vous pour liker ce son');
             return;
         }
 
@@ -173,7 +159,6 @@ const Catalog = () => {
             const data = await response.json();
 
             if (data.success) {
-                // Mettre à jour les likes localement
                 const newLikedSounds = new Set(likedSounds);
                 if (data.is_liked) {
                     newLikedSounds.add(soundId);
@@ -182,7 +167,6 @@ const Catalog = () => {
                 }
                 setLikedSounds(newLikedSounds);
 
-                // Mettre à jour le compteur de likes dans la liste des sons
                 setSounds(prevSounds =>
                     prevSounds.map(sound =>
                         sound.id === soundId
@@ -192,23 +176,19 @@ const Catalog = () => {
                 );
 
                 toast.success('Succès', data.is_liked ? 'Son ajouté aux favoris' : 'Son retiré des favoris');
-            } else {
-                toast.error('Erreur', data.message || 'Erreur lors du like');
             }
         } catch (error) {
-            console.error('Erreur lors du like:', error);
-            toast.error('Erreur', 'Erreur lors du like. Veuillez réessayer.');
+            console.error('Erreur like:', error);
+            toast.error('Erreur', 'Erreur lors du like');
         }
     };
 
     const handleAddToCart = (sound) => {
-        // Si le son est gratuit, proposer le téléchargement direct
         if (sound.is_free || sound.price === 0) {
             handleDownload(sound);
             return;
         }
 
-        // Pour les sons payants, ajouter au panier
         const success = addToCart({
             id: sound.id,
             type: 'sound',
@@ -227,16 +207,15 @@ const Catalog = () => {
 
     const handleDownload = async (sound) => {
         if (!token) {
-            toast.error('Connexion requise', 'Veuillez vous connecter pour télécharger');
+            toast.error('Connexion requise', 'Connectez-vous pour télécharger');
             return;
         }
 
         try {
             setDownloadingTracks(prev => new Map(prev.set(sound.id, { progress: 0, status: 'starting' })));
 
-            // Utiliser l'endpoint correct qui incrémente automatiquement
             const response = await fetch(`/api/sounds/${sound.id}/download`, {
-                method: 'POST', // Changé en POST pour incrémenter
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -269,7 +248,6 @@ const Catalog = () => {
                 }
             }
 
-            // Créer le blob et télécharger
             const blob = new Blob(chunks);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -280,7 +258,6 @@ const Catalog = () => {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
 
-            // Marquer comme téléchargé
             setDownloadingTracks(prev => new Map(prev.set(sound.id, {
                 progress: 100,
                 status: 'completed'
@@ -288,7 +265,6 @@ const Catalog = () => {
 
             toast.success('Téléchargement terminé', `"${sound.title}" a été téléchargé avec succès`);
 
-            // Nettoyer après 3 secondes
             setTimeout(() => {
                 setDownloadingTracks(prev => {
                     const newMap = new Map(prev);
@@ -313,25 +289,18 @@ const Catalog = () => {
         setShowModal(true);
     };
 
-    const handleRefresh = () => {
-        loadSounds(1);
-    };
-
-    const handleSearchChange = (e) => {
-        setSearchTerm(e.target.value);
-    };
-
-    const handleCategoryChange = (category) => {
-        setSelectedCategory(category);
-    };
-
-    const handlePriceChange = (price) => {
-        setSelectedPrice(price);
-    };
-
-    const handleSortChange = (sort) => {
-        setSortBy(sort);
-    };
+    const FilterButton = ({ filter, icon, label, count, isActive, onClick }) => (
+        <Button
+            variant={isActive ? "primary" : "light"}
+            size="sm"
+            className={`filter-btn ${isActive ? 'active' : ''}`}
+            onClick={onClick}
+        >
+            <FontAwesomeIcon icon={icon} className="me-2" />
+            {label}
+            {count && <Badge bg="secondary" className="ms-2">{count}</Badge>}
+        </Button>
+    );
 
     const loadMoreSounds = () => {
         if (pagination.has_more) {
@@ -339,252 +308,261 @@ const Catalog = () => {
         }
     };
 
-    return (
-        <div className="bg-light min-vh-100 avoid-header-overlap">
-            {/* Hero Section */}
-            <section className="hero-gradient text-white py-4">
+    if (loading && sounds.length === 0) {
+        return (
+            <div className="catalog-loading">
                 <Container>
                     <Row className="justify-content-center">
-                        <Col lg={8} md={10} className="text-center">
-                            <div className="slide-in">
-                                <div className="mb-3">
-                                    <FontAwesomeIcon
-                                        icon={faMusic}
-                                        className="float-animation text-white"
-                                        style={{ fontSize: '2.5rem', opacity: 0.9 }}
-                                    />
-                                </div>
-                                <h1 className="mb-3 fw-bold text-white">
-                                    Catalogue
-                                    <br className="d-md-none" />
-                                    <span className="text-gradient-light"> Musical</span>
-                                </h1>
-                                <p className="mb-0 opacity-90 fs-6">
-                                    Découvrez des sons uniques créés par des artistes camerounais
-                                </p>
+                        <Col md={6} className="text-center py-5">
+                            <div className="loading-animation">
+                                <Spinner animation="border" variant="primary" size="lg" />
+                                <h5 className="mt-3 text-muted">Chargement du catalogue...</h5>
                             </div>
                         </Col>
                     </Row>
                 </Container>
-            </section>
+            </div>
+        );
+    }
 
-            {/* Filtres et recherche */}
-            <section className="py-4 bg-white border-bottom">
+    return (
+        <div className="catalog-social-feed">
+            {/* Header moderne */}
+            <div className="feed-header">
                 <Container>
-                    <Row className="g-3 align-items-end">
-                        {/* Recherche */}
-                        <Col lg={4} md={6}>
-                            <Form.Group>
-                                <Form.Label className="small fw-medium text-muted">Rechercher</Form.Label>
-                            <InputGroup>
-                                <Form.Control
-                                    type="text"
-                                        placeholder="Titre, artiste, genre..."
-                                    value={searchTerm}
-                                        onChange={handleSearchChange}
-                                        style={{ borderRadius: '8px 0 0 8px' }}
-                                    />
-                                    <Button
-                                        variant="primary"
-                                        style={{ borderRadius: '0 8px 8px 0' }}
-                                        disabled={loading}
-                                    >
-                                    <FontAwesomeIcon icon={faSearch} />
-                                    </Button>
-                            </InputGroup>
-                            </Form.Group>
+                    <Row className="align-items-center py-4">
+                        <Col lg={8}>
+                            <div className="page-title">
+                                <h1 className="fw-bold mb-2">
+                                    <FontAwesomeIcon icon={faMusic} className="me-3 text-primary" />
+                                    Catalogue Musical
+                                </h1>
+                                <p className="text-muted mb-0">
+                                    Découvrez des sons uniques créés par des artistes camerounais
+                                </p>
+                            </div>
                         </Col>
-
-                        {/* Catégorie */}
-                        <Col lg={2} md={3} sm={6}>
-                            <Form.Group>
-                                <Form.Label className="small fw-medium text-muted">Catégorie</Form.Label>
-                            <Form.Select
-                                value={selectedCategory}
-                                    onChange={(e) => handleCategoryChange(e.target.value)}
-                                    style={{ borderRadius: '8px' }}
-                                >
-                                    {categories.map(category => (
-                                        <option key={category.value} value={category.value}>
-                                            {category.label}
-                                        </option>
-                                ))}
-                            </Form.Select>
-                            </Form.Group>
-                        </Col>
-
-                        {/* Prix */}
-                        <Col lg={2} md={3} sm={6}>
-                            <Form.Group>
-                                <Form.Label className="small fw-medium text-muted">Prix</Form.Label>
-                            <Form.Select
-                                value={selectedPrice}
-                                    onChange={(e) => handlePriceChange(e.target.value)}
-                                    style={{ borderRadius: '8px' }}
-                            >
-                                {priceRanges.map(range => (
-                                        <option key={range.value} value={range.value}>
-                                            {range.label}
-                                        </option>
-                                ))}
-                            </Form.Select>
-                            </Form.Group>
-                        </Col>
-
-                        {/* Tri */}
-                        <Col lg={2} md={6} sm={6}>
-                            <Form.Group>
-                                <Form.Label className="small fw-medium text-muted">Trier par</Form.Label>
-                            <Form.Select
-                                value={sortBy}
-                                    onChange={(e) => handleSortChange(e.target.value)}
-                                    style={{ borderRadius: '8px' }}
-                            >
-                                {sortOptions.map(option => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label}
-                                        </option>
-                                ))}
-                            </Form.Select>
-                            </Form.Group>
-                        </Col>
-
-                        {/* Actualiser */}
-                        <Col lg={2} md={6} sm={6}>
-                                <Button
-                                variant="outline-secondary"
-                                className="w-100"
-                                onClick={handleRefresh}
-                                disabled={loading}
-                                    style={{ borderRadius: '8px' }}
-                                >
-                                <FontAwesomeIcon
-                                    icon={faRefresh}
-                                    spin={loading}
-                                    className="me-2"
-                                />
-                                Actualiser
-                                </Button>
+                        <Col lg={4} className="text-end">
+                            <div className="stats-preview">
+                                <Badge bg="light" text="dark" className="me-2">
+                                    {pagination?.total || 0} sons
+                                </Badge>
+                                <Badge bg="primary">
+                                    Page {pagination?.current_page || 1}
+                                </Badge>
+                            </div>
                         </Col>
                     </Row>
-                </Container>
-            </section>
 
-            {/* Liste des sons */}
-            <section className="py-4">
-                <Container>
-                    <div className="d-flex justify-content-between align-items-center mb-4">
-                        <h3 className="fw-bold mb-0">
-                            Sons disponibles ({pagination.total})
-                        </h3>
-
-                        <div className="d-flex gap-2">
-                            {selectedCategory !== 'all' && (
-                                <Badge bg="primary" className="d-flex align-items-center gap-1">
-                                    {categories.find(c => c.value === selectedCategory)?.label}
-                                    <Button
-                                        variant="link"
-                                        size="sm"
-                                        className="p-0 text-white"
-                                        onClick={() => setSelectedCategory('all')}
-                                        style={{ fontSize: '12px' }}
-                                    >
-                                        ×
+                    {/* Barre de recherche et filtres */}
+                    <Row className="mb-4">
+                        <Col lg={6}>
+                            <div className="search-container">
+                                <InputGroup size="lg">
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Titre, artiste, genre..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="search-input"
+                                    />
+                                    <Button variant="primary" className="search-btn">
+                                        <FontAwesomeIcon icon={faSearch} />
                                     </Button>
-                                </Badge>
-                            )}
-                            {selectedPrice !== 'all' && (
-                                <Badge bg="info" className="d-flex align-items-center gap-1">
-                                    {priceRanges.find(p => p.value === selectedPrice)?.label}
-                                    <Button
-                                        variant="link"
-                                        size="sm"
-                                        className="p-0 text-white"
-                                        onClick={() => setSelectedPrice('all')}
-                                        style={{ fontSize: '12px' }}
-                                    >
-                                        ×
-                                    </Button>
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
+                                </InputGroup>
+                            </div>
+                        </Col>
+                        <Col lg={6}>
+                            <div className="filter-tabs">
+                                <FilterButton
+                                    filter="trending"
+                                    icon={faArrowUp}
+                                    label="Tendances"
+                                    isActive={activeFilter === 'trending'}
+                                    onClick={() => setActiveFilter('trending')}
+                                />
+                                <FilterButton
+                                    filter="new"
+                                    icon={faGem}
+                                    label="Nouveautés"
+                                    isActive={activeFilter === 'new'}
+                                    onClick={() => setActiveFilter('new')}
+                                />
+                                <FilterButton
+                                    filter="popular"
+                                    icon={faFire}
+                                    label="Populaires"
+                                    isActive={activeFilter === 'popular'}
+                                    onClick={() => setActiveFilter('popular')}
+                                />
+                                <FilterButton
+                                    filter="free"
+                                    icon={faHeart}
+                                    label="Gratuits"
+                                    isActive={activeFilter === 'free'}
+                                    onClick={() => setActiveFilter('free')}
+                                />
+                            </div>
+                        </Col>
+                    </Row>
 
-                    {error && (
-                        <Alert variant="danger" className="mb-4">
-                            <FontAwesomeIcon icon={faMusic} className="me-2" />
-                            {error}
-                            <Button
-                                variant="link"
-                                className="p-0 ms-2"
-                                onClick={handleRefresh}
+                    {/* Filtres secondaires */}
+                    <Row className="g-2">
+                        <Col md={4}>
+                            <Form.Select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                size="sm"
+                                className="filter-select"
                             >
-                                Réessayer
+                                {categories.map(category => (
+                                    <option key={category.value} value={category.value}>
+                                        {category.label}
+                                    </option>
+                                ))}
+                            </Form.Select>
+                        </Col>
+                        <Col md={4}>
+                            <Form.Select
+                                value={selectedPrice}
+                                onChange={(e) => setSelectedPrice(e.target.value)}
+                                size="sm"
+                                className="filter-select"
+                            >
+                                {priceRanges.map(range => (
+                                    <option key={range.value} value={range.value}>
+                                        {range.label}
+                                    </option>
+                                ))}
+                            </Form.Select>
+                        </Col>
+                        <Col md={4}>
+                            <Button
+                                variant="outline-secondary"
+                                size="sm"
+                                className="w-100"
+                                onClick={() => {
+                                    setSelectedCategory('all');
+                                    setSelectedPrice('all');
+                                    setSearchTerm('');
+                                    setActiveFilter('trending');
+                                }}
+                            >
+                                <FontAwesomeIcon icon={faFilter} className="me-2" />
+                                Reset
                             </Button>
-                        </Alert>
-                    )}
+                        </Col>
+                    </Row>
 
-                    {loading && filteredSounds.length === 0 ? (
-                        <div className="text-center py-5">
-                            <Spinner animation="border" variant="primary" className="mb-3" />
-                            <h5 className="text-muted">Chargement des sons...</h5>
-                        </div>
-                    ) : filteredSounds.length === 0 && !loading ? (
-                        <div className="text-center py-5">
-                            <FontAwesomeIcon
-                                icon={faMusic}
-                                className="text-muted mb-3"
-                                style={{ fontSize: '3rem' }}
-                            />
-                            <h5 className="text-muted">Aucun son trouvé</h5>
-                            <p className="text-muted">Essayez de modifier vos critères de recherche</p>
-                            <Button variant="primary" onClick={handleRefresh}>
-                                Recharger le catalogue
-                            </Button>
-                        </div>
-                    ) : (
-                        <>
+                    {/* Filtres actifs */}
+                    {(selectedCategory !== 'all' || selectedPrice !== 'all' || searchTerm) && (
+                        <Row className="mt-3">
+                            <Col>
+                                <div className="active-filters">
+                                    <span className="me-2 text-muted small">Filtres actifs:</span>
+                                    {selectedCategory !== 'all' && (
+                                        <Badge bg="primary" className="me-2 filter-tag">
+                                            {categories.find(c => c.value === selectedCategory)?.label}
+                                            <Button
+                                                variant="link"
+                                                size="sm"
+                                                className="p-0 ms-1 text-white"
+                                                onClick={() => setSelectedCategory('all')}
+                                            >×</Button>
+                                        </Badge>
+                                    )}
+                                    {selectedPrice !== 'all' && (
+                                        <Badge bg="info" className="me-2 filter-tag">
+                                            {priceRanges.find(p => p.value === selectedPrice)?.label}
+                                            <Button
+                                                variant="link"
+                                                size="sm"
+                                                className="p-0 ms-1 text-white"
+                                                onClick={() => setSelectedPrice('all')}
+                                            >×</Button>
+                                        </Badge>
+                                    )}
+                                    {searchTerm && (
+                                        <Badge bg="warning" className="me-2 filter-tag">
+                                            "{searchTerm}"
+                                            <Button
+                                                variant="link"
+                                                size="sm"
+                                                className="p-0 ms-1 text-dark"
+                                                onClick={() => setSearchTerm('')}
+                                            >×</Button>
+                                        </Badge>
+                                    )}
+                                </div>
+                            </Col>
+                        </Row>
+                    )}
+                </Container>
+            </div>
+
+            {/* Grille des sons */}
+            <Container className="py-4">
+                {loading ? (
+                    <div className="text-center py-5">
+                        <Spinner animation="border" variant="primary" className="mb-3" />
+                        <h6 className="text-muted">Mise à jour...</h6>
+                    </div>
+                ) : sounds.length === 0 ? (
+                    <div className="empty-state">
+                        <Row className="justify-content-center">
+                            <Col md={6} className="text-center py-5">
+                                <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
+                                <h5 className="text-muted">Aucun son trouvé</h5>
+                                <p className="text-muted">Essayez de modifier vos critères de recherche</p>
+                                <Button variant="primary" onClick={() => loadSounds(1)}>
+                                    Recharger le catalogue
+                                </Button>
+                            </Col>
+                        </Row>
+                    </div>
+                ) : (
+                    <>
                         <Row className="g-4">
-                            {filteredSounds.map((sound) => (
-                                <Col
-                                    key={sound.id}
-                                    lg={viewMode === 'grid' ? 3 : 12}
-                                    md={viewMode === 'grid' ? 4 : 12}
-                                    sm={viewMode === 'grid' ? 6 : 12}
-                                >
-                                    <Card className="h-100 shadow-sm border-0 sound-card" style={{ borderRadius: '12px', overflow: 'hidden' }}>
-                                        {/* Cover Image */}
-                                        <div className="position-relative">
+                            {sounds.map((sound, index) => (
+                                <Col lg={3} md={4} sm={6} key={sound.id}>
+                                    <Card className="sound-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                                        {/* Cover avec overlay */}
+                                        <div className="sound-cover">
                                             <img
                                                 src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop`}
                                                 alt={sound.title}
-                                                className="card-img-top"
-                                                style={{
-                                                    height: viewMode === 'grid' ? '200px' : '120px',
-                                                    objectFit: 'cover'
-                                                }}
+                                                className="cover-image"
                                             />
 
-                                            {/* Prix ou Gratuit Badge */}
-                                            <div className="position-absolute top-0 start-0 m-2">
+                                            {/* Prix badge */}
+                                            <div className="position-absolute top-0 start-0 m-3">
                                                 {sound.is_free || sound.price === 0 ? (
-                                                    <Badge bg="success" className="rounded-pill shadow-sm">
+                                                    <Badge bg="success" className="price-badge">
                                                         Gratuit
                                                     </Badge>
                                                 ) : (
-                                                    <Badge bg="primary" className="rounded-pill shadow-sm">
+                                                    <Badge bg="primary" className="price-badge">
                                                         {new Intl.NumberFormat('fr-FR').format(sound.price)} XAF
                                                     </Badge>
                                                 )}
                                             </div>
 
-                                            {/* Overlay avec bouton play */}
-                                            <div className="sound-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center">
+                                            {/* Featured badge */}
+                                            {sound.is_featured && (
+                                                <div className="position-absolute top-0 end-0 m-3">
+                                                    <Badge bg="warning" className="featured-badge">
+                                                        <FontAwesomeIcon icon={faArrowUp} className="me-1" />
+                                                        Vedette
+                                                    </Badge>
+                                                </div>
+                                            )}
+
+                                            {/* Play overlay */}
+                                            <div className="play-overlay">
                                                 <Button
-                                                    variant="primary"
+                                                    variant="light"
                                                     size="lg"
-                                                    className="rounded-circle shadow-lg"
-                                                    style={{ width: '60px', height: '60px' }}
+                                                    className="play-btn"
                                                     onClick={() => handleViewDetails(sound)}
                                                 >
                                                     <FontAwesomeIcon icon={faPlay} />
@@ -593,97 +571,97 @@ const Catalog = () => {
                                         </div>
 
                                         <Card.Body className="p-3">
-                                            {/* Titre avec lien vers détails */}
-                                            <Card.Title className="mb-2">
-                                                <Link
-                                                    to={`/sounds/${sound.id}`}
-                                                    className="text-decoration-none text-dark fw-bold"
-                                                    style={{ fontSize: '16px' }}
-                                                >
-                                                    {sound.title}
-                                                </Link>
-                                            </Card.Title>
+                                            {/* Titre et artiste */}
+                                            <div className="sound-info">
+                                                <h6 className="sound-title">
+                                                    <Link
+                                                        to={`/sounds/${sound.id}`}
+                                                        className="text-decoration-none"
+                                                    >
+                                                        {sound.title}
+                                                    </Link>
+                                                </h6>
+                                                <p className="sound-artist">
+                                                    par <Link
+                                                        to={`/artists/${sound.artistId || sound.user_id}`}
+                                                        className="text-decoration-none artist-link"
+                                                    >
+                                                        {sound.artist}
+                                                    </Link>
+                                                </p>
 
-                                            {/* Artiste avec lien vers profil */}
-                                            <Card.Text className="text-muted mb-2 small">
-                                                par <Link
-                                                    to={`/artists/${sound.artistId || sound.user_id}`}
-                                                    className="text-decoration-none text-primary fw-medium"
-                                                >
-                                                    {sound.artist}
-                                                </Link>
-                                            </Card.Text>
+                                                {/* Tags */}
+                                                <div className="sound-tags mb-3">
+                                                    {sound.category && (
+                                                        <Badge bg="light" text="dark" className="tag-badge">
+                                                            <FontAwesomeIcon icon={faTag} className="me-1" />
+                                                            {sound.category}
+                                                        </Badge>
+                                                    )}
+                                                    {sound.genre && (
+                                                        <Badge bg="outline-secondary" className="tag-badge">
+                                                            {sound.genre}
+                                                        </Badge>
+                                                    )}
+                                                </div>
 
-                                            {/* Catégorie et genre */}
-                                            <div className="mb-3">
-                                                {sound.category && (
-                                                    <Badge bg="light" text="dark" className="me-1 small">
-                                                        {sound.category}
-                                                    </Badge>
-                                                )}
-                                                {sound.genre && (
-                                                    <Badge bg="outline-secondary" className="small">
-                                                        {sound.genre}
-                                                    </Badge>
-                                                )}
+                                                {/* Stats */}
+                                                <div className="sound-stats">
+                                                    <span className="stat-item">
+                                                        <FontAwesomeIcon icon={faHeart} className="text-danger" />
+                                                        {sound.likes || 0}
+                                                    </span>
+                                                    <span className="stat-item">
+                                                        <FontAwesomeIcon icon={faPlay} className="text-primary" />
+                                                        {sound.plays || 0}
+                                                    </span>
+                                                    <span className="stat-item">
+                                                        <FontAwesomeIcon icon={faDownload} className="text-success" />
+                                                        {sound.downloads || 0}
+                                                    </span>
+                                                    {sound.duration && (
+                                                        <span className="stat-item">
+                                                            <FontAwesomeIcon icon={faClock} className="text-muted" />
+                                                            {sound.duration}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            {/* Stats */}
-                                            <div className="d-flex justify-content-between align-items-center mb-3 small text-muted">
-                                                <span className="d-flex align-items-center">
-                                                    <FontAwesomeIcon icon={faHeart} className="me-1 text-danger" />
-                                                    {sound.likes || 0}
-                                                </span>
-                                                <span className="d-flex align-items-center">
-                                                    <FontAwesomeIcon icon={faPlay} className="me-1 text-primary" />
-                                                    {sound.plays || 0}
-                                                </span>
-                                                <span className="d-flex align-items-center">
-                                                    <FontAwesomeIcon icon={faDownload} className="me-1 text-success" />
-                                                    {sound.downloads || 0}
-                                                </span>
-                                            </div>
-
-                                            {/* Actions améliorées */}
-                                            <div className="d-flex gap-2 align-items-center">
-                                                {/* Bouton Like */}
+                                            {/* Actions */}
+                                            <div className="sound-actions">
+                                                {/* Like button */}
                                                 <Button
-                                                    variant={likedSounds.has(sound.id) ? "danger" : "outline-danger"}
+                                                    variant={likedSounds.has(sound.id) ? "danger" : "outline-secondary"}
                                                     size="sm"
-                                                    className="action-btn rounded-circle"
-                                                    style={{ width: '38px', height: '38px', padding: 0 }}
+                                                    className="action-btn"
                                                     onClick={() => handleLike(sound.id)}
                                                     disabled={!token}
-                                                    title="Aimer ce son"
                                                 >
                                                     <FontAwesomeIcon icon={faHeart} />
                                                 </Button>
 
-                                                {/* Bouton Voir détails */}
+                                                {/* View details */}
                                                 <Button
                                                     variant="outline-info"
                                                     size="sm"
-                                                    className="action-btn rounded-circle"
-                                                    style={{ width: '38px', height: '38px', padding: 0 }}
+                                                    className="action-btn"
                                                     onClick={() => handleViewDetails(sound)}
-                                                    title="Voir les détails"
                                                 >
                                                     <FontAwesomeIcon icon={faEye} />
                                                 </Button>
 
-                                                {/* Bouton principal selon le statut */}
+                                                {/* Main action button */}
                                                 {sound.is_free || sound.price === 0 ? (
-                                                    // Son gratuit : bouton télécharger
                                                     <Button
                                                         variant="success"
                                                         size="sm"
-                                                        className="flex-grow-1"
+                                                        className="main-action-btn"
                                                         onClick={() => handleDownload(sound)}
                                                         disabled={downloadingTracks.has(sound.id)}
-                                                        style={{ borderRadius: '20px' }}
                                                     >
                                                         {downloadingTracks.has(sound.id) ? (
-                                                            <div className="w-100">
+                                                            <div className="download-progress">
                                                                 <div className="d-flex justify-content-between align-items-center mb-1">
                                                                     <span className="small">Téléchargement...</span>
                                                                     <span className="small">{downloadingTracks.get(sound.id)?.progress || 0}%</span>
@@ -691,7 +669,7 @@ const Catalog = () => {
                                                                 <ProgressBar
                                                                     now={downloadingTracks.get(sound.id)?.progress || 0}
                                                                     size="sm"
-                                                                    style={{ height: '4px' }}
+                                                                    style={{ height: '3px' }}
                                                                 />
                                                             </div>
                                                         ) : (
@@ -702,17 +680,15 @@ const Catalog = () => {
                                                         )}
                                                     </Button>
                                                 ) : checkIfPurchased(sound.id) ? (
-                                                    // Son acheté : bouton télécharger
                                                     <Button
                                                         variant="outline-success"
                                                         size="sm"
-                                                        className="flex-grow-1"
+                                                        className="main-action-btn"
                                                         onClick={() => handleDownload(sound)}
                                                         disabled={downloadingTracks.has(sound.id)}
-                                                        style={{ borderRadius: '20px' }}
                                                     >
                                                         {downloadingTracks.has(sound.id) ? (
-                                                            <div className="w-100">
+                                                            <div className="download-progress">
                                                                 <div className="d-flex justify-content-between align-items-center mb-1">
                                                                     <span className="small">Téléchargement...</span>
                                                                     <span className="small">{downloadingTracks.get(sound.id)?.progress || 0}%</span>
@@ -720,7 +696,7 @@ const Catalog = () => {
                                                                 <ProgressBar
                                                                     now={downloadingTracks.get(sound.id)?.progress || 0}
                                                                     size="sm"
-                                                                    style={{ height: '4px' }}
+                                                                    style={{ height: '3px' }}
                                                                 />
                                                             </div>
                                                         ) : (
@@ -731,13 +707,11 @@ const Catalog = () => {
                                                         )}
                                                     </Button>
                                                 ) : (
-                                                    // Son payant : bouton ajouter au panier
                                                     <Button
                                                         variant="primary"
                                                         size="sm"
-                                                        className="flex-grow-1"
+                                                        className="main-action-btn"
                                                         onClick={() => handleAddToCart(sound)}
-                                                        style={{ borderRadius: '20px' }}
                                                     >
                                                         <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
                                                         Ajouter au panier
@@ -750,38 +724,37 @@ const Catalog = () => {
                             ))}
                         </Row>
 
-                            {/* Pagination */}
-                            {pagination.has_more && (
-                                <div className="text-center mt-5">
-                                    <Button
-                                        variant="primary"
-                                        size="lg"
-                                        onClick={loadMoreSounds}
-                                        disabled={loading}
-                                        style={{ borderRadius: '12px', padding: '12px 30px' }}
-                                    >
-                                        {loading ? (
-                                            <>
-                                                <Spinner animation="border" size="sm" className="me-2" />
-                                                Chargement...
-                                            </>
-                                        ) : (
-                                            <>
-                                                Charger plus de sons
-                                                <Badge bg="light" text="dark" className="ms-2">
-                                                    {pagination.current_page} / {pagination.last_page}
-                                                </Badge>
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </Container>
-            </section>
+                        {/* Load more */}
+                        {pagination.has_more && (
+                            <div className="text-center mt-5">
+                                <Button
+                                    variant="primary"
+                                    size="lg"
+                                    onClick={loadMoreSounds}
+                                    disabled={loading}
+                                    className="load-more-btn"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" className="me-2" />
+                                            Chargement...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Charger plus de sons
+                                            <Badge bg="light" text="dark" className="ms-2">
+                                                {pagination.current_page} / {pagination.last_page}
+                                            </Badge>
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </Container>
 
-            {/* Modal de détails du son */}
+            {/* Modal détails */}
             {selectedSound && (
                 <SoundDetailsModal
                     show={showModal}
@@ -795,66 +768,289 @@ const Catalog = () => {
             )}
 
             <style jsx>{`
-                .sound-card {
+                .catalog-social-feed {
+                    min-height: 100vh;
+                    background: #f8f9fa;
+                    padding-top: 80px;
+                }
+
+                .feed-header {
+                    background: white;
+                    border-bottom: 1px solid #e9ecef;
+                    position: sticky;
+                    top: 70px;
+                    z-index: 10;
+                }
+
+                .page-title h1 {
+                    color: #333;
+                    animation: slideInLeft 0.8s ease-out;
+                }
+
+                .page-title p {
+                    animation: slideInLeft 0.8s ease-out 0.2s both;
+                }
+
+                .stats-preview {
+                    animation: slideInRight 0.8s ease-out;
+                }
+
+                .search-input {
+                    border: none;
+                    border-radius: 25px 0 0 25px;
+                    padding: 12px 20px;
+                    font-size: 16px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+
+                .search-btn {
+                    border-radius: 0 25px 25px 0;
+                    border: none;
+                    padding: 12px 20px;
+                }
+
+                .filter-tabs {
+                    display: flex;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                }
+
+                .filter-btn {
+                    border-radius: 20px;
+                    padding: 6px 15px;
+                    border: none;
                     transition: all 0.3s ease;
+                    animation: slideInRight 0.5s ease-out;
+                }
+
+                .filter-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+
+                .filter-btn.active {
+                    transform: scale(1.05);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+                }
+
+                .filter-select {
+                    border-radius: 10px;
+                    border: 1px solid #e9ecef;
+                    transition: all 0.3s ease;
+                }
+
+                .filter-select:focus {
+                    border-color: #667eea;
+                    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+                }
+
+                .active-filters {
+                    animation: slideInUp 0.5s ease-out;
+                }
+
+                .filter-tag {
+                    animation: bounceIn 0.5s ease-out;
                     cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+
+                .filter-tag:hover {
+                    transform: scale(1.05);
+                }
+
+                .sound-card {
+                    border: none;
+                    border-radius: 20px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+                    transition: all 0.4s ease;
+                    animation: slideInUp 0.6s ease-out both;
+                    background: white;
                 }
 
                 .sound-card:hover {
-                    transform: translateY(-8px);
-                    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2) !important;
+                    transform: translateY(-10px);
+                    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
                 }
 
-                .sound-overlay {
-                    background: rgba(0, 0, 0, 0.6);
+                .sound-cover {
+                    position: relative;
+                    height: 200px;
+                    overflow: hidden;
+                }
+
+                .cover-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    transition: transform 0.4s ease;
+                }
+
+                .sound-card:hover .cover-image {
+                    transform: scale(1.1);
+                }
+
+                .price-badge {
+                    animation: pulse 2s infinite;
+                    font-weight: 500;
+                }
+
+                .featured-badge {
+                    animation: bounce 2s infinite;
+                    font-weight: 500;
+                }
+
+                .play-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.6);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     opacity: 0;
                     transition: all 0.3s ease;
                 }
 
-                .sound-card:hover .sound-overlay {
+                .sound-card:hover .play-overlay {
                     opacity: 1;
                 }
 
-                .sound-overlay button {
+                .play-btn {
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                     transform: scale(0.8);
                     transition: all 0.3s ease;
                 }
 
-                .sound-card:hover .sound-overlay button {
+                .play-overlay:hover .play-btn {
                     transform: scale(1);
                 }
 
+                .sound-title {
+                    font-weight: 600;
+                    margin-bottom: 5px;
+                    color: #333;
+                    font-size: 16px;
+                }
+
+                .sound-title a {
+                    color: inherit;
+                    transition: color 0.3s ease;
+                }
+
+                .sound-title a:hover {
+                    color: #667eea;
+                }
+
+                .sound-artist {
+                    color: #666;
+                    font-size: 14px;
+                    margin-bottom: 10px;
+                }
+
+                .artist-link {
+                    color: #667eea;
+                    font-weight: 500;
+                    transition: color 0.3s ease;
+                }
+
+                .artist-link:hover {
+                    color: #5a67d8;
+                }
+
+                .sound-tags {
+                    display: flex;
+                    gap: 6px;
+                    flex-wrap: wrap;
+                }
+
+                .tag-badge {
+                    font-size: 11px;
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    border: 1px solid #e9ecef !important;
+                }
+
+                .sound-stats {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 15px;
+                    padding: 10px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                }
+
+                .stat-item {
+                    font-size: 12px;
+                    color: #666;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-weight: 500;
+                }
+
+                .sound-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
                 .action-btn {
-                    transition: all 0.3s ease;
+                    width: 35px;
+                    height: 35px;
+                    border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    transition: all 0.3s ease;
                 }
 
                 .action-btn:hover {
                     transform: scale(1.1);
                 }
 
-                .hero-gradient {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                .main-action-btn {
+                    flex: 1;
+                    border-radius: 20px;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
                 }
 
-                .text-gradient-light {
-                    background: linear-gradient(45deg, #ffffff, #f8f9ff);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
+                .main-action-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
                 }
 
-                .slide-in {
-                    animation: slideInUp 0.6s ease-out;
+                .download-progress {
+                    width: 100%;
                 }
 
-                .float-animation {
-                    animation: float 3s ease-in-out infinite;
+                .load-more-btn {
+                    border-radius: 25px;
+                    padding: 12px 30px;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                    animation: pulse 2s infinite;
                 }
 
-                .avoid-header-overlap {
-                    padding-top: 80px;
+                .load-more-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+                }
+
+                .empty-state {
+                    animation: fadeInUp 0.8s ease-out;
+                }
+
+                .loading-animation {
+                    animation: pulse 1.5s ease-in-out infinite;
                 }
 
                 @keyframes slideInUp {
@@ -868,12 +1064,128 @@ const Catalog = () => {
                     }
                 }
 
-                @keyframes float {
-                    0%, 100% {
-                        transform: translateY(0px);
+                @keyframes slideInLeft {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+
+                @keyframes slideInRight {
+                    from {
+                        opacity: 0;
+                        transform: translateX(30px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(40px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes bounceIn {
+                    0% {
+                        opacity: 0;
+                        transform: scale(0.3);
                     }
                     50% {
-                        transform: translateY(-10px);
+                        opacity: 1;
+                        transform: scale(1.05);
+                    }
+                    70% {
+                        transform: scale(0.9);
+                    }
+                    100% {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+                }
+
+                @keyframes pulse {
+                    0%, 100% {
+                        transform: scale(1);
+                    }
+                    50% {
+                        transform: scale(1.05);
+                    }
+                }
+
+                @keyframes bounce {
+                    0%, 20%, 53%, 80%, 100% {
+                        transform: translateY(0);
+                    }
+                    40%, 43% {
+                        transform: translateY(-3px);
+                    }
+                    70% {
+                        transform: translateY(-2px);
+                    }
+                    90% {
+                        transform: translateY(-1px);
+                    }
+                }
+
+                @media (max-width: 1200px) {
+                    .filter-tabs {
+                        gap: 5px;
+                    }
+
+                    .filter-btn {
+                        font-size: 12px;
+                        padding: 4px 10px;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .page-title h1 {
+                        font-size: 24px;
+                    }
+
+                    .sound-card {
+                        margin-bottom: 20px;
+                    }
+
+                    .filter-tabs {
+                        justify-content: center;
+                    }
+
+                    .sound-stats {
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+
+                    .stat-item {
+                        justify-content: center;
+                    }
+                }
+
+                @media (max-width: 576px) {
+                    .search-input {
+                        font-size: 14px;
+                    }
+
+                    .sound-actions {
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+
+                    .action-btn {
+                        width: 100%;
+                        border-radius: 10px;
                     }
                 }
             `}</style>

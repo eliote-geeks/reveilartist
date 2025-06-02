@@ -14,6 +14,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\ClipController;
 use App\Http\Controllers\CompetitionController;
+use App\Http\Controllers\CompetitionPaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -105,72 +106,32 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Routes publiques pour les compétitions
 Route::prefix('competitions')->group(function () {
-    Route::get('/', [\App\Http\Controllers\CompetitionController::class, 'index'])->name('api.competitions.index');
-    Route::get('/categories', [\App\Http\Controllers\CompetitionController::class, 'getCategories'])->name('api.competitions.categories');
-    Route::get('/upcoming', [\App\Http\Controllers\CompetitionController::class, 'upcoming'])->name('api.competitions.upcoming');
-    Route::get('/popular', [\App\Http\Controllers\CompetitionController::class, 'popular'])->name('api.competitions.popular');
-    Route::get('/{id}', [\App\Http\Controllers\CompetitionController::class, 'show'])->name('api.competitions.show')->where('id', '[0-9]+');
+    Route::get('/', [CompetitionController::class, 'index'])->name('api.competitions.index');
+    Route::get('/categories', [CompetitionController::class, 'getCategories'])->name('api.competitions.categories');
+    Route::get('/upcoming', [CompetitionController::class, 'upcoming'])->name('api.competitions.upcoming');
+    Route::get('/popular', [CompetitionController::class, 'popular'])->name('api.competitions.popular');
+    Route::get('/{id}', [CompetitionController::class, 'show'])->name('api.competitions.show')->where('id', '[0-9]+');
 
     // Routes authentifiées pour les compétitions
     Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/', [\App\Http\Controllers\CompetitionController::class, 'store'])->name('api.competitions.store')->middleware('can_upload_clips');
-        Route::put('/{id}', [\App\Http\Controllers\CompetitionController::class, 'update'])->name('api.competitions.update')->where('id', '[0-9]+');
-        Route::delete('/{id}', [\App\Http\Controllers\CompetitionController::class, 'destroy'])->name('api.competitions.destroy')->where('id', '[0-9]+');
-        Route::post('/{id}/register', [\App\Http\Controllers\CompetitionController::class, 'register'])->name('api.competitions.register')->where('id', '[0-9]+');
-        Route::delete('/{id}/unregister', [\App\Http\Controllers\CompetitionController::class, 'unregister'])->name('api.competitions.unregister')->where('id', '[0-9]+');
+        Route::post('/', [CompetitionController::class, 'store'])->name('api.competitions.store')->middleware('can_upload_clips');
+        Route::put('/{id}', [CompetitionController::class, 'update'])->name('api.competitions.update')->where('id', '[0-9]+');
+        Route::delete('/{id}', [CompetitionController::class, 'destroy'])->name('api.competitions.destroy')->where('id', '[0-9]+');
+        Route::post('/{id}/register', [CompetitionController::class, 'register'])->name('api.competitions.register')->where('id', '[0-9]+');
+        Route::delete('/{id}/unregister', [CompetitionController::class, 'unregister'])->name('api.competitions.unregister')->where('id', '[0-9]+');
     });
 });
 
-// Routes pour le dashboard admin (en dehors du groupe auth:sanctum principal)
-Route::middleware(['auth:sanctum'])->prefix('dashboard')->group(function () {
-    Route::get('/stats', [DashboardController::class, 'getStats']);
-    Route::get('/sounds', [DashboardController::class, 'getSounds']);
-    Route::get('/events', [DashboardController::class, 'getEvents']);
-    Route::get('/users', [DashboardController::class, 'getUsers']);
-    Route::get('/users-revenue', [DashboardController::class, 'getUsersRevenue']);
+// Routes publiques pour les artistes
+Route::prefix('artists')->group(function () {
+    Route::get('/', [UserController::class, 'getArtists'])->name('api.artists.index');
+    Route::get('/{id}', [UserController::class, 'getArtist'])->name('api.artists.show')->where('id', '[0-9]+');
+    Route::get('/{id}/clips', [ClipController::class, 'getArtistClips'])->name('api.artists.clips')->where('id', '[0-9]+');
+    Route::get('/{id}/competitions', [CompetitionController::class, 'getArtistCompetitions'])->name('api.artists.competitions')->where('id', '[0-9]+');
 
-    // Routes pour la gestion des paiements dans le dashboard
-    Route::get('/users/{userId}/payments', [DashboardController::class, 'getUserPayments']);
-    Route::post('/payments/{paymentId}/approve', [DashboardController::class, 'approvePayment']);
-    Route::post('/payments/{paymentId}/cancel', [DashboardController::class, 'cancelPayment']);
-    Route::post('/payments/{paymentId}/refund', [DashboardController::class, 'refundPayment']);
-    Route::post('/payments/batch-action', [DashboardController::class, 'batchPaymentAction']);
-
-    // Routes commission simplifiées
-    Route::get('/commission', [DashboardController::class, 'getCommission']);
-    Route::post('/commission', [DashboardController::class, 'updateCommission']);
-});
-
-// Routes simplifiées pour l'analyse des achats (sans authentification complexe)
-Route::prefix('dashboard')->group(function () {
-    Route::get('/users-purchases', [DashboardController::class, 'getUsersPurchases']);
-    Route::get('/payments/search', [DashboardController::class, 'searchPayments']);
-    Route::get('/products/{type}/{productId}/payments', [DashboardController::class, 'getProductPayments']);
-    Route::get('/payments/{paymentId}/receipt', [DashboardController::class, 'generateReceipt']);
-
-    // Route de test simple
-    Route::get('/test-payments', function () {
-        try {
-            $payments = \App\Models\Payment::limit(5)->get();
-            return response()->json([
-                'success' => true,
-                'message' => 'Test réussi',
-                'count' => $payments->count(),
-                'payments' => $payments->map(function($p) {
-                    return [
-                        'id' => $p->id,
-                        'transaction_id' => $p->transaction_id,
-                        'amount' => $p->amount,
-                        'status' => $p->status
-                    ];
-                })
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
-        }
+    // Routes authentifiées pour les artistes
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/{id}/follow', [UserController::class, 'toggleFollow'])->name('api.artists.follow')->where('id', '[0-9]+');
     });
 });
 
@@ -188,52 +149,33 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/profile/photo', [AuthController::class, 'updateProfilePhoto']);
     Route::put('/change-password', [AuthController::class, 'changePassword']);
 
-    // Gestion des utilisateurs pour le dashboard
-    Route::prefix('users')->group(function () {
-        Route::get('/', [UserController::class, 'index'])->name('api.users.index');
-        Route::get('/stats', [UserController::class, 'stats'])->name('api.users.stats');
-        Route::delete('/{id}', [UserController::class, 'destroy'])->name('api.users.destroy')->where('id', '[0-9]+');
-    });
+    // Routes pour l'utilisateur connecté
+    Route::prefix('user')->group(function () {
+        Route::get('/clips', [ClipController::class, 'getUserClips'])->name('api.user.clips');
+        Route::get('/competitions', [CompetitionController::class, 'getUserCompetitions'])->name('api.user.competitions');
+        Route::get('/sounds', [ApiSoundController::class, 'getUserSounds'])->name('api.user.sounds');
+        Route::get('/purchases', [ApiSoundController::class, 'getUserPurchases'])->name('api.user.purchases');
+        Route::get('/favorites', [ApiSoundController::class, 'getUserFavorites'])->name('api.user.favorites');
+        Route::get('/stats', [UserController::class, 'getUserStats'])->name('api.user.stats');
 
-    // Gestion des notifications utilisateur
-    Route::prefix('notifications')->group(function () {
-        Route::get('/', [UserController::class, 'getNotifications'])->name('api.notifications.index');
-        Route::patch('/{id}/read', [UserController::class, 'markNotificationAsRead'])->name('api.notifications.read')->where('id', '[0-9a-f\-]+');
-        Route::patch('/read-all', [UserController::class, 'markAllNotificationsAsRead'])->name('api.notifications.read-all');
-        Route::delete('/{id}', [UserController::class, 'deleteNotification'])->name('api.notifications.delete')->where('id', '[0-9a-f\-]+');
+        // Ajouter les routes manquantes pour le Profile
+        Route::get('/purchased-sounds', [UserController::class, 'getPurchasedSounds'])->name('api.user.purchased-sounds');
+        Route::get('/favorite-sounds', [UserController::class, 'getFavoriteSounds'])->name('api.user.favorite-sounds');
+        Route::get('/followed-artists', [UserController::class, 'getFollowedArtists'])->name('api.user.followed-artists');
+        Route::get('/purchased-events', [UserController::class, 'getPurchasedEvents'])->name('api.user.purchased-events');
     });
 
     // Routes d'administration (admin uniquement)
-    Route::middleware(['role:admin'])->prefix('admin')->group(function () {
-        // Dashboard - Statistiques
-        Route::get('/dashboard', [DashboardController::class, 'index'])->name('api.dashboard.index');
-        Route::get('/dashboard/export', [DashboardController::class, 'exportStats'])->name('api.dashboard.export');
-        Route::get('/dashboard/calculate-commission', [DashboardController::class, 'calculateCommission'])->name('api.dashboard.calculate-commission');
-
-        // Gestion des paiements
-        Route::apiResource('payments', PaymentController::class);
-        Route::post('/payments/{payment}/complete', [PaymentController::class, 'markAsCompleted'])->name('api.payments.complete');
-        Route::post('/payments/{payment}/refund', [PaymentController::class, 'refund'])->name('api.payments.refund');
-        Route::get('/payments-stats', [PaymentController::class, 'statistics'])->name('api.payments.stats');
-        Route::get('/payments-export', [PaymentController::class, 'export'])->name('api.payments.export');
+    Route::middleware(['admin'])->prefix('admin')->group(function () {
+        // Gestion des sons
+        Route::post('/sounds/{id}/approve', [AdminController::class, 'approveSound']);
+        Route::post('/sounds/{id}/reject', [AdminController::class, 'rejectSound']);
 
         // Gestion des utilisateurs
         Route::get('/users', [UserController::class, 'index'])->name('api.admin.users.index');
         Route::get('/users/{id}', [UserController::class, 'show'])->name('api.admin.users.show');
         Route::put('/users/{id}', [UserController::class, 'update'])->name('api.admin.users.update');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('api.admin.users.destroy');
-
-        // Gestion des commissions
-        Route::apiResource('commissions', CommissionController::class);
-    });
-
-    // Gestion des catégories (admin uniquement)
-    Route::middleware('admin')->group(function () {
-        Route::post('/categories', [CategoryController::class, 'store']);
-        Route::put('/categories/{category}', [CategoryController::class, 'update']);
-        Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
-        Route::post('/categories/{category}/toggle-status', [CategoryController::class, 'toggleStatus']);
-        Route::post('/categories/reorder', [CategoryController::class, 'reorder']);
     });
 
     // Gestion des sons (utilisateurs authentifiés) - ANCIENNE API
@@ -241,43 +183,34 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/sounds-legacy/{sound}', [SoundController::class, 'update']);
     Route::delete('/sounds-legacy/{sound}', [SoundController::class, 'destroy']);
     Route::get('/sounds-legacy/{sound}/download', [SoundController::class, 'download']);
-
-    // Gestion des événements (utilisateurs authentifiés)
-    Route::post('/events', [EventController::class, 'store']);
-    Route::put('/events/{event}', [EventController::class, 'update']);
-    Route::delete('/events/{event}', [EventController::class, 'destroy']);
-    Route::post('/events/{event}/register', [EventController::class, 'register']);
-    Route::post('/events/{event}/approve', [EventController::class, 'approve']);
-
-    // Routes du profil utilisateur
-    Route::prefix('user')->group(function () {
-        // Profil utilisateur complet avec achats, favoris, etc.
-        Route::get('/profile-complete', [AuthController::class, 'getCompleteProfile'])->name('api.user.profile-complete');
-
-        // Sons et achats de l'utilisateur
-        Route::get('/purchased-sounds', [UserController::class, 'getPurchasedSounds'])->name('api.user.purchased-sounds');
-        Route::get('/purchased-events', [UserController::class, 'getPurchasedEvents'])->name('api.user.purchased-events');
-        Route::get('/sounds', [UserController::class, 'getUserSounds'])->name('api.user.sounds');
-        Route::get('/mes-creations', [UserController::class, 'getUserSounds'])->name('api.user.mes-creations');
-
-        // Événements créés par l'utilisateur
-        Route::get('/events', [UserController::class, 'getUserEvents'])->name('api.user.events');
-
-        // Revenus et gains de l'utilisateur
-        Route::get('/earnings', [UserController::class, 'getUserEarnings'])->name('api.user.earnings');
-
-        // Favoris et relations sociales
-        Route::get('/favorite-sounds', [UserController::class, 'getFavoriteSounds'])->name('api.user.favorite-sounds');
-        Route::get('/favorite-events', [UserController::class, 'getFavoriteEvents'])->name('api.user.favorite-events');
-        Route::get('/followed-artists', [UserController::class, 'getFollowedArtists'])->name('api.user.followed-artists');
-
-        // Statistiques détaillées de l'utilisateur
-        Route::get('/stats', [UserController::class, 'getUserStats'])->name('api.user.stats');
-
-        // Notifications (alias pour la route existante)
-        Route::get('/notifications', [UserController::class, 'getNotifications'])->name('api.user.notifications');
-    });
 });
+
+// Routes de test pour développement uniquement
+if (config('app.debug')) {
+    Route::get('/test-auth', function (Request $request) {
+        try {
+            $user = $request->user();
+            return response()->json([
+                'success' => true,
+                'message' => 'Test d\'authentification réussi',
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role
+                ] : null,
+                'authenticated' => !!$user,
+                'token_present' => $request->bearerToken() ? 'YES' : 'NO'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur test auth',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    })->middleware('auth:sanctum');
+}
 
 // Route pour vérifier le statut de l'API
 Route::get('/status', function () {
@@ -288,59 +221,3 @@ Route::get('/status', function () {
         'timestamp' => now()
     ]);
 });
-
-// Route de test pour vérifier le stockage
-Route::get('/test-storage', function () {
-    $publicPath = public_path('storage');
-    $storagePath = storage_path('app/public');
-
-    return response()->json([
-        'public_path_exists' => file_exists($publicPath),
-        'storage_path_exists' => file_exists($storagePath),
-        'public_path' => $publicPath,
-        'storage_path' => $storagePath,
-        'is_link' => is_link($publicPath),
-        'php_os' => PHP_OS_FAMILY
-    ]);
-});
-
-// Routes pour les artistes (publiques et protégées)
-Route::prefix('artists')->group(function () {
-    Route::get('/', [App\Http\Controllers\Api\ArtistController::class, 'index']);
-    Route::get('/popular', [App\Http\Controllers\Api\ArtistController::class, 'popular']);
-    Route::get('/recommended', [App\Http\Controllers\Api\ArtistController::class, 'recommended']);
-    Route::get('/{id}', [App\Http\Controllers\Api\ArtistController::class, 'show']);
-
-    // Routes protégées pour l'authentification
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/{id}/follow', [App\Http\Controllers\Api\ArtistController::class, 'toggleFollow']);
-    });
-});
-
-// Paiements de test (accessible à tous les utilisateurs connectés)
-Route::post('/payments/test-payment', [PaymentController::class, 'processTestPayment'])->name('api.payments.test');
-
-// Route de test pour l'authentification
-Route::middleware('auth:sanctum')->get('/test-auth', function (Request $request) {
-    $user = $request->user();
-    return response()->json([
-        'success' => true,
-        'message' => 'Authentification réussie',
-        'user_id' => $user->id,
-        'user_name' => $user->name,
-        'user_role' => $user->role
-    ]);
-});
-
-// Route de test simple sans authentification
-Route::get('/test-simple', function () {
-    return response()->json([
-        'success' => true,
-        'message' => 'API fonctionne correctement',
-        'timestamp' => now(),
-        'users_count' => App\Models\User::count()
-    ]);
-});
-
-// Profil utilisateur complet avec achats, favoris, etc. (route ancienne pour compatibilité)
-Route::get('/user/profile-complete', [AuthController::class, 'getCompleteProfile'])->name('api.user.profile-complete.legacy');

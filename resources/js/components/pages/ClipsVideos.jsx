@@ -333,20 +333,22 @@ const ClipsVideos = () => {
     };
 
     return (
-        <div className="min-vh-100 bg-light avoid-header-overlap">
-            {/* Header */}
-            <div className="bg-gradient-primary text-white py-5">
+        <div className="social-clips">
+            {/* Header Social */}
+            <div className="clips-header">
                 <Container>
-                    <Row className="align-items-center">
+                    <Row className="align-items-center py-4">
                         <Col lg={8}>
                             <AnimatedElement animation="slideInLeft" delay={100}>
-                                <h1 className="display-5 fw-bold mb-3">
-                                    <FontAwesomeIcon icon={faVideo} className="me-3" />
-                                    Clips Vidéos
-                                </h1>
-                                <p className="lead mb-0">
-                                    Découvrez les meilleurs clips vidéos de la scène musicale camerounaise
-                                </p>
+                                <div className="header-content">
+                                    <h1 className="display-6 fw-bold mb-2">
+                                        <FontAwesomeIcon icon={faVideo} className="me-3 text-primary" />
+                                        Clips Vidéos
+                                    </h1>
+                                    <p className="text-muted mb-0">
+                                        Découvrez les meilleurs clips de la scène musicale camerounaise
+                                    </p>
+                                </div>
                             </AnimatedElement>
                         </Col>
                         <Col lg={4} className="text-end">
@@ -355,9 +357,9 @@ const ClipsVideos = () => {
                                     <Button
                                         as={Link}
                                         to="/add-clip"
-                                        variant="light"
+                                        variant="primary"
                                         size="lg"
-                                        className="fw-bold"
+                                        className="create-btn"
                                     >
                                         <FontAwesomeIcon icon={faPlus} className="me-2" />
                                         Ajouter un clip
@@ -369,140 +371,142 @@ const ClipsVideos = () => {
                 </Container>
             </div>
 
-            <Container className="py-4">
-                {/* Filtres et recherche */}
-                <AnimatedElement animation="slideInUp" delay={300}>
-                    <Card className="border-0 shadow-sm mb-4">
-                        <Card.Body>
-                            <Row className="g-3">
-                                <Col lg={4}>
-                                    <InputGroup>
-                                        <InputGroup.Text>
-                                            <FontAwesomeIcon icon={faSearch} />
-                                        </InputGroup.Text>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Rechercher un clip..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                        />
-                                    </InputGroup>
-                                </Col>
-                                <Col lg={3}>
-                                    <Form.Select
-                                        value={selectedCategory}
-                                        onChange={(e) => setSelectedCategory(e.target.value)}
-                                    >
-                                        <option value="all">Toutes les catégories</option>
-                                        {categories.map(cat => (
-                                            <option key={cat.name || cat} value={cat.name || cat}>
-                                                {cat.name || cat}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                </Col>
-                                <Col lg={3}>
-                                    <Form.Select
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value)}
-                                    >
-                                        <option value="recent">Plus récents</option>
-                                        <option value="views">Plus vus</option>
-                                        <option value="likes">Plus aimés</option>
-                                        <option value="title">Titre A-Z</option>
-                                    </Form.Select>
-                                </Col>
-                                <Col lg={2}>
-                                    <div className="d-flex gap-1">
-                                        <Button
-                                            variant={viewMode === 'grid' ? 'primary' : 'outline-primary'}
-                                            size="sm"
-                                            onClick={() => setViewMode('grid')}
-                                        >
-                                            <FontAwesomeIcon icon={faTh} />
-                                        </Button>
-                                        <Button
-                                            variant={viewMode === 'list' ? 'primary' : 'outline-primary'}
-                                            size="sm"
-                                            onClick={() => setViewMode('list')}
-                                        >
-                                            <FontAwesomeIcon icon={faListUl} />
-                                        </Button>
-                                    </div>
-                                </Col>
-                            </Row>
-                        </Card.Body>
-                    </Card>
-                </AnimatedElement>
-
-                {/* Onglets */}
-                <AnimatedElement animation="slideInUp" delay={400}>
-                    <Tabs
-                        activeKey={activeTab}
-                        onSelect={(k) => setActiveTab(k)}
-                        className="mb-4"
-                    >
-                        <Tab eventKey="all" title={
-                            <>
-                                <FontAwesomeIcon icon={faVideo} className="me-2" />
-                                Tous
-                            </>
-                        } />
-                        <Tab eventKey="featured" title={
-                            <>
-                                <FontAwesomeIcon icon={faStar} className="me-2" />
-                                En vedette
-                            </>
-                        } />
-                        <Tab eventKey="trending" title={
-                            <>
-                                <FontAwesomeIcon icon={faFire} className="me-2" />
-                                Tendances
-                            </>
-                        } />
-                        <Tab eventKey="recent" title={
-                            <>
-                                <FontAwesomeIcon icon={faClock} className="me-2" />
-                                Récents
-                            </>
-                        } />
-                    </Tabs>
-                </AnimatedElement>
-
-                {/* Liste des clips */}
-                {loading ? (
-                    <div className="text-center py-5">
-                        <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
-                        <h5 className="mt-3 text-muted">Chargement des clips...</h5>
-                    </div>
-                ) : clips.length === 0 ? (
-                    <Alert variant="info" className="text-center py-5">
-                        <FontAwesomeIcon icon={faVideo} size="3x" className="text-muted mb-3" />
-                        <h5>Aucun clip trouvé</h5>
-                        <p className="text-muted mb-0">
-                            Modifiez vos critères de recherche ou ajoutez le premier clip
-                        </p>
-                    </Alert>
-                ) : (
-                    <Row className={viewMode === 'grid' ? 'g-4' : 'g-3'}>
-                        {clips.map((clip, index) => (
-                            <Col
-                                key={clip.id}
-                                lg={viewMode === 'grid' ? 4 : 12}
-                                md={viewMode === 'grid' ? 6 : 12}
+            {/* Filtres sociaux */}
+            <div className="clips-filters">
+                <Container>
+                    <Row className="g-3">
+                        <Col lg={4}>
+                            <InputGroup className="search-social">
+                                <InputGroup.Text>
+                                    <FontAwesomeIcon icon={faSearch} />
+                                </InputGroup.Text>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Rechercher un clip..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="search-input"
+                                />
+                            </InputGroup>
+                        </Col>
+                        <Col lg={2}>
+                            <Form.Select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                className="filter-select"
                             >
-                                <ClipCard clip={clip} index={index} isListView={viewMode === 'list'} />
-                            </Col>
-                        ))}
+                                <option value="all">Tous genres</option>
+                                {categories.map(cat => (
+                                    <option key={cat.name || cat} value={cat.name || cat}>
+                                        {cat.name || cat}
+                                    </option>
+                                ))}
+                            </Form.Select>
+                        </Col>
+                        <Col lg={2}>
+                            <Form.Select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="filter-select"
+                            >
+                                <option value="recent">Plus récents</option>
+                                <option value="views">Plus vus</option>
+                                <option value="likes">Plus aimés</option>
+                                <option value="title">Titre A-Z</option>
+                            </Form.Select>
+                        </Col>
+                        <Col lg={4}>
+                            <div className="view-controls">
+                                <div className="filter-tabs">
+                                    <Button
+                                        variant={activeTab === 'all' ? 'primary' : 'outline-primary'}
+                                        size="sm"
+                                        onClick={() => setActiveTab('all')}
+                                        className="filter-btn"
+                                    >
+                                        <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                        Tous
+                                    </Button>
+                                    <Button
+                                        variant={activeTab === 'trending' ? 'primary' : 'outline-primary'}
+                                        size="sm"
+                                        onClick={() => setActiveTab('trending')}
+                                        className="filter-btn"
+                                    >
+                                        <FontAwesomeIcon icon={faFire} className="me-2" />
+                                        Tendances
+                                    </Button>
+                                    <Button
+                                        variant={activeTab === 'featured' ? 'primary' : 'outline-primary'}
+                                        size="sm"
+                                        onClick={() => setActiveTab('featured')}
+                                        className="filter-btn"
+                                    >
+                                        <FontAwesomeIcon icon={faStar} className="me-2" />
+                                        Vedettes
+                                    </Button>
+                                </div>
+                                <div className="ms-3">
+                                    <Button
+                                        variant={viewMode === 'grid' ? 'primary' : 'outline-secondary'}
+                                        size="sm"
+                                        onClick={() => setViewMode('grid')}
+                                        className="view-btn"
+                                    >
+                                        <FontAwesomeIcon icon={faTh} />
+                                    </Button>
+                                    <Button
+                                        variant={viewMode === 'list' ? 'primary' : 'outline-secondary'}
+                                        size="sm"
+                                        onClick={() => setViewMode('list')}
+                                        className="view-btn ms-1"
+                                    >
+                                        <FontAwesomeIcon icon={faListUl} />
+                                    </Button>
+                                </div>
+                            </div>
+                        </Col>
                     </Row>
-                )}
+                </Container>
+            </div>
+
+            {/* Contenu principal */}
+            <Container>
+                <div className="clips-content">
+                    {loading ? (
+                        <div className="text-center py-5">
+                            <Spinner animation="border" variant="primary" style={{ width: '3rem', height: '3rem' }} />
+                            <h5 className="mt-3 text-muted">Chargement des clips...</h5>
+                        </div>
+                    ) : clips.length === 0 ? (
+                        <Alert variant="info" className="text-center py-5 empty-state">
+                            <FontAwesomeIcon icon={faVideo} size="3x" className="text-muted mb-3" />
+                            <h5>Aucun clip trouvé</h5>
+                            <p className="text-muted mb-0">
+                                Modifiez vos critères de recherche ou ajoutez le premier clip
+                            </p>
+                        </Alert>
+                    ) : (
+                        <Row className={viewMode === 'grid' ? 'g-4' : 'g-3'}>
+                            {clips.map((clip, index) => (
+                                <Col
+                                    key={clip.id}
+                                    lg={viewMode === 'grid' ? 4 : 12}
+                                    md={viewMode === 'grid' ? 6 : 12}
+                                >
+                                    <ClipCard clip={clip} index={index} isListView={viewMode === 'list'} />
+                                </Col>
+                            ))}
+                        </Row>
+                    )}
+                </div>
             </Container>
 
             {/* Modal de lecture vidéo */}
             <Modal show={showVideoModal} onHide={() => setShowVideoModal(false)} size="lg" centered>
-                <Modal.Header closeButton>
+                <Modal.Header closeButton className="border-0">
                     <Modal.Title>
-                        <FontAwesomeIcon icon={faPlay} className="me-2" />
+                        <FontAwesomeIcon icon={faPlay} className="me-2 text-primary" />
                         {selectedClip?.title}
                     </Modal.Title>
                 </Modal.Header>
@@ -521,13 +525,14 @@ const ClipsVideos = () => {
                         </div>
                     )}
                 </Modal.Body>
-                <Modal.Footer>
+                <Modal.Footer className="border-0">
                     <div className="d-flex justify-content-between align-items-center w-100">
                         <div className="d-flex align-items-center gap-3">
                             <Button
                                 variant={selectedClip?.is_liked ? "danger" : "outline-danger"}
                                 size="sm"
                                 onClick={() => selectedClip && handleLikeClip(selectedClip.id)}
+                                className="social-action-btn"
                             >
                                 <FontAwesomeIcon icon={faHeart} className="me-1" />
                                 {selectedClip?.is_liked ? 'Aimé' : 'Aimer'}
@@ -536,12 +541,13 @@ const ClipsVideos = () => {
                                 variant="outline-primary"
                                 size="sm"
                                 onClick={() => selectedClip && handleShareClip(selectedClip.id)}
+                                className="social-action-btn"
                             >
                                 <FontAwesomeIcon icon={faShare} className="me-1" />
                                 Partager
                             </Button>
                         </div>
-                        <Button variant="secondary" onClick={() => setShowVideoModal(false)}>
+                        <Button variant="outline-secondary" onClick={() => setShowVideoModal(false)}>
                             Fermer
                         </Button>
                     </div>
@@ -549,22 +555,121 @@ const ClipsVideos = () => {
             </Modal>
 
             <style jsx>{`
-                .bg-gradient-primary {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                .social-clips {
+                    min-height: 100vh;
+                    background: #f8f9fa;
+                    padding-top: 80px;
+                }
+
+                .clips-header {
+                    background: white;
+                    border-bottom: 1px solid #e9ecef;
+                    margin-bottom: 20px;
+                }
+
+                .header-content h1 {
+                    color: #333;
+                    font-weight: 700;
+                }
+
+                .create-btn {
+                    border-radius: 25px;
+                    padding: 12px 24px;
+                    font-weight: 600;
+                    border: none;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    transition: all 0.3s ease;
+                }
+
+                .create-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+                }
+
+                .clips-filters {
+                    background: white;
+                    padding: 20px 0;
+                    border-bottom: 1px solid #e9ecef;
+                    margin-bottom: 30px;
+                }
+
+                .search-social .search-input {
+                    border: none;
+                    padding: 12px 16px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+                }
+
+                .filter-select {
+                    border: none;
+                    padding: 12px 16px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+                    border-radius: 8px;
+                }
+
+                .view-controls {
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-end;
+                }
+
+                .filter-tabs {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .filter-btn {
+                    border-radius: 20px;
+                    padding: 8px 16px;
+                    border: 2px solid;
+                    transition: all 0.3s ease;
+                    font-weight: 600;
+                    font-size: 13px;
+                }
+
+                .filter-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+
+                .view-btn {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                }
+
+                .clips-content {
+                    padding: 20px 0;
+                }
+
+                .empty-state {
+                    border: none;
+                    border-radius: 20px;
+                    background: white;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
                 }
 
                 .clip-card-grid, .clip-card-list {
-                    transition: all 0.3s ease;
+                    border: none;
+                    border-radius: 20px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                    transition: all 0.4s ease;
                     cursor: pointer;
+                    background: white;
                 }
 
                 .clip-card-grid:hover, .clip-card-list:hover {
-                    transform: translateY(-5px);
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+                    transform: translateY(-8px);
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
                 }
 
                 .clip-thumbnail {
                     transition: all 0.3s ease;
+                    border-radius: 15px 15px 0 0;
                 }
 
                 .video-overlay {
@@ -573,12 +678,13 @@ const ClipsVideos = () => {
                     left: 0;
                     right: 0;
                     bottom: 0;
-                    background: rgba(0,0,0,0.3);
+                    background: rgba(0,0,0,0.5);
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     opacity: 0;
                     transition: all 0.3s ease;
+                    border-radius: 15px 15px 0 0;
                 }
 
                 .clip-card-grid:hover .video-overlay,
@@ -596,38 +702,46 @@ const ClipsVideos = () => {
                     font-size: 1.2rem;
                     transform: scale(0.8);
                     transition: all 0.3s ease;
+                    background: rgba(255,255,255,0.95);
+                    border: none;
+                    color: #667eea;
                 }
 
                 .video-overlay:hover .play-button {
                     transform: scale(1);
+                    background: white;
                 }
 
                 .video-duration {
                     position: absolute;
-                    bottom: 8px;
-                    right: 8px;
+                    bottom: 12px;
+                    right: 12px;
                     background: rgba(0,0,0,0.8);
                     color: white;
-                    padding: 2px 6px;
-                    border-radius: 4px;
+                    padding: 4px 8px;
+                    border-radius: 8px;
                     font-size: 0.75rem;
-                    font-weight: 500;
+                    font-weight: 600;
                 }
 
                 .reward-position {
                     position: absolute;
-                    top: 8px;
-                    left: 8px;
+                    top: 12px;
+                    left: 12px;
                 }
 
                 .reward-badge {
                     font-size: 0.7rem;
                     font-weight: 600;
+                    padding: 4px 8px;
+                    border-radius: 12px;
                 }
 
                 .clip-title {
-                    font-weight: 600;
+                    font-weight: 700;
                     line-height: 1.3;
+                    margin-bottom: 8px;
+                    color: #333;
                 }
 
                 .clip-title:hover {
@@ -635,52 +749,46 @@ const ClipsVideos = () => {
                 }
 
                 .clip-description {
-                    line-height: 1.4;
+                    line-height: 1.5;
+                    color: #666;
+                    margin-bottom: 15px;
                 }
 
                 .clip-stats {
-                    font-size: 0.8rem;
+                    font-size: 0.85rem;
+                    margin-bottom: 15px;
                 }
 
                 .clip-actions .btn {
-                    font-size: 0.8rem;
-                    padding: 0.25rem 0.5rem;
+                    font-size: 0.85rem;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    transition: all 0.3s ease;
                 }
 
                 .action-button-enhanced {
                     border-width: 2px !important;
                     font-weight: 600;
                     transition: all 0.3s ease;
-                    min-width: 70px;
+                    min-width: 80px;
                 }
 
                 .action-button-enhanced:hover {
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
                 }
 
-                .action-button-enhanced .action-text {
+                .social-action-btn {
+                    border-radius: 20px;
+                    padding: 8px 16px;
                     font-weight: 600;
+                    transition: all 0.3s ease;
                 }
 
-                .action-button-enhanced:hover .action-text {
-                    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                }
-
-                .tab-content {
-                    border: none;
-                }
-
-                .nav-tabs .nav-link {
-                    border: none;
-                    color: #6c757d;
-                    font-weight: 500;
-                }
-
-                .nav-tabs .nav-link.active {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border-radius: 8px;
+                .social-action-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                 }
 
                 /* Mode liste */
@@ -689,23 +797,41 @@ const ClipsVideos = () => {
                     flex-direction: row;
                     align-items: center;
                     gap: 1rem;
+                    padding: 20px;
                 }
 
                 .clip-card-list .clip-thumbnail {
-                    width: 120px;
-                    height: 120px;
+                    width: 160px;
+                    height: 90px;
                     object-fit: cover;
-                    border-radius: 8px;
+                    border-radius: 12px;
+                    flex-shrink: 0;
                 }
 
                 @media (max-width: 768px) {
-                    .display-5 {
-                        font-size: 2rem;
+                    .view-controls {
+                        justify-content: center;
+                        margin-top: 15px;
+                    }
+
+                    .filter-tabs {
+                        flex-wrap: wrap;
+                        gap: 6px;
+                    }
+
+                    .filter-btn {
+                        font-size: 11px;
+                        padding: 6px 12px;
                     }
 
                     .clip-card-list .card-body {
                         flex-direction: column;
                         align-items: flex-start;
+                    }
+
+                    .clip-card-list .clip-thumbnail {
+                        width: 100%;
+                        height: 200px;
                     }
                 }
             `}</style>
