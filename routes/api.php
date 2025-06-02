@@ -74,11 +74,13 @@ Route::get('/sounds/categories/list', [SoundController::class, 'getCategories'])
 
 // Routes publiques pour les événements
 Route::get('/events', [EventController::class, 'index']);
+Route::get('/events/search', [EventController::class, 'search']);
 Route::get('/events/{event}', [EventController::class, 'show']);
 
 // Routes publiques pour les clips vidéos
 Route::prefix('clips')->group(function () {
     Route::get('/', [ClipController::class, 'index'])->name('api.clips.index');
+    Route::get('/search', [ClipController::class, 'search'])->name('api.clips.search');
     Route::get('/categories', [ClipController::class, 'getCategories'])->name('api.clips.categories');
     Route::get('/{id}', [ClipController::class, 'show'])->name('api.clips.show')->where('id', '[0-9]+');
     Route::post('/{id}/share', [ClipController::class, 'share'])->name('api.clips.share')->where('id', '[0-9]+');
@@ -107,6 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
 // Routes publiques pour les compétitions
 Route::prefix('competitions')->group(function () {
     Route::get('/', [CompetitionController::class, 'index'])->name('api.competitions.index');
+    Route::get('/search', [CompetitionController::class, 'search'])->name('api.competitions.search');
     Route::get('/categories', [CompetitionController::class, 'getCategories'])->name('api.competitions.categories');
     Route::get('/upcoming', [CompetitionController::class, 'upcoming'])->name('api.competitions.upcoming');
     Route::get('/popular', [CompetitionController::class, 'popular'])->name('api.competitions.popular');
@@ -125,6 +128,7 @@ Route::prefix('competitions')->group(function () {
 // Routes publiques pour les artistes
 Route::prefix('artists')->group(function () {
     Route::get('/', [UserController::class, 'getArtists'])->name('api.artists.index');
+    Route::get('/search', [UserController::class, 'searchArtists'])->name('api.artists.search');
     Route::get('/{id}', [UserController::class, 'getArtist'])->name('api.artists.show')->where('id', '[0-9]+');
     Route::get('/{id}/clips', [ClipController::class, 'getArtistClips'])->name('api.artists.clips')->where('id', '[0-9]+');
     Route::get('/{id}/competitions', [CompetitionController::class, 'getArtistCompetitions'])->name('api.artists.competitions')->where('id', '[0-9]+');
@@ -148,6 +152,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/profile/photo', [AuthController::class, 'updateProfilePhoto']);
     Route::put('/change-password', [AuthController::class, 'changePassword']);
+
+    // Routes pour les paiements de compétitions
+    Route::prefix('competition-payments')->group(function () {
+        Route::get('/', [CompetitionPaymentController::class, 'index'])->name('api.competition-payments.index');
+        Route::post('/', [CompetitionPaymentController::class, 'store'])->name('api.competition-payments.store');
+        Route::get('/{competitionPayment}', [CompetitionPaymentController::class, 'show'])->name('api.competition-payments.show');
+        Route::put('/{competitionPayment}', [CompetitionPaymentController::class, 'update'])->name('api.competition-payments.update');
+        Route::delete('/{competitionPayment}', [CompetitionPaymentController::class, 'destroy'])->name('api.competition-payments.destroy');
+        Route::post('/{competitionPayment}/refund', [CompetitionPaymentController::class, 'refund'])->name('api.competition-payments.refund');
+        Route::get('/competition/{competitionId}', [CompetitionPaymentController::class, 'getCompetitionPayments'])->name('api.competition-payments.by-competition');
+        Route::get('/user/{userId}', [CompetitionPaymentController::class, 'getUserPayments'])->name('api.competition-payments.by-user');
+        Route::get('/status/{transactionId}', [CompetitionPaymentController::class, 'checkPaymentStatus'])->name('api.competition-payments.status');
+        Route::get('/statistics', [CompetitionPaymentController::class, 'statistics'])->name('api.competition-payments.statistics');
+    });
 
     // Routes pour l'utilisateur connecté
     Route::prefix('user')->group(function () {
