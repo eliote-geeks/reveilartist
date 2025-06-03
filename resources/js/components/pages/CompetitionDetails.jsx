@@ -701,6 +701,30 @@ const CompetitionDetails = () => {
                                         </div>
                                     )}
 
+                                    {/* Bouton de démonstration live (toujours visible) */}
+                                    <div className="demo-section mt-3">
+                                        <div className="demo-divider mb-3">
+                                            <hr className="demo-line" />
+                                            <span className="demo-text">Mode Démonstration</span>
+                                            <hr className="demo-line" />
+                                        </div>
+                                        <Button
+                                            variant="outline-warning"
+                                            size="md"
+                                            as={Link}
+                                            to={`/competitions/${competition.id}/live?demo=true`}
+                                            className="demo-button"
+                                        >
+                                            <FontAwesomeIcon icon={faEye} className="me-2" size="xs" />
+                                            Aperçu Live (Démo)
+                                        </Button>
+                                        <div className="demo-description mt-2">
+                                            <small className="text-muted">
+                                                Découvrez l'interface de compétition en direct avec des données simulées
+                                            </small>
+                                        </div>
+                                    </div>
+
                                     {competition.status === 'completed' && (
                                         <div className="completed-state">
                                             <FontAwesomeIcon icon={faTrophy} className="trophy-icon mb-3" />
@@ -1734,6 +1758,51 @@ const CompetitionDetails = () => {
                     background: #3b82f6;
                     color: white;
                     transform: translateY(-1px);
+                }
+
+                .demo-section {
+                    text-align: center;
+                    padding: 1rem;
+                }
+
+                .demo-divider {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    margin-bottom: 1rem;
+                }
+
+                .demo-line {
+                    flex-grow: 1;
+                    height: 1px;
+                    background: #e2e8f0;
+                }
+
+                .demo-text {
+                    font-weight: 600;
+                    color: #64748b;
+                }
+
+                .demo-button {
+                    background: transparent;
+                    border: 2px solid #3b82f6;
+                    color: #3b82f6;
+                    font-weight: 600;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                }
+
+                .demo-button:hover {
+                    background: #3b82f6;
+                    color: white;
+                    transform: translateY(-1px);
+                }
+
+                .demo-description {
+                    font-size: 0.8rem;
+                    color: #64748b;
                 }
 
                 @media (max-width: 768px) {

@@ -1,1098 +1,602 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Nav, Tab, Button, Badge, ListGroup, ProgressBar, Form, InputGroup, Spinner, Table, Alert } from 'react-bootstrap';
+import React, { useState, useEffect, useRef } from 'react';
+import { Container, Row, Col, Card, Nav, Tab, Button, Badge, ListGroup, ProgressBar, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faUser,
-    faMusic,
-    faShoppingBag,
-    faHeart,
-    faCog,
-    faDownload,
-    faCalendar,
-    faStar,
-    faEye,
-    faHeadphones,
-    faPlay,
-    faPause,
-    faEdit,
-    faTrash,
-    faPlus,
-    faUpload,
-    faCalendarAlt,
-    faTicketAlt,
-    faEuroSign,
-    faUsers,
-    faMapMarkerAlt,
-    faClock,
-    faSearch,
-    faFilter,
-    faSort,
-    faChartLine,
-    faShare,
-    faBookmark,
-    faBell,
-    faPrint,
-    faUserPlus,
-    faCheckCircle,
-    faInfoCircle,
-    faExclamationTriangle,
-    faTimesCircle,
-    faPhone,
-    faEnvelope,
-    faTrophy,
-    faGift,
-    faCoins,
-    faUserCheck,
-    faVolumeUp,
-    faVolumeMute,
-    faForward,
-    faBackward,
-    faStop,
-    faExternalLinkAlt,
-    faUserMinus,
-    faVideo,
-    faComment
+    faUser, faMusic, faShoppingBag, faHeart, faCog, faDownload, faCalendar,
+    faStar, faEye, faHeadphones, faPlay, faPause, faEdit, faTrash, faPlus,
+    faUpload, faCalendarAlt, faTicketAlt, faUsers, faMapMarkerAlt, faClock,
+    faSearch, faFilter, faSort, faChartLine, faShare, faBookmark, faBell,
+    faPrint, faUserPlus, faCheckCircle, faInfoCircle, faExclamationTriangle,
+    faTimesCircle, faPhone, faEnvelope, faTrophy, faGift, faCoins, faUserCheck,
+    faVolumeUp, faVolumeMute, faForward, faBackward, faStop, faExternalLinkAlt,
+    faUserMinus, faVideo, faComment, faCamera, faGlobe, faLock, faRandom,
+    faRepeat, faStepForward, faStepBackward, faTimes, faShoppingCart, faWaveSquare
 } from '@fortawesome/free-solid-svg-icons';
 import LoadingSpinner, { LoadingOverlay } from '../common/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useCart } from '../../context/CartContext';
 import AudioPlayer from '../common/AudioPlayer';
 
 const Profile = () => {
-    const [activeTab, setActiveTab] = useState('sounds');
+    const [activeTab, setActiveTab] = useState('library');
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [profileData, setProfileData] = useState(null);
 
-    // Données des achats utilisateur
+    // États bibliothèque musicale
     const [purchasedSounds, setPurchasedSounds] = useState([]);
-    const [purchasedEvents, setPurchasedEvents] = useState([]);
-
-    // Données des favoris
     const [favoriteSounds, setFavoriteSounds] = useState([]);
-    const [favoriteArtists, setFavoriteArtists] = useState([]);
-    const [followedArtists, setFollowedArtists] = useState([]);
-
-    // Données des créations
     const [mySounds, setMySounds] = useState([]);
-    const [pendingSounds, setPendingSounds] = useState([]);
+    const [followedArtists, setFollowedArtists] = useState([]);
+    const [purchasedEvents, setPurchasedEvents] = useState([]);
     const [myClips, setMyClips] = useState([]);
-    const [myCompetitions, setMyCompetitions] = useState([]);
 
-    // Notifications
-    const [notifications, setNotifications] = useState([]);
-
-    // Sons et favoris
-    const [purchasedTickets, setPurchasedTickets] = useState([]);
-
-    // Statistiques utilisateur
-    const [userStats, setUserStats] = useState({
-        totalPurchases: 0,
-        totalSpent: 0,
-        favoritesCount: 0,
-        eventsAttended: 0
-    });
-
-    // Audio Player State
-    const [currentTrack, setCurrentTrack] = useState(null);
+    // États lecteur audio
+    const [currentPlaying, setCurrentPlaying] = useState(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(0.8);
-    const [playlist, setPlaylist] = useState([]);
+    const [isShuffled, setIsShuffled] = useState(false);
+    const [isRepeated, setIsRepeated] = useState(false);
+    const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+    const [currentPlaylist, setCurrentPlaylist] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [audioRef, setAudioRef] = useState(null);
 
+    // États interface
+    const [viewMode, setViewMode] = useState('grid'); // grid, list
+    const [filterBy, setFilterBy] = useState('all'); // all, free, paid, liked
+    const [sortBy, setSortBy] = useState('recent'); // recent, name, artist, duration
+
+    const audioRef = useRef(null);
     const { user, token, loading: authLoading, isAuthenticated } = useAuth();
     const toast = useToast();
+    const { addToCart, isInCart } = useCart();
 
-    // Initialiser l'audio
+    // Initialisation
     useEffect(() => {
-        const audio = new Audio();
-        audio.volume = volume;
+        if (isAuthenticated && user) {
+            loadProfileData();
+        }
+    }, [isAuthenticated, user]);
 
-        audio.addEventListener('timeupdate', () => {
-            setCurrentTime(audio.currentTime);
-        });
+    // Initialiser le lecteur audio
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
 
-        audio.addEventListener('loadedmetadata', () => {
-            setDuration(audio.duration);
-        });
+        const updateTime = () => setCurrentTime(audio.currentTime);
+        const updateDuration = () => setDuration(audio.duration);
+        const handleEnded = () => {
+            if (isRepeated) {
+                audio.currentTime = 0;
+                audio.play();
+            } else {
+                handleNextTrack();
+            }
+        };
 
-        audio.addEventListener('ended', () => {
-            handleNextTrack();
-        });
-
-        setAudioRef(audio);
+        audio.addEventListener('timeupdate', updateTime);
+        audio.addEventListener('loadedmetadata', updateDuration);
+        audio.addEventListener('ended', handleEnded);
 
         return () => {
-            audio.pause();
-            audio.src = '';
+            audio.removeEventListener('timeupdate', updateTime);
+            audio.removeEventListener('loadedmetadata', updateDuration);
+            audio.removeEventListener('ended', handleEnded);
         };
-    }, []);
+    }, [isRepeated]);
 
-    // Logs de débogage pour l'authentification
-    useEffect(() => {
-        console.log('🔐 État authentification Profile:', {
-            user: user ? { id: user.id, name: user.name, role: user.role } : null,
-            token: token ? 'TOKEN_PRÉSENT' : 'PAS_DE_TOKEN',
-            authLoading,
-            isAuthenticated,
-            localStorage_token: localStorage.getItem('auth_token') ? 'PRÉSENT_LS' : 'ABSENT_LS'
-        });
-    }, [user, token, authLoading, isAuthenticated]);
-
-    // Test de diagnostic d'authentification
-    const runAuthDiagnostic = () => {
-        console.log('🚀 DIAGNOSTIC AUTHENTIFICATION DÉTAILLÉ');
-        console.log('================================');
-
-        console.log('1. AuthContext State:');
-        console.log('   - user:', user);
-        console.log('   - token:', token);
-        console.log('   - authLoading:', authLoading);
-        console.log('   - isAuthenticated:', isAuthenticated);
-
-        console.log('2. LocalStorage:');
-        console.log('   - auth_token:', localStorage.getItem('auth_token'));
-        console.log('   - user:', localStorage.getItem('user'));
-
-        console.log('3. Cookies:', document.cookie);
-
-        console.log('4. Axios headers:', window.axios?.defaults?.headers?.common);
-
-        // Test d'une requête API directe
-        if (token) {
-            console.log('5. Test API direct...');
-            fetch('/api/user', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => {
-                console.log('   - Statut:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('   - Données utilisateur:', data);
-            })
-            .catch(error => {
-                console.error('   - Erreur API:', error);
-            });
-        } else {
-            console.log('5. Pas de token pour tester l\'API');
-        }
-
-        console.log('================================');
-        toast.info('Diagnostic', 'Vérifiez la console pour les détails (F12)');
-    };
-
-    // Simuler le chargement lors du changement d'onglet
-    const handleTabChange = (tab) => {
-        if (tab !== activeTab) {
-            setIsLoading(true);
-            setTimeout(() => {
-                setActiveTab(tab);
-                setIsLoading(false);
-            }, 800);
-        }
-    };
-
-    // Charger les données depuis l'API - seulement après que l'authentification soit chargée
-    useEffect(() => {
-        // Attendre que l'authentification soit chargée
-        if (authLoading) {
-            console.log('⏳ Authentification en cours de chargement...');
-            return;
-        }
-
-        // Vérifier que l'utilisateur est connecté
-        if (!isAuthenticated || !user || !token) {
-            console.log('❌ Utilisateur non authentifié:', { isAuthenticated, user: !!user, token: !!token });
-            toast.error('Authentification requise', 'Veuillez vous connecter pour accéder à votre profil');
-            return;
-        }
-
-        console.log('✅ Utilisateur authentifié, chargement des données...');
-        loadUserData();
-    }, [user, token, authLoading, isAuthenticated]);
-
-    const loadUserData = async () => {
+    const loadProfileData = async () => {
         setIsLoading(true);
         try {
             // Charger toutes les données en parallèle
-            const [sounds, favorites, artists, tickets, stats, clips, competitions] = await Promise.all([
+            await Promise.all([
                 loadPurchasedSounds(),
                 loadFavoriteSounds(),
+                loadMySounds(),
                 loadFollowedArtists(),
-                loadPurchasedTickets(),
-                loadUserStatsFromAPI(),
-                loadMyClips(),
-                loadMyCompetitions()
+                loadPurchasedEvents(),
+                loadMyClips()
             ]);
-
-            // Si les statistiques de l'API sont disponibles, les utiliser
-            if (stats) {
-                setUserStats({
-                    totalPurchases: stats.purchases.total_purchases,
-                    totalSpent: stats.purchases.total_spent,
-                    favoritesCount: stats.favorites.total,
-                    eventsAttended: stats.purchases.events.count
-                });
-            } else {
-                // Sinon, calculer les statistiques à partir des données chargées
-                const totalSoundPurchases = sounds.reduce((sum, sound) => sum + (sound.purchase_price || sound.price || 0), 0);
-                const totalEventPurchases = tickets.reduce((sum, ticket) => sum + (ticket.total_paid || ticket.ticket_price * ticket.quantity || 0), 0);
-
-                const totalPurchases = sounds.length + tickets.length;
-                const totalSpent = totalSoundPurchases + totalEventPurchases;
-                const favoritesCount = favorites.length + artists.length;
-                const eventsAttended = tickets.length;
-
-                setUserStats({
-                    totalPurchases,
-                    totalSpent,
-                    favoritesCount,
-                    eventsAttended
-                });
-            }
-
-            console.log('📊 Données chargées avec succès');
-
         } catch (error) {
-            console.error('Erreur lors du chargement des données:', error);
-            toast.error('Erreur', 'Impossible de charger vos données');
+            console.error('Erreur chargement profil:', error);
+            toast.error('Erreur', 'Impossible de charger les données du profil');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const loadUserStatsFromAPI = async () => {
-        try {
-            const response = await fetch('/api/user/stats', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('📊 Statistiques API reçues:', data.stats);
-                return data.stats;
-            }
-        } catch (error) {
-            console.error('Erreur statistiques API:', error);
-        }
-        return null;
-    };
-
     const loadPurchasedSounds = async () => {
         try {
             const response = await fetch('/api/user/purchased-sounds', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                const sounds = Array.isArray(data) ? data : data.data || [];
-                setPurchasedSounds(sounds);
-                return sounds;
+            const data = await response.json();
+            if (data.success) {
+                setPurchasedSounds(data.data || []);
             }
         } catch (error) {
-            console.error('Erreur purchased sounds:', error);
+            console.error('Erreur sons achetés:', error);
         }
-
-        // Données de fallback
-        const fallbackSounds = [
-                {
-                    id: 1,
-                    title: "Beat Afro Moderne",
-                    artist: "DJ Cameroun",
-                    price: 2500,
-                    purchase_date: "2024-03-15",
-                    cover_image_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop",
-                audio_file_url: "https://www.soundjay.com/misc/sounds/fail-buzzer-02.mp3",
-                category: "Afrobeat",
-                duration: "3:45",
-                can_download: true
-                },
-                {
-                    id: 2,
-                    title: "Makossa Fusion",
-                    artist: "UrbanSonic",
-                    price: 3500,
-                    purchase_date: "2024-03-10",
-                    cover_image_url: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100&h=100&fit=crop",
-                audio_file_url: "https://www.soundjay.com/misc/sounds/fail-buzzer-02.mp3",
-                category: "Fusion",
-                duration: "4:12",
-                can_download: true
-            }
-        ];
-        setPurchasedSounds(fallbackSounds);
-        return fallbackSounds;
     };
 
     const loadFavoriteSounds = async () => {
         try {
             const response = await fetch('/api/user/favorite-sounds', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                const sounds = Array.isArray(data) ? data : data.data || [];
-                setFavoriteSounds(sounds);
-                return sounds;
+            const data = await response.json();
+            if (data.success) {
+                setFavoriteSounds(data.data || []);
             }
         } catch (error) {
-            console.error('Erreur favorite sounds:', error);
+            console.error('Erreur sons favoris:', error);
         }
+    };
 
-            // Données de fallback
-        const fallbackFavorites = [
-                {
-                id: 3,
-                    title: "Coupé-Décalé Beat",
-                    artist: "BeatMaker237",
-                price: 0, // Gratuit
-                cover_image_url: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=100&h=100&fit=crop",
-                audio_file_url: "https://www.soundjay.com/misc/sounds/fail-buzzer-02.mp3",
-                category: "Coupé-Décalé",
-                duration: "3:20",
-                is_free: true,
-                can_play: true
-            },
-            {
-                id: 4,
-                    title: "Bikutsi Électro",
-                    artist: "DJ Yaoundé",
-                price: 2000, // Payant - ne peut pas jouer
-                cover_image_url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=100&h=100&fit=crop",
-                audio_file_url: null,
-                category: "Bikutsi",
-                duration: "3:55",
-                is_free: false,
-                can_play: false
+    const loadMySounds = async () => {
+        try {
+            const response = await fetch('/api/user/sounds', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setMySounds(data.data || []);
             }
-        ];
-        setFavoriteSounds(fallbackFavorites);
-        return fallbackFavorites;
+        } catch (error) {
+            console.error('Erreur mes sons:', error);
+        }
     };
 
     const loadFollowedArtists = async () => {
         try {
             const response = await fetch('/api/user/followed-artists', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                const artists = Array.isArray(data) ? data : data.data || [];
-                setFollowedArtists(artists);
-                return artists;
+            const data = await response.json();
+            if (data.success) {
+                setFollowedArtists(data.data || []);
             }
         } catch (error) {
-            console.error('Erreur followed artists:', error);
-        }
-
-        // Données de fallback
-        const fallbackArtists = [
-            {
-                id: 1,
-                name: "DJ Cameroun",
-                profile_photo_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop",
-                followers_count: 1250,
-                sounds_count: 35,
-                role: "artist",
-                bio: "Producteur de beats afro modernes",
-                location: "Douala, Cameroun",
-                followed_at: "2024-03-15"
-            },
-            {
-                id: 2,
-                name: "UrbanSonic",
-                profile_photo_url: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=100&h=100&fit=crop",
-                followers_count: 850,
-                sounds_count: 22,
-                role: "producer",
-                bio: "Fusion makossa et sons urbains",
-                location: "Yaoundé, Cameroun",
-                followed_at: "2024-03-10"
-            },
-            {
-                id: 3,
-                name: "BeatMaker237",
-                profile_photo_url: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=100&h=100&fit=crop",
-                followers_count: 675,
-                sounds_count: 18,
-                role: "artist",
-                bio: "Spécialiste du coupé-décalé moderne",
-                location: "Bafoussam, Cameroun",
-                followed_at: "2024-02-28"
-            }
-        ];
-        setFollowedArtists(fallbackArtists);
-        return fallbackArtists;
-    };
-
-    const unfollowArtist = async (artistId) => {
-        try {
-            const response = await fetch(`/api/artists/${artistId}/follow`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                // Retirer l'artiste de la liste
-                setFollowedArtists(prev => prev.filter(artist => artist.id !== artistId));
-                toast.success('Ne plus suivre', 'Vous ne suivez plus cet artiste');
-
-                // Mettre à jour les statistiques
-                setUserStats(prev => ({
-                    ...prev,
-                    favoritesCount: prev.favoritesCount - 1
-                }));
-            } else {
-                toast.error('Erreur', 'Impossible de ne plus suivre cet artiste');
-            }
-        } catch (error) {
-            console.error('Erreur unfollow:', error);
-            toast.error('Erreur', 'Erreur de connexion');
+            console.error('Erreur artistes suivis:', error);
         }
     };
 
-    const loadPurchasedTickets = async () => {
+    const loadPurchasedEvents = async () => {
         try {
             const response = await fetch('/api/user/purchased-events', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                const tickets = Array.isArray(data) ? data : data.data || [];
-                setPurchasedTickets(tickets);
-                return tickets;
+            const data = await response.json();
+            if (data.success) {
+                setPurchasedEvents(data.data || []);
             }
         } catch (error) {
-            console.error('Erreur purchased tickets:', error);
+            console.error('Erreur événements achetés:', error);
         }
+    };
 
-            // Données de fallback
-        const fallbackTickets = [
-                {
-                    id: 1,
-                title: "RéveilArt4artist Festival 2024",
-                venue: "Stade Ahmadou Ahidjo",
-                city: "Yaoundé",
-                event_date: "2024-06-15",
-                start_time: "20:00",
-                ticket_price: 15000,
-                quantity: 2,
-                purchase_date: "2024-03-12",
-                poster_url: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=300&h=200&fit=crop",
-                order_number: "RVL-1710338400-GHI789",
-                status: "confirmed"
+    const loadMyClips = async () => {
+        try {
+            const response = await fetch('/api/user/clips', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setMyClips(data.data || []);
             }
-        ];
-        setPurchasedTickets(fallbackTickets);
-        return fallbackTickets;
-    };
-
-    // Audio Player Functions
-    const buildPlaylist = () => {
-        const playableSounds = [
-            ...purchasedSounds.filter(sound => sound.audio_file_url),
-            ...favoriteSounds.filter(sound => sound.can_play && sound.audio_file_url)
-        ];
-        setPlaylist(playableSounds);
-        return playableSounds;
-    };
-
-    const playTrack = (sound, index = null) => {
-        if (!audioRef) return;
-
-        const currentPlaylist = buildPlaylist();
-        const trackIndex = index !== null ? index : currentPlaylist.findIndex(s => s.id === sound.id);
-
-        if (trackIndex === -1) {
-            toast.warning('Lecture non disponible', 'Ce son n\'est pas disponible à la lecture');
-            return;
+        } catch (error) {
+            console.error('Erreur mes clips:', error);
         }
-
-        audioRef.src = sound.audio_file_url;
-        audioRef.load();
-
-        setCurrentTrack(sound);
-        setCurrentIndex(trackIndex);
-        setPlaylist(currentPlaylist);
-
-        audioRef.play().then(() => {
-            setIsPlaying(true);
-            toast.success('Lecture', `Lecture de "${sound.title}"`);
-        }).catch(error => {
-            console.error('Erreur de lecture:', error);
-            toast.error('Erreur', 'Impossible de lire ce fichier audio');
-        });
     };
 
-    const togglePlayPause = () => {
-        if (!audioRef || !currentTrack) return;
+    // Fonctions du lecteur audio
+    const handlePlayPause = (sound) => {
+        const audio = audioRef.current;
+        if (!audio) return;
 
-        if (isPlaying) {
-            audioRef.pause();
+        if (currentPlaying?.id === sound.id && isPlaying) {
+            audio.pause();
             setIsPlaying(false);
         } else {
-            audioRef.play().then(() => {
-                setIsPlaying(true);
-            }).catch(error => {
-                console.error('Erreur de lecture:', error);
-                toast.error('Erreur', 'Impossible de reprendre la lecture');
-            });
+            // Arrêter l'audio en cours
+            if (currentPlaying && currentPlaying.id !== sound.id) {
+                audio.pause();
+                setCurrentTime(0);
+            }
+
+            audio.src = sound.preview_url || sound.audio_file_url || sound.file_url;
+            setCurrentPlaying(sound);
+
+            audio.play()
+                .then(() => {
+                    setIsPlaying(true);
+                    setShowMusicPlayer(true);
+                    
+                    // Construire la playlist
+                    const allSounds = [...purchasedSounds, ...favoriteSounds.filter(s => s.can_play), ...mySounds];
+                    setCurrentPlaylist(allSounds);
+                    setCurrentIndex(allSounds.findIndex(s => s.id === sound.id));
+                })
+                .catch(error => {
+                    console.error('Erreur lecture:', error);
+                    toast.error('Erreur', 'Impossible de lire ce son');
+                });
         }
-    };
-
-    const stopTrack = () => {
-        if (!audioRef) return;
-
-        audioRef.pause();
-        audioRef.currentTime = 0;
-        setIsPlaying(false);
-        setCurrentTime(0);
     };
 
     const handleNextTrack = () => {
-        if (playlist.length === 0) return;
+        if (currentPlaylist.length === 0) return;
 
-        const nextIndex = (currentIndex + 1) % playlist.length;
-        playTrack(playlist[nextIndex], nextIndex);
+        let nextIndex;
+        if (isShuffled) {
+            nextIndex = Math.floor(Math.random() * currentPlaylist.length);
+        } else {
+            nextIndex = (currentIndex + 1) % currentPlaylist.length;
+        }
+
+        const nextSound = currentPlaylist[nextIndex];
+        if (nextSound) {
+            handlePlayPause(nextSound);
+            setCurrentIndex(nextIndex);
+        }
     };
 
     const handlePreviousTrack = () => {
-        if (playlist.length === 0) return;
+        if (currentPlaylist.length === 0) return;
 
-        const prevIndex = currentIndex === 0 ? playlist.length - 1 : currentIndex - 1;
-        playTrack(playlist[prevIndex], prevIndex);
+        const prevIndex = currentIndex === 0 ? currentPlaylist.length - 1 : currentIndex - 1;
+        const prevSound = currentPlaylist[prevIndex];
+        if (prevSound) {
+            handlePlayPause(prevSound);
+            setCurrentIndex(prevIndex);
+        }
+    };
+
+    const handleSeek = (newTime) => {
+        const audio = audioRef.current;
+        if (audio) {
+            audio.currentTime = newTime;
+            setCurrentTime(newTime);
+        }
     };
 
     const handleVolumeChange = (newVolume) => {
         setVolume(newVolume);
-        if (audioRef) {
-            audioRef.volume = newVolume;
+        if (audioRef.current) {
+            audioRef.current.volume = newVolume;
         }
     };
 
-    const formatTime = (time) => {
-        if (isNaN(time)) return "0:00";
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const handleAddToCart = (sound) => {
+        if (!sound.is_free && sound.price > 0) {
+            if (isInCart(sound.id, 'sound')) {
+                toast.info('Déjà dans le panier', 'Ce son est déjà présent dans votre panier');
+                return;
+            }
+
+            const cartItem = {
+                id: sound.id,
+                type: 'sound',
+                title: sound.title,
+                artist: sound.artist || sound.user?.name,
+                price: sound.price,
+                is_free: sound.is_free,
+                cover: sound.cover_image_url,
+                duration: sound.duration,
+                category: sound.category
+            };
+
+            const success = addToCart(cartItem);
+            if (success) {
+                toast.success('Ajouté au panier', `"${sound.title}" a été ajouté à votre panier`);
+            }
+        }
+    };
+
+    // Fonctions utilitaires
+    const formatTime = (seconds) => {
+        if (!seconds || isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
     const formatCurrency = (amount) => {
-        if (!amount) return '0 FCFA';
-        return new Intl.NumberFormat('fr-FR', {
+        return new Intl.NumberFormat('fr-CM', {
             style: 'currency',
             currency: 'XAF',
             minimumFractionDigits: 0
         }).format(amount);
     };
 
-    // Ajouter la fonction formatNumber manquante
     const formatNumber = (num) => {
-        if (!num || num === 0) return '0';
-        if (num < 1000) return num.toString();
-        if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
-        return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num?.toString() || '0';
     };
 
-    const downloadSound = (sound) => {
-        if (!sound.can_download) {
-            toast.error('Téléchargement non autorisé', 'Vous n\'avez pas les droits pour télécharger ce fichier');
-            return;
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('fr-FR', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+
+    // Filtrer et trier les sons
+    const getFilteredSounds = (sounds) => {
+        let filtered = sounds;
+
+        // Filtrer
+        switch (filterBy) {
+            case 'free':
+                filtered = sounds.filter(s => s.is_free);
+                break;
+            case 'paid':
+                filtered = sounds.filter(s => !s.is_free && s.price > 0);
+                break;
+            case 'liked':
+                filtered = favoriteSounds;
+                break;
+            default:
+                break;
         }
 
-        const link = document.createElement('a');
-        link.href = sound.audio_file_url || '#';
-        link.download = `${sound.title}.mp3`;
-        link.click();
-
-        toast.success('Téléchargement', `${sound.title} est en cours de téléchargement`);
-    };
-
-    const printEventTicket = (event) => {
-        const ticketWindow = window.open('', '_blank');
-        const ticketHtml = generateTicketHTML(event);
-
-        ticketWindow.document.write(ticketHtml);
-        ticketWindow.document.close();
-        ticketWindow.focus();
-        ticketWindow.print();
-
-        toast.success('Ticket imprimé', `Votre ticket pour ${event.title} est prêt`);
-    };
-
-    const generateTicketHTML = (event) => {
-        return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Ticket - ${event.title}</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
-                    .ticket { border: 2px dashed #333; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; }
-                    .ticket-header { text-align: center; margin-bottom: 20px; }
-                    .event-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
-                    .ticket-info { margin-bottom: 15px; }
-                    .ticket-info div { margin-bottom: 8px; }
-                    .qr-placeholder { width: 80px; height: 80px; background: white; margin: 20px auto; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #333; font-weight: bold; }
-                    .ticket-number { text-align: center; font-family: monospace; font-size: 14px; letter-spacing: 2px; }
-                </style>
-            </head>
-            <body>
-                <div class="ticket">
-                    <div class="ticket-header">
-                        <div style="font-size: 24px;">🎵</div>
-                        <div class="event-title">${event.title}</div>
-                    </div>
-
-                    <div class="ticket-info">
-                        <div><strong>📅 Date:</strong> ${new Date(event.event_date).toLocaleDateString('fr-FR')}</div>
-                        <div><strong>🕒 Heure:</strong> ${event.start_time || '20:00'}</div>
-                        <div><strong>📍 Lieu:</strong> ${event.venue}</div>
-                        <div><strong>🏙️ Ville:</strong> ${event.city}</div>
-                        <div><strong>🎫 Quantité:</strong> ${event.quantity} ticket(s)</div>
-                        <div><strong>👤 Titulaire:</strong> ${user?.name}</div>
-                    </div>
-
-                    <div class="qr-placeholder">
-                        QR CODE
-                    </div>
-
-                    <div class="ticket-number">
-                        ${event.order_number}-${event.id}
-                    </div>
-
-                    <div style="text-align: center; margin-top: 15px; font-size: 12px;">
-                        <p>Ticket valide - Présenter à l'entrée</p>
-                        <p>Reveil4artist</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-    };
-
-    const markNotificationAsRead = async (notificationId) => {
-        try {
-            await fetch(`/api/notifications/${notificationId}/mark-read`, {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            setNotifications(prev =>
-                prev.map(notif =>
-                    notif.id === notificationId ? { ...notif, read: true } : notif
-                )
+        // Recherche
+        if (searchTerm.trim()) {
+            filtered = filtered.filter(sound =>
+                sound.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (sound.artist || sound.user?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
             );
-        } catch (error) {
-            console.warn('Erreur lors du marquage de la notification');
-        }
-    };
-
-    const getNotificationIcon = (type) => {
-        switch (type) {
-            case 'success': return faCheckCircle;
-            case 'warning': return faExclamationTriangle;
-            case 'error': return faTimesCircle;
-            default: return faInfoCircle;
-        }
-    };
-
-    const getNotificationColor = (type) => {
-        switch (type) {
-            case 'success': return 'text-success';
-            case 'warning': return 'text-warning';
-            case 'error': return 'text-danger';
-            default: return 'text-info';
-        }
-    };
-
-    const getStatusBadge = (status) => {
-        const statusConfig = {
-            pending: { variant: 'warning', text: 'En attente' },
-            published: { variant: 'success', text: 'Publié' },
-            active: { variant: 'primary', text: 'Actif' },
-            completed: { variant: 'secondary', text: 'Terminé' },
-            rejected: { variant: 'danger', text: 'Rejeté' }
-        };
-        const config = statusConfig[status] || { variant: 'secondary', text: status };
-        return <Badge bg={config.variant}>{config.text}</Badge>;
-    };
-
-    const setSoundPrice = async (soundId, price) => {
-        try {
-            const response = await fetch(`/api/sounds/${soundId}/price`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ price: parseFloat(price) })
-            });
-
-            if (response.ok) {
-                // Recharger les sons de l'utilisateur
-                await loadUserData();
-                toast.success('Prix défini', `Le prix de votre son a été mis à jour`);
-            } else {
-                toast.error('Erreur', 'Impossible de définir le prix');
-            }
-        } catch (error) {
-            toast.error('Erreur', 'Erreur de connexion');
-        }
-    };
-
-    const handlePriceSubmit = (soundId) => {
-        const priceInput = document.getElementById(`price-${soundId}`);
-        const price = priceInput.value;
-
-        if (!price || parseFloat(price) < 0) {
-            toast.error('Erreur', 'Veuillez entrer un prix valide');
-            return;
         }
 
-        setSoundPrice(soundId, price);
+        // Trier
+        switch (sortBy) {
+            case 'name':
+                filtered.sort((a, b) => a.title.localeCompare(b.title));
+                break;
+            case 'artist':
+                filtered.sort((a, b) => (a.artist || a.user?.name || '').localeCompare(b.artist || b.user?.name || ''));
+                break;
+            case 'duration':
+                filtered.sort((a, b) => (b.duration_seconds || 0) - (a.duration_seconds || 0));
+                break;
+            default: // recent
+                filtered.sort((a, b) => new Date(b.created_at || b.purchase_date) - new Date(a.created_at || a.purchase_date));
+                break;
+        }
+
+        return filtered;
     };
 
-    const renderUserStats = () => (
-        <Row className="g-3 mb-4">
-            <Col md={3} sm={6}>
-                <Card className="border-0 bg-primary text-white h-100" style={{ borderRadius: '12px' }}>
-                        <Card.Body className="text-center">
-                        <FontAwesomeIcon icon={faCoins} className="mb-2" size="2x" />
-                        <h4 className="fw-bold">{formatCurrency(userStats.totalSpent)}</h4>
-                        <small>Total dépensé</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            <Col md={3} sm={6}>
-                <Card className="border-0 bg-success text-white h-100" style={{ borderRadius: '12px' }}>
-                        <Card.Body className="text-center">
-                        <FontAwesomeIcon icon={faShoppingBag} className="mb-2" size="2x" />
-                        <h4 className="fw-bold">{userStats.totalPurchases}</h4>
-                        <small>Achats total</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            <Col md={3} sm={6}>
-                <Card className="border-0 bg-info text-white h-100" style={{ borderRadius: '12px' }}>
-                        <Card.Body className="text-center">
-                        <FontAwesomeIcon icon={faHeart} className="mb-2" size="2x" />
-                        <h4 className="fw-bold">{userStats.favoritesCount}</h4>
-                        <small>Favoris</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            <Col md={3} sm={6}>
-                <Card className="border-0 bg-warning text-white h-100" style={{ borderRadius: '12px' }}>
-                        <Card.Body className="text-center">
-                        <FontAwesomeIcon icon={faTicketAlt} className="mb-2" size="2x" />
-                        <h4 className="fw-bold">{userStats.eventsAttended}</h4>
-                        <small>Événements</small>
-                        </Card.Body>
-                    </Card>
-                </Col>
-            </Row>
-    );
+    // Composants de rendu
+    const renderMusicLibrary = () => {
+        const allSounds = [...purchasedSounds, ...favoriteSounds, ...mySounds];
+        const filteredSounds = getFilteredSounds(allSounds);
 
-    const renderAudioPlayer = () => {
-        if (!currentTrack) return null;
+        if (filteredSounds.length === 0) {
+            return (
+                <div className="text-center py-5">
+                    <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
+                    <h5>Aucun son trouvé</h5>
+                    <p className="text-muted">
+                        {searchTerm ? 'Aucun résultat pour votre recherche' : 'Votre bibliothèque musicale est vide'}
+                    </p>
+                    <Button as={Link} to="/catalog" variant="primary">
+                        Découvrir de la musique
+                    </Button>
+                </div>
+            );
+        }
 
-        return (
-            <Card className="border-0 shadow-sm mb-4" style={{ borderRadius: '16px' }}>
-                <Card.Body>
-                                            <div className="d-flex align-items-center">
-                                                <img
-                            src={currentTrack.cover_image_url}
-                            alt={currentTrack.title}
-                                                    className="rounded me-3"
-                                                    style={{ width: '60px', height: '60px', objectFit: 'cover' }}
-                                                />
-                        <div className="flex-grow-1">
-                            <h6 className="fw-bold mb-1">{currentTrack.title}</h6>
-                            <p className="text-muted mb-2 small">par {currentTrack.artist}</p>
-
-                            <div className="d-flex align-items-center gap-2 mb-2">
-                                                        <Button
-                                    variant="outline-primary"
-                                    size="sm"
-                                    onClick={handlePreviousTrack}
-                                    disabled={playlist.length <= 1}
-                                >
-                                    <FontAwesomeIcon icon={faBackward} />
-                                                        </Button>
-
-                                            <Button
-                                    variant={isPlaying ? "warning" : "success"}
-                                                size="sm"
-                                    onClick={togglePlayPause}
-                                            >
-                                    <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
-                                            </Button>
-
-                                            <Button
-                                    variant="outline-danger"
-                                                size="sm"
-                                    onClick={stopTrack}
-                                            >
-                                    <FontAwesomeIcon icon={faStop} />
-                                            </Button>
-
-                                <Button
-                                    variant="outline-primary"
-                                    size="sm"
-                                    onClick={handleNextTrack}
-                                    disabled={playlist.length <= 1}
-                                >
-                                    <FontAwesomeIcon icon={faForward} />
-                        </Button>
-                            </div>
-
-                            <div className="d-flex align-items-center gap-2">
-                                <small>{formatTime(currentTime)}</small>
-                                <div className="flex-grow-1 bg-light rounded" style={{ height: '4px' }}>
-                                    <div
-                                        className="bg-primary rounded"
-                                        style={{
-                                            width: duration ? `${(currentTime / duration) * 100}%` : '0%',
-                                            height: '100%'
-                                        }}
-                                    />
+        if (viewMode === 'grid') {
+            return (
+                <div className="music-grid">
+                    {filteredSounds.map((sound, index) => (
+                        <Card key={sound.id} className="music-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                            <div className="music-cover">
+                                <img
+                                    src={sound.cover_image_url || sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=250&h=250&fit=crop`}
+                                    alt={sound.title}
+                                    className="cover-image"
+                                />
+                                <div className="play-overlay">
+                                    <Button
+                                        variant="light"
+                                        className="play-btn-overlay"
+                                        onClick={() => handlePlayPause(sound)}
+                                    >
+                                        <FontAwesomeIcon 
+                                            icon={currentPlaying?.id === sound.id && isPlaying ? faPause : faPlay} 
+                                        />
+                                    </Button>
                                 </div>
-                                <small>{formatTime(duration)}</small>
-
-                                <div className="d-flex align-items-center gap-1 ms-3">
-                                    <FontAwesomeIcon
-                                        icon={volume === 0 ? faVolumeMute : faVolumeUp}
-                                        className="text-muted small"
-                                    />
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.1"
-                                        value={volume}
-                                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                                        style={{ width: '60px' }}
-                                    />
-                                </div>
+                                {sound.price > 0 && !sound.can_play && (
+                                    <div className="price-badge">
+                                        <Badge bg="warning" text="dark">
+                                            {formatCurrency(sound.price)}
+                                        </Badge>
+                                    </div>
+                                )}
+                                {sound.is_free && (
+                                    <div className="price-badge">
+                                        <Badge bg="success">Gratuit</Badge>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    </div>
-                    </Card.Body>
-                </Card>
-    );
-    };
-
-    const renderSounds = () => (
-        <div className="fade-in">
-            {renderUserStats()}
-            {renderAudioPlayer()}
-
-            {/* Sons achetés */}
-            <Card className="border-0 shadow-sm mb-4" style={{ borderRadius: '16px' }}>
-                <Card.Header className="bg-white border-0">
-                        <h5 className="fw-bold mb-0">
-                            <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
-                            Sons achetés ({purchasedSounds.length})
-                        </h5>
-                    </Card.Header>
+                            <Card.Body className="p-3">
+                                <h6 className="sound-title">{sound.title}</h6>
+                                <p className="sound-artist">{sound.artist || sound.user?.name}</p>
+                                <div className="sound-meta">
+                                    <small className="text-muted">
+                                        <FontAwesomeIcon icon={faClock} className="me-1" />
+                                        {sound.duration || '3:00'}
+                                    </small>
+                                    <small className="text-muted">
+                                        <FontAwesomeIcon icon={faHeadphones} className="me-1" />
+                                        {formatNumber(sound.plays_count || 0)}
+                                    </small>
+                                </div>
+                                <div className="sound-actions">
+                                    {sound.can_play !== false && (
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={() => handlePlayPause(sound)}
+                                        >
+                                            <FontAwesomeIcon icon={faPlay} className="me-1" />
+                                            Écouter
+                                        </Button>
+                                    )}
+                                    {!sound.is_free && sound.price > 0 && !sound.can_play && (
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={() => handleAddToCart(sound)}
+                                            disabled={isInCart(sound.id, 'sound')}
+                                        >
+                                            <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                                            {isInCart(sound.id, 'sound') ? 'Dans le panier' : 'Acheter'}
+                                        </Button>
+                                    )}
+                                    {sound.can_download && (
+                                        <Button
+                                            variant="success"
+                                            size="sm"
+                                            as={Link}
+                                            to={`/download/${sound.id}`}
+                                        >
+                                            <FontAwesomeIcon icon={faDownload} />
+                                        </Button>
+                                    )}
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    ))}
+                </div>
+            );
+        } else {
+            return (
+                <Card className="music-list">
                     <Card.Body className="p-0">
-                    {purchasedSounds.length > 0 ? (
-                        <Table className="mb-0 align-middle">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th className="border-0 p-3">Son</th>
-                                    <th className="border-0 p-3 text-center">Catégorie</th>
-                                    <th className="border-0 p-3 text-center">Prix</th>
-                                    <th className="border-0 p-3 text-center">Durée</th>
-                                    <th className="border-0 p-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {purchasedSounds.map(sound => (
-                                    <tr key={sound.id} className="border-bottom">
-                                        <td className="p-3">
-                                            <div className="d-flex align-items-center">
-                                                <img
-                                                    src={sound.cover_image_url}
-                                                    alt={sound.title}
-                                                    className="rounded me-3"
-                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                                />
-                                                <div>
-                                                    <h6 className="fw-bold mb-1">{sound.title}</h6>
-                                                    <p className="text-muted mb-0 small">par {sound.artist}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Badge bg="light" text="dark">{sound.category}</Badge>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className="fw-bold">{formatCurrency(sound.purchase_price || sound.price)}</span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <small className="text-muted">{sound.duration}</small>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Button
-                                                variant="success"
-                                                size="sm"
-                                                onClick={() => playTrack(sound)}
-                                                className="me-2"
-                                                disabled={!sound.audio_file_url}
-                                            >
-                                                <FontAwesomeIcon icon={faPlay} />
-                                            </Button>
-                                            {sound.can_download && (
-                                            <Button
+                        {filteredSounds.map((sound, index) => (
+                            <div
+                                key={sound.id}
+                                className={`music-list-item ${currentPlaying?.id === sound.id ? 'playing' : ''}`}
+                                style={{ animationDelay: `${index * 0.05}s` }}
+                            >
+                                <div className="d-flex align-items-center p-3">
+                                    <div className="list-play-btn">
+                                        <Button
+                                            variant="outline-primary"
+                                            size="sm"
+                                            onClick={() => handlePlayPause(sound)}
+                                            className="rounded-circle"
+                                        >
+                                            <FontAwesomeIcon 
+                                                icon={currentPlaying?.id === sound.id && isPlaying ? faPause : faPlay} 
+                                            />
+                                        </Button>
+                                    </div>
+                                    <img
+                                        src={sound.cover_image_url || sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop`}
+                                        alt={sound.title}
+                                        className="list-cover me-3"
+                                    />
+                                    <div className="flex-grow-1">
+                                        <h6 className="mb-0">{sound.title}</h6>
+                                        <small className="text-muted">{sound.artist || sound.user?.name}</small>
+                                    </div>
+                                    <div className="list-meta text-center me-3">
+                                        <small className="text-muted">{sound.duration || '3:00'}</small>
+                                    </div>
+                                    <div className="list-actions">
+                                        <div className="d-flex gap-2">
+                                            {!sound.is_free && sound.price > 0 && !sound.can_play && (
+                                                <Button
                                                     variant="primary"
-                                                size="sm"
-                                                    onClick={() => downloadSound(sound)}
-                                            >
-                                                    <FontAwesomeIcon icon={faDownload} />
-                                            </Button>
+                                                    size="sm"
+                                                    onClick={() => handleAddToCart(sound)}
+                                                    disabled={isInCart(sound.id, 'sound')}
+                                                >
+                                                    <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                                                    {formatCurrency(sound.price)}
+                                                </Button>
                                             )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    ) : (
-                        <div className="text-center p-5">
-                            <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucun son acheté</h5>
-                            <p className="text-muted mb-4">Explorez notre catalogue pour découvrir de nouveaux sons</p>
-                        <Button as={Link} to="/catalog" variant="primary">
-                            Explorer le catalogue
-                        </Button>
-                        </div>
-                    )}
+                                            {sound.can_download && (
+                                                <Button
+                                                    variant="outline-success"
+                                                    size="sm"
+                                                    as={Link}
+                                                    to={`/download/${sound.id}`}
+                                                >
+                                                    <FontAwesomeIcon icon={faDownload} />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </Card.Body>
                 </Card>
+            );
+        }
+    };
 
-            {/* Sons favoris */}
-            <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
-                <Card.Header className="bg-white border-0">
-                    <h5 className="fw-bold mb-0">
-                        <FontAwesomeIcon icon={faHeart} className="me-2 text-danger" />
-                        Sons favoris ({favoriteSounds.length})
+    const renderEvents = () => (
+        <div className="events-section">
+            <Card className="mb-4">
+                <Card.Header className="bg-white">
+                    <h5 className="mb-0">
+                        <FontAwesomeIcon icon={faCalendarAlt} className="me-2 text-warning" />
+                        Mes Événements ({purchasedEvents.length})
                     </h5>
                 </Card.Header>
-                <Card.Body className="p-0">
-                    {favoriteSounds.length > 0 ? (
-                        <Table className="mb-0 align-middle">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th className="border-0 p-3">Son</th>
-                                    <th className="border-0 p-3 text-center">Catégorie</th>
-                                    <th className="border-0 p-3 text-center">Prix</th>
-                                    <th className="border-0 p-3 text-center">Statut</th>
-                                    <th className="border-0 p-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {favoriteSounds.map(sound => (
-                                    <tr key={sound.id} className="border-bottom">
-                                        <td className="p-3">
-                                    <div className="d-flex align-items-center">
-                                        <img
-                                            src={sound.cover_image_url}
-                                            alt={sound.title}
-                                            className="rounded me-3"
-                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                        />
-                                                <div>
-                                            <h6 className="fw-bold mb-1">{sound.title}</h6>
-                                                    <p className="text-muted mb-0 small">par {sound.artist}</p>
-                                        </div>
+                <Card.Body>
+                    {purchasedEvents.length > 0 ? (
+                        <Row className="g-3">
+                            {purchasedEvents.map(event => (
+                                <Col md={6} key={event.id}>
+                                    <Card className="event-card h-100">
+                                        <Card.Body>
+                                            <div className="d-flex">
+                                                <div className="event-date me-3">
+                                                    <div className="date-number">{new Date(event.event_date).getDate()}</div>
+                                                    <div className="date-month">{formatDate(event.event_date).split(' ')[1]}</div>
+                                                </div>
+                                                <div className="flex-grow-1">
+                                                    <h6 className="fw-bold">{event.title}</h6>
+                                                    <p className="text-muted small mb-2">
+                                                        <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
+                                                        {event.venue}, {event.city}
+                                                    </p>
+                                                    <div className="d-flex justify-content-between">
+                                                        <span className="fw-bold text-success">
+                                                            {formatCurrency(event.ticket_price)}
+                                                        </span>
+                                                        <Button as={Link} to={`/events/${event.id}`} variant="outline-warning" size="sm">
+                                                            Détails
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Badge bg="light" text="dark">{sound.category}</Badge>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className={sound.is_free ? "text-success fw-bold" : "fw-bold"}>
-                                                {sound.is_free ? "Gratuit" : formatCurrency(sound.price)}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Badge bg={sound.can_play ? "success" : "warning"}>
-                                                {sound.can_play ? "Disponible" : "Payant"}
-                                            </Badge>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            {sound.can_play ? (
-                                                <Button
-                                                    variant="success"
-                                                    size="sm"
-                                                    onClick={() => playTrack(sound)}
-                                                    className="me-2"
-                                                >
-                                                    <FontAwesomeIcon icon={faPlay} />
-                                                </Button>
-                                            ) : (
-                                            <Button
-                                                variant="outline-primary"
-                                                size="sm"
-                                                as={Link}
-                                                to={`/sound/${sound.id}`}
-                                                    className="me-2"
-                                            >
-                                                    <FontAwesomeIcon icon={faExternalLinkAlt} />
-                                            </Button>
-                                            )}
-                                            <Button
-                                                variant="outline-secondary"
-                                                size="sm"
-                                                as={Link}
-                                                to={`/sound/${sound.id}`}
-                                            >
-                                                <FontAwesomeIcon icon={faEye} />
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
+                            ))}
+                        </Row>
                     ) : (
-                        <div className="text-center p-5">
-                            <FontAwesomeIcon icon={faHeart} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucun son favori</h5>
-                            <p className="text-muted mb-4">Ajoutez des sons à vos favoris pour les retrouver facilement</p>
-                            <Button as={Link} to="/catalog" variant="outline-primary">
-                                Découvrir des sons
+                        <div className="text-center py-4">
+                            <FontAwesomeIcon icon={faCalendarAlt} size="3x" className="text-muted mb-3" />
+                            <h5>Aucun événement</h5>
+                            <p className="text-muted">Vous n'avez acheté aucun billet d'événement</p>
+                            <Button as={Link} to="/events" variant="primary">
+                                Découvrir les événements
                             </Button>
                         </div>
                     )}
@@ -1101,197 +605,179 @@ const Profile = () => {
         </div>
     );
 
-    const renderEvents = () => (
-        <div className="fade-in">
-            {renderUserStats()}
-
-            {/* Billets achetés */}
-            <Card className="border-0 shadow-sm mb-4" style={{ borderRadius: '16px' }}>
-                <Card.Header className="bg-white border-0">
-                    <h5 className="fw-bold mb-0">
-                        <FontAwesomeIcon icon={faTicketAlt} className="me-2 text-success" />
-                        Billets achetés ({purchasedTickets.length})
+    const renderMyContent = () => (
+        <div className="my-content-section">
+            <Card className="mb-4">
+                <Card.Header className="bg-white d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0">
+                        <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
+                        Mes Sons ({mySounds.length})
                     </h5>
+                    <Button as={Link} to="/upload" variant="primary" size="sm">
+                        <FontAwesomeIcon icon={faPlus} className="me-1" />
+                        Ajouter
+                    </Button>
                 </Card.Header>
-                <Card.Body className="p-0">
-                    {purchasedTickets.length > 0 ? (
-                        <Table className="mb-0 align-middle">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th className="border-0 p-3">Événement</th>
-                                    <th className="border-0 p-3 text-center">Date</th>
-                                    <th className="border-0 p-3 text-center">Lieu</th>
-                                    <th className="border-0 p-3 text-center">Prix</th>
-                                    <th className="border-0 p-3 text-center">Quantité</th>
-                                    <th className="border-0 p-3 text-center">Statut</th>
-                                    <th className="border-0 p-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {purchasedTickets.map(ticket => (
-                                    <tr key={ticket.id} className="border-bottom">
-                                        <td className="p-3">
-                                    <div className="d-flex align-items-center">
-                                        <img
-                                                    src={ticket.poster_url}
-                                                    alt={ticket.title}
-                                                    className="rounded me-3"
-                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                                />
-                                        <div>
-                                                    <h6 className="fw-bold mb-1">{ticket.title}</h6>
-                                                    <p className="text-muted mb-0 small">#{ticket.order_number}</p>
+                <Card.Body>
+                    {mySounds.length > 0 ? (
+                        <Row className="g-3">
+                            {mySounds.map(sound => (
+                                <Col md={4} key={sound.id}>
+                                    <Card className="my-sound-card">
+                                        <div className="sound-cover">
+                                            <img
+                                                src={sound.cover_image_url || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&h=200&fit=crop`}
+                                                alt={sound.title}
+                                                className="cover-image"
+                                            />
+                                            <div className="play-overlay">
+                                                <Button
+                                                    variant="light"
+                                                    className="play-btn-overlay"
+                                                    onClick={() => handlePlayPause(sound)}
+                                                >
+                                                    <FontAwesomeIcon icon={faPlay} />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <Card.Body className="p-3">
+                                            <h6 className="sound-title">{sound.title}</h6>
+                                            <div className="d-flex justify-content-between align-items-center">
+                                                <Badge bg={sound.status === 'published' ? 'success' : 'warning'}>
+                                                    {sound.status === 'published' ? 'Publié' : 'En attente'}
+                                                </Badge>
+                                                <div className="d-flex gap-1">
+                                                    <Button variant="outline-primary" size="sm" as={Link} to={`/sounds/${sound.id}/edit`}>
+                                                        <FontAwesomeIcon icon={faEdit} />
+                                                    </Button>
+                                                    <Button variant="outline-danger" size="sm">
+                                                        <FontAwesomeIcon icon={faTrash} />
+                                                    </Button>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="fw-medium">
-                                                {new Date(ticket.event_date).toLocaleDateString('fr-FR')}
-                                            </div>
-                                            <small className="text-muted">{ticket.start_time}</small>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="small">
-                                                <div>{ticket.venue}</div>
-                                                <div className="text-muted">{ticket.city}</div>
-                                            </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className="fw-bold">{formatCurrency(ticket.ticket_price)}</span>
-                                            {ticket.total_paid && ticket.total_paid !== ticket.ticket_price && (
-                                                <div className="small text-muted">
-                                                    Total: {formatCurrency(ticket.total_paid)}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Badge bg="info">{ticket.quantity} ticket{ticket.quantity > 1 ? 's' : ''}</Badge>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Badge bg={ticket.status === 'confirmed' ? "success" : "warning"}>
-                                                {ticket.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                                            </Badge>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Button
-                                                variant="outline-primary"
-                                                size="sm"
-                                                as={Link}
-                                                to={`/event/${ticket.id}`}
-                                            >
-                                                <FontAwesomeIcon icon={faEye} />
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
+                            ))}
+                        </Row>
                     ) : (
-                        <div className="text-center p-5">
-                            <FontAwesomeIcon icon={faTicketAlt} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucun billet acheté</h5>
-                            <p className="text-muted mb-4">Découvrez nos événements à venir</p>
-                            <Button as={Link} to="/events" variant="primary">
-                                Voir les événements
+                        <div className="text-center py-4">
+                            <FontAwesomeIcon icon={faMusic} size="3x" className="text-muted mb-3" />
+                            <h5>Aucune création</h5>
+                            <p className="text-muted">Commencez à partager votre musique</p>
+                            <Button as={Link} to="/upload" variant="primary">
+                                <FontAwesomeIcon icon={faUpload} className="me-1" />
+                                Upload votre premier son
                             </Button>
                         </div>
                     )}
                 </Card.Body>
             </Card>
 
-            {/* Artistes suivis */}
-            <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
-                <Card.Header className="bg-white border-0">
-                    <h5 className="fw-bold mb-0">
-                        <FontAwesomeIcon icon={faUsers} className="me-2 text-primary" />
-                        Artistes suivis ({followedArtists.length})
+            {/* Mes Clips */}
+            <Card>
+                <Card.Header className="bg-white d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0">
+                        <FontAwesomeIcon icon={faVideo} className="me-2 text-info" />
+                        Mes Clips ({myClips.length})
                     </h5>
+                    <Button as={Link} to="/clips/create" variant="outline-info" size="sm">
+                        <FontAwesomeIcon icon={faPlus} className="me-1" />
+                        Ajouter
+                    </Button>
                 </Card.Header>
-                <Card.Body className="p-0">
-                    {followedArtists.length > 0 ? (
-                        <Table className="mb-0 align-middle">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th className="border-0 p-3">Artiste</th>
-                                    <th className="border-0 p-3 text-center">Rôle</th>
-                                    <th className="border-0 p-3 text-center">Sons</th>
-                                    <th className="border-0 p-3 text-center">Followers</th>
-                                    <th className="border-0 p-3 text-center">Suivi depuis</th>
-                                    <th className="border-0 p-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {followedArtists.map(artist => (
-                                    <tr key={artist.id} className="border-bottom">
-                                        <td className="p-3">
-                                            <div className="d-flex align-items-center">
-                                                <img
-                                                    src={artist.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&color=7F9CF5&background=EBF4FF&size=50`}
-                                                    alt={artist.name}
-                                                    className="rounded-circle me-3"
-                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                                />
-                                                <div>
-                                                    <h6 className="fw-bold mb-1">{artist.name}</h6>
-                                                    <p className="text-muted mb-0 small">{artist.bio || 'Artiste talentueux'}</p>
-                                                    {artist.location && (
-                                                        <div className="text-muted small">
-                                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
-                                                            {artist.location}
-                                                        </div>
-                                                    )}
+                <Card.Body>
+                    {myClips.length > 0 ? (
+                        <Row className="g-3">
+                            {myClips.map(clip => (
+                                <Col md={6} key={clip.id}>
+                                    <Card className="clip-card">
+                                        <Card.Body className="p-3">
+                                            <div className="d-flex">
+                                                <div className="clip-thumb me-3">
+                                                    <FontAwesomeIcon icon={faVideo} className="text-white" />
+                                                </div>
+                                                <div className="flex-grow-1">
+                                                    <h6 className="fw-bold">{clip.title}</h6>
+                                                    <p className="text-muted small">{clip.description?.substring(0, 50)}...</p>
+                                                    <div className="d-flex justify-content-between">
+                                                        <Badge bg={clip.status === 'published' ? 'success' : 'warning'}>
+                                                            {clip.status === 'published' ? 'Publié' : 'En attente'}
+                                                        </Badge>
+                                                        <Button as={Link} to={`/clips/${clip.id}`} variant="outline-info" size="sm">
+                                                            Voir
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <Badge bg={artist.role === 'artist' ? 'primary' : artist.role === 'producer' ? 'success' : 'secondary'}>
-                                                {artist.role === 'artist' ? 'Artiste' : artist.role === 'producer' ? 'Producteur' : 'Utilisateur'}
-                                            </Badge>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="fw-medium">{artist.sounds_count}</div>
-                                            <small className="text-muted">son{artist.sounds_count > 1 ? 's' : ''}</small>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="fw-medium">{artist.followers_count}</div>
-                                            <small className="text-muted">follower{artist.followers_count > 1 ? 's' : ''}</small>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <small className="text-muted">
-                                                {new Date(artist.followed_at).toLocaleDateString('fr-FR')}
-                                            </small>
-                                        </td>
-                                        <td className="p-3 text-center">
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
+                            ))}
+                        </Row>
+                    ) : (
+                        <div className="text-center py-4">
+                            <FontAwesomeIcon icon={faVideo} size="3x" className="text-muted mb-3" />
+                            <h5>Aucun clip</h5>
+                            <p className="text-muted">Partagez vos clips vidéo</p>
+                            <Button as={Link} to="/clips/create" variant="outline-info">
+                                Créer un clip
+                            </Button>
+                        </div>
+                    )}
+                </Card.Body>
+            </Card>
+        </div>
+    );
+
+    const renderFollowedArtists = () => (
+        <div className="followed-artists-section">
+            <Card>
+                <Card.Header className="bg-white">
+                    <h5 className="mb-0">
+                        <FontAwesomeIcon icon={faUsers} className="me-2 text-primary" />
+                        Artistes Suivis ({followedArtists.length})
+                    </h5>
+                </Card.Header>
+                <Card.Body>
+                    {followedArtists.length > 0 ? (
+                        <Row className="g-3">
+                            {followedArtists.map(artist => (
+                                <Col md={4} key={artist.id}>
+                                    <Card className="artist-card text-center">
+                                        <Card.Body className="p-4">
+                                            <img
+                                                src={artist.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&color=7F9CF5&background=EBF4FF&size=80`}
+                                                alt={artist.name}
+                                                className="artist-avatar mb-3"
+                                            />
+                                            <h6 className="fw-bold">{artist.name}</h6>
+                                            <p className="text-muted small">{artist.bio || 'Artiste talentueux'}</p>
+                                            <div className="artist-stats mb-3">
+                                                <small className="text-muted">
+                                                    {formatNumber(artist.followers_count || 0)} followers •{' '}
+                                                    {formatNumber(artist.sounds_count || 0)} sons
+                                                </small>
+                                            </div>
                                             <div className="d-flex gap-2 justify-content-center">
-                                                <Button
-                                                    variant="outline-primary"
-                                                    size="sm"
-                                                    as={Link}
-                                                    to={`/artist/${artist.id}`}
-                                                    title="Voir le profil"
-                                                >
+                                                <Button variant="outline-primary" size="sm" as={Link} to={`/artists/${artist.id}`}>
                                                     <FontAwesomeIcon icon={faEye} />
                                                 </Button>
-                                                <Button
-                                                    variant="outline-danger"
-                                                    size="sm"
-                                                    onClick={() => unfollowArtist(artist.id)}
-                                                    title="Ne plus suivre"
-                                                >
+                                                <Button variant="outline-danger" size="sm">
                                                     <FontAwesomeIcon icon={faUserMinus} />
                                                 </Button>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
+                            ))}
+                        </Row>
                     ) : (
-                        <div className="text-center p-5">
+                        <div className="text-center py-4">
                             <FontAwesomeIcon icon={faUsers} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucun artiste suivi</h5>
-                            <p className="text-muted mb-4">Découvrez et suivez vos artistes favoris</p>
-                            <Button as={Link} to="/artists" variant="outline-primary">
+                            <h5>Aucun artiste suivi</h5>
+                            <p className="text-muted">Découvrez et suivez vos artistes favoris</p>
+                            <Button as={Link} to="/artists" variant="primary">
                                 Découvrir des artistes
                             </Button>
                         </div>
@@ -1301,526 +787,779 @@ const Profile = () => {
         </div>
     );
 
-    const loadMyClips = async () => {
-        try {
-            const response = await fetch('/api/user/clips', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const clips = Array.isArray(data) ? data : data.data || [];
-                setMyClips(clips);
-                return clips;
-            }
-        } catch (error) {
-            console.error('Erreur my clips:', error);
-        }
-
-        // Données de fallback
-        const fallbackClips = [
-            {
-                id: 1,
-                title: "Mon Premier Clip",
-                description: "Un clip test de ma première chanson",
-                thumbnail_url: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=225&fit=crop",
-                duration: "3:45",
-                views: 1250,
-                likes: 89,
-                comments_count: 15,
-                created_at: "2024-03-15",
-                status: "published"
-            },
-            {
-                id: 2,
-                title: "Clip en Cours",
-                description: "En attente de validation",
-                thumbnail_url: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=225&fit=crop",
-                duration: "4:12",
-                views: 0,
-                likes: 0,
-                comments_count: 0,
-                created_at: "2024-03-20",
-                status: "pending"
-            }
-        ];
-        setMyClips(fallbackClips);
-        return fallbackClips;
-    };
-
-    const loadMyCompetitions = async () => {
-        try {
-            const response = await fetch('/api/user/competitions', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const competitions = Array.isArray(data) ? data : data.data || [];
-                setMyCompetitions(competitions);
-                return competitions;
-            }
-        } catch (error) {
-            console.error('Erreur my competitions:', error);
-        }
-
-        // Données de fallback
-        const fallbackCompetitions = [
-            {
-                id: 1,
-                title: "Battle Rap Cameroun 2024",
-                description: "Compétition de rap ouvert à tous les artistes camerounais",
-                image_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=250&fit=crop",
-                total_prize_pool: 500000,
-                current_participants: 25,
-                max_participants: 50,
-                start_date: "2024-04-01",
-                end_date: "2024-04-30",
-                created_at: "2024-03-15",
-                status: "active",
-                is_ended: false
-            },
-            {
-                id: 2,
-                title: "Concours Makossa Fusion",
-                description: "Compétition terminée - fusion makossa moderne",
-                image_url: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=250&fit=crop",
-                total_prize_pool: 300000,
-                current_participants: 30,
-                max_participants: 30,
-                start_date: "2024-02-01",
-                end_date: "2024-02-28",
-                created_at: "2024-01-15",
-                status: "completed",
-                is_ended: true
-            }
-        ];
-        setMyCompetitions(fallbackCompetitions);
-        return fallbackCompetitions;
-    };
-
-    const handleDeleteClip = async (clipId) => {
-        if (!confirm('Êtes-vous sûr de vouloir supprimer ce clip ?')) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/clips/${clipId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                setMyClips(prev => prev.filter(clip => clip.id !== clipId));
-                toast.success('Succès', 'Clip supprimé avec succès');
-            } else {
-                const data = await response.json();
-                toast.error('Erreur', data.message || 'Impossible de supprimer le clip');
-            }
-        } catch (error) {
-            console.error('Erreur suppression clip:', error);
-            toast.error('Erreur', 'Erreur de connexion');
-        }
-    };
-
-    const handleDeleteCompetition = async (competitionId) => {
-        const competition = myCompetitions.find(c => c.id === competitionId);
-
-        if (competition && competition.is_ended) {
-            toast.warning('Action interdite', 'Impossible de supprimer une compétition terminée');
-            return;
-        }
-
-        if (!confirm('Êtes-vous sûr de vouloir supprimer cette compétition ? Cette action est irréversible.')) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/competitions/${competitionId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                setMyCompetitions(prev => prev.filter(comp => comp.id !== competitionId));
-                toast.success('Succès', 'Compétition supprimée avec succès');
-            } else {
-                const data = await response.json();
-                toast.error('Erreur', data.message || 'Impossible de supprimer la compétition');
-            }
-        } catch (error) {
-            console.error('Erreur suppression compétition:', error);
-            toast.error('Erreur', 'Erreur de connexion');
-        }
-    };
-
-    const canEditCompetition = (competition) => {
-        return !competition.is_ended && competition.status !== 'completed';
-    };
-
-    const canDeleteCompetition = (competition) => {
-        return !competition.is_ended && competition.status !== 'completed';
-    };
-
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('fr-FR');
-    };
-
-    const renderMyContent = () => (
-        <div className="fade-in">
-            {renderUserStats()}
-
-            {/* Mes Clips */}
-            <Card className="border-0 shadow-sm mb-4" style={{ borderRadius: '16px' }}>
-                <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
-                    <h5 className="fw-bold mb-0">
-                        <FontAwesomeIcon icon={faVideo} className="me-2 text-info" />
-                        Mes Clips ({myClips.length})
-                    </h5>
-                    <Button
-                        as={Link}
-                        to="/add-clip"
-                        variant="outline-primary"
-                        size="sm"
-                    >
-                        <FontAwesomeIcon icon={faPlus} className="me-1" />
-                        Ajouter
-                    </Button>
-                </Card.Header>
-                <Card.Body className="p-0">
-                    {myClips.length > 0 ? (
-                        <Table className="mb-0 align-middle">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th className="border-0 p-3">Clip</th>
-                                    <th className="border-0 p-3 text-center">Statut</th>
-                                    <th className="border-0 p-3 text-center">Vues</th>
-                                    <th className="border-0 p-3 text-center">J'aime</th>
-                                    <th className="border-0 p-3 text-center">Date</th>
-                                    <th className="border-0 p-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {myClips.map(clip => (
-                                    <tr key={clip.id} className="border-bottom">
-                                        <td className="p-3">
-                                            <div className="d-flex align-items-center">
-                                                <img
-                                                    src={clip.thumbnail_url}
-                                                    alt={clip.title}
-                                                    className="rounded me-3"
-                                                    style={{ width: '80px', height: '45px', objectFit: 'cover' }}
-                                                />
-                                                <div>
-                                                    <h6 className="fw-bold mb-1">{clip.title}</h6>
-                                                    <p className="text-muted mb-0 small">
-                                                        {clip.description?.substring(0, 60)}...
-                                                    </p>
-                                                    <small className="text-primary">
-                                                        <FontAwesomeIcon icon={faClock} className="me-1" />
-                                                        {clip.duration}
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            {getStatusBadge(clip.status)}
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className="fw-bold">{formatNumber(clip.views)}</span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className="fw-bold text-danger">{formatNumber(clip.likes)}</span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <small className="text-muted">{formatDate(clip.created_at)}</small>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="d-flex gap-2 justify-content-center">
-                                                <Button
-                                                    variant="outline-primary"
-                                                    size="sm"
-                                                    as={Link}
-                                                    to={`/clips/${clip.id}`}
-                                                    title="Voir"
-                                                >
-                                                    <FontAwesomeIcon icon={faEye} />
-                                                </Button>
-                                                <Button
-                                                    variant="outline-secondary"
-                                                    size="sm"
-                                                    as={Link}
-                                                    to={`/clips/${clip.id}/edit`}
-                                                    title="Modifier"
-                                                >
-                                                    <FontAwesomeIcon icon={faEdit} />
-                                                </Button>
-                                                <Button
-                                                    variant="outline-danger"
-                                                    size="sm"
-                                                    onClick={() => handleDeleteClip(clip.id)}
-                                                    title="Supprimer"
-                                                >
-                                                    <FontAwesomeIcon icon={faTrash} />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    ) : (
-                        <div className="text-center p-5">
-                            <FontAwesomeIcon icon={faVideo} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucun clip créé</h5>
-                            <p className="text-muted mb-4">Commencez par ajouter votre premier clip vidéo</p>
-                            <Button as={Link} to="/add-clip" variant="primary">
-                                <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                Ajouter un clip
-                            </Button>
-                        </div>
-                    )}
-                </Card.Body>
-            </Card>
-
-            {/* Mes Compétitions */}
-            <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
-                <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center">
-                    <h5 className="fw-bold mb-0">
-                        <FontAwesomeIcon icon={faTrophy} className="me-2 text-warning" />
-                        Mes Compétitions ({myCompetitions.length})
-                    </h5>
-                    <Button
-                        as={Link}
-                        to="/create-competition"
-                        variant="outline-primary"
-                        size="sm"
-                    >
-                        <FontAwesomeIcon icon={faPlus} className="me-1" />
-                        Créer
-                    </Button>
-                </Card.Header>
-                <Card.Body className="p-0">
-                    {myCompetitions.length > 0 ? (
-                        <Table className="mb-0 align-middle">
-                            <thead className="bg-light">
-                                <tr>
-                                    <th className="border-0 p-3">Compétition</th>
-                                    <th className="border-0 p-3 text-center">Statut</th>
-                                    <th className="border-0 p-3 text-center">Participants</th>
-                                    <th className="border-0 p-3 text-center">Prix</th>
-                                    <th className="border-0 p-3 text-center">Fin</th>
-                                    <th className="border-0 p-3 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {myCompetitions.map(competition => (
-                                    <tr key={competition.id} className="border-bottom">
-                                        <td className="p-3">
-                                            <div className="d-flex align-items-center">
-                                                <img
-                                                    src={competition.image_url}
-                                                    alt={competition.title}
-                                                    className="rounded me-3"
-                                                    style={{ width: '80px', height: '50px', objectFit: 'cover' }}
-                                                />
-                                                <div>
-                                                    <h6 className="fw-bold mb-1">{competition.title}</h6>
-                                                    <p className="text-muted mb-0 small">
-                                                        {competition.description?.substring(0, 60)}...
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            {getStatusBadge(competition.status)}
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className="fw-bold">
-                                                {competition.current_participants}/{competition.max_participants || '∞'}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <span className="fw-bold text-success">
-                                                {formatCurrency(competition.total_prize_pool)}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <small className="text-muted">
-                                                {formatDate(competition.end_date)}
-                                            </small>
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="d-flex gap-2 justify-content-center">
-                                                <Button
-                                                    variant="outline-primary"
-                                                    size="sm"
-                                                    as={Link}
-                                                    to={`/competitions/${competition.id}`}
-                                                    title="Voir"
-                                                >
-                                                    <FontAwesomeIcon icon={faEye} />
-                                                </Button>
-                                                <Button
-                                                    variant="outline-secondary"
-                                                    size="sm"
-                                                    as={Link}
-                                                    to={`/competitions/${competition.id}/edit`}
-                                                    title="Modifier"
-                                                    disabled={!canEditCompetition(competition)}
-                                                >
-                                                    <FontAwesomeIcon icon={faEdit} />
-                                                </Button>
-                                                <Button
-                                                    variant="outline-danger"
-                                                    size="sm"
-                                                    onClick={() => handleDeleteCompetition(competition.id)}
-                                                    title="Supprimer"
-                                                    disabled={!canDeleteCompetition(competition)}
-                                                >
-                                                    <FontAwesomeIcon icon={faTrash} />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    ) : (
-                        <div className="text-center p-5">
-                            <FontAwesomeIcon icon={faTrophy} size="3x" className="text-muted mb-3" />
-                            <h5 className="text-muted">Aucune compétition créée</h5>
-                            <p className="text-muted mb-4">Organisez votre première compétition musicale</p>
-                            <Button as={Link} to="/create-competition" variant="primary">
-                                <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                Créer une compétition
-                            </Button>
-                        </div>
-                    )}
-                </Card.Body>
-            </Card>
-        </div>
-    );
-
-    const renderTabContent = () => {
-        switch (activeTab) {
-            case 'sounds':
-                return renderSounds();
-            case 'events':
-                return renderEvents();
-            case 'content':
-                return renderMyContent();
-            default:
-                return renderSounds();
-        }
-    };
-
+    // Vérification de l'authentification
     if (authLoading) {
-                return (
-            <div className="bg-light min-vh-100 d-flex align-items-center justify-content-center">
+        return (
+            <div className="d-flex justify-content-center align-items-center min-vh-100">
                 <div className="text-center">
                     <Spinner animation="border" variant="primary" />
                     <p className="mt-3">Vérification de l'authentification...</p>
-                                    </div>
-                    </div>
-                );
+                </div>
+            </div>
+        );
     }
 
     if (!isAuthenticated || !user) {
-                return (
-            <div className="bg-light min-vh-100 d-flex align-items-center justify-content-center">
+        return (
+            <div className="d-flex justify-content-center align-items-center min-vh-100">
                 <div className="text-center">
                     <FontAwesomeIcon icon={faUser} size="3x" className="text-muted mb-3" />
                     <h4 className="text-muted">Authentification requise</h4>
                     <p className="text-muted mb-4">Veuillez vous connecter pour accéder à votre profil</p>
                     <Button as={Link} to="/login" variant="primary">
                         Se connecter
-                                </Button>
+                    </Button>
                 </div>
-                    </div>
-                );
+            </div>
+        );
     }
 
     return (
-        <div className="bg-light min-vh-100" style={{ paddingTop: '80px' }}>
-            {/* Hero Section */}
-            <section className="bg-primary text-white py-4">
+        <div className="social-profile">
+            {/* Header Profil Style Réseau Social */}
+            <div className="profile-header">
                 <Container>
-                    <Row className="justify-content-center">
-                        <Col lg={8} md={10} className="text-center">
-                            <div>
-                                <FontAwesomeIcon icon={faUser} className="mb-3" size="3x" />
-                                <h1 className="mb-3 fw-bold">Mon Profil</h1>
-                                <p className="mb-0">Bienvenue {user.name} - Gérez vos achats et favoris</p>
+                    <Row className="align-items-center py-4">
+                        <Col md={3} className="text-center">
+                            <div className="profile-avatar">
+                                <img
+                                    src={user?.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&color=7F9CF5&background=EBF4FF&size=150`}
+                                    alt={user?.name}
+                                    className="rounded-circle profile-img"
+                                />
+                                <Button
+                                    variant="light"
+                                    size="sm"
+                                    className="edit-profile-btn"
+                                    as={Link}
+                                    to="/profile/edit"
+                                >
+                                    <FontAwesomeIcon icon={faCamera} />
+                                </Button>
+                            </div>
+                        </Col>
+                        <Col md={6}>
+                            <div className="profile-info">
+                                <h2 className="profile-name">{user?.name}</h2>
+                                <p className="profile-bio">
+                                    {user?.bio || 'Passionné de musique camerounaise 🎵'}
+                                </p>
+                                <div className="profile-stats">
+                                    <div className="stat-item">
+                                        <span className="stat-number">{purchasedSounds.length}</span>
+                                        <span className="stat-label">Sons achetés</span>
+                                    </div>
+                                    <div className="stat-item">
+                                        <span className="stat-number">{favoriteSounds.length}</span>
+                                        <span className="stat-label">Favoris</span>
+                                    </div>
+                                    <div className="stat-item">
+                                        <span className="stat-number">{followedArtists.length}</span>
+                                        <span className="stat-label">Artistes suivis</span>
+                                    </div>
+                                    <div className="stat-item">
+                                        <span className="stat-number">{mySounds.length}</span>
+                                        <span className="stat-label">Mes créations</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Col>
+                        <Col md={3} className="text-end">
+                            <div className="profile-actions">
+                                <Button
+                                    variant="outline-light"
+                                    className="me-2"
+                                    as={Link}
+                                    to="/profile/edit"
+                                >
+                                    <FontAwesomeIcon icon={faEdit} className="me-1" />
+                                    Modifier
+                                </Button>
+                                <Button variant="light" as={Link} to="/upload">
+                                    <FontAwesomeIcon icon={faUpload} className="me-1" />
+                                    Upload
+                                </Button>
                             </div>
                         </Col>
                     </Row>
                 </Container>
-            </section>
+            </div>
 
-            {/* Navigation et Contenu */}
-            <section className="py-4">
+            {/* Navigation Tabs */}
+            <div className="profile-nav">
                 <Container>
-                    <Tab.Container activeKey={activeTab}>
-                        <Card className="border-0 shadow-sm" style={{ borderRadius: '16px' }}>
-                            <Card.Header className="bg-white border-0 p-4">
-                                <Nav variant="pills" className="justify-content-center">
-                                    <Nav.Item>
-                                        <Nav.Link
-                                            eventKey="sounds"
-                                            onClick={() => setActiveTab('sounds')}
-                                            className="px-4 py-2 mx-1"
-                                            style={{ borderRadius: '12px' }}
-                                        >
-                                            <FontAwesomeIcon icon={faMusic} className="me-2" />
-                                            Sons & Musiques
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link
-                                            eventKey="events"
-                                            onClick={() => setActiveTab('events')}
-                                            className="px-4 py-2 mx-1"
-                                            style={{ borderRadius: '12px' }}
-                                        >
-                                            <FontAwesomeIcon icon={faCalendar} className="me-2" />
-                                            Événements & Billets
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                    <Nav.Item>
-                                        <Nav.Link
-                                            eventKey="content"
-                                            onClick={() => setActiveTab('content')}
-                                            className="px-4 py-2 mx-1"
-                                            style={{ borderRadius: '12px' }}
-                                        >
-                                            <FontAwesomeIcon icon={faVideo} className="me-2" />
-                                            Mes Créations
-                                        </Nav.Link>
-                                    </Nav.Item>
-                                </Nav>
-                            </Card.Header>
-
-                            <Card.Body className="p-4 position-relative">
-                                <LoadingOverlay show={isLoading} text="Chargement des données..." />
-                                {!isLoading && renderTabContent()}
-                            </Card.Body>
-                        </Card>
-                    </Tab.Container>
+                    <Nav variant="pills" className="justify-content-center">
+                        <Nav.Item>
+                            <Nav.Link
+                                active={activeTab === 'library'}
+                                onClick={() => setActiveTab('library')}
+                                className="nav-pill"
+                            >
+                                <FontAwesomeIcon icon={faMusic} className="me-2" />
+                                Bibliothèque Musicale
+                            </Nav.Link>
+                        </Nav.Item>
+                        <Nav.Item>
+                            <Nav.Link
+                                active={activeTab === 'events'}
+                                onClick={() => setActiveTab('events')}
+                                className="nav-pill"
+                            >
+                                <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
+                                Événements
+                            </Nav.Link>
+                        </Nav.Item>
+                        <Nav.Item>
+                            <Nav.Link
+                                active={activeTab === 'content'}
+                                onClick={() => setActiveTab('content')}
+                                className="nav-pill"
+                            >
+                                <FontAwesomeIcon icon={faVideo} className="me-2" />
+                                Mes Créations
+                            </Nav.Link>
+                        </Nav.Item>
+                        <Nav.Item>
+                            <Nav.Link
+                                active={activeTab === 'artists'}
+                                onClick={() => setActiveTab('artists')}
+                                className="nav-pill"
+                            >
+                                <FontAwesomeIcon icon={faUsers} className="me-2" />
+                                Artistes Suivis
+                            </Nav.Link>
+                        </Nav.Item>
+                    </Nav>
                 </Container>
-            </section>
+            </div>
+
+            {/* Contenu Principal */}
+            <Container className="py-4">
+                {isLoading ? (
+                    <div className="text-center py-5">
+                        <Spinner animation="border" variant="primary" size="lg" />
+                        <p className="mt-3">Chargement de vos données...</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Bibliothèque Musicale */}
+                        {activeTab === 'library' && (
+                            <div className="music-library">
+                                {/* Contrôles de la bibliothèque */}
+                                <Card className="library-controls mb-4">
+                                    <Card.Body className="p-3">
+                                        <Row className="align-items-center">
+                                            <Col md={4}>
+                                                <InputGroup>
+                                                    <InputGroup.Text>
+                                                        <FontAwesomeIcon icon={faSearch} />
+                                                    </InputGroup.Text>
+                                                    <Form.Control
+                                                        type="text"
+                                                        placeholder="Rechercher dans ma bibliothèque..."
+                                                        value={searchTerm}
+                                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                                    />
+                                                </InputGroup>
+                                            </Col>
+                                            <Col md={3}>
+                                                <Form.Select
+                                                    value={filterBy}
+                                                    onChange={(e) => setFilterBy(e.target.value)}
+                                                >
+                                                    <option value="all">Tous les sons</option>
+                                                    <option value="free">Sons gratuits</option>
+                                                    <option value="paid">Sons achetés</option>
+                                                    <option value="liked">Favoris</option>
+                                                </Form.Select>
+                                            </Col>
+                                            <Col md={3}>
+                                                <Form.Select
+                                                    value={sortBy}
+                                                    onChange={(e) => setSortBy(e.target.value)}
+                                                >
+                                                    <option value="recent">Plus récents</option>
+                                                    <option value="name">Par titre</option>
+                                                    <option value="artist">Par artiste</option>
+                                                    <option value="duration">Par durée</option>
+                                                </Form.Select>
+                                            </Col>
+                                            <Col md={2} className="text-end">
+                                                <Button
+                                                    variant={viewMode === 'grid' ? 'primary' : 'outline-secondary'}
+                                                    size="sm"
+                                                    onClick={() => setViewMode('grid')}
+                                                    className="me-1"
+                                                >
+                                                    <FontAwesomeIcon icon={faMusic} />
+                                                </Button>
+                                                <Button
+                                                    variant={viewMode === 'list' ? 'primary' : 'outline-secondary'}
+                                                    size="sm"
+                                                    onClick={() => setViewMode('list')}
+                                                >
+                                                    <FontAwesomeIcon icon={faSort} />
+                                                </Button>
+                                            </Col>
+                                        </Row>
+                                    </Card.Body>
+                                </Card>
+
+                                {/* Affichage des sons */}
+                                {renderMusicLibrary()}
+                            </div>
+                        )}
+
+                        {/* Autres onglets */}
+                        {activeTab === 'events' && renderEvents()}
+                        {activeTab === 'content' && renderMyContent()}
+                        {activeTab === 'artists' && renderFollowedArtists()}
+                    </>
+                )}
+            </Container>
+
+            {/* Lecteur Audio Avancé */}
+            {showMusicPlayer && currentPlaying && (
+                <div className="advanced-music-player">
+                    <Card className="player-card">
+                        <Card.Body className="p-4">
+                            <Row className="align-items-center">
+                                <Col md={3}>
+                                    <div className="d-flex align-items-center">
+                                        <img
+                                            src={currentPlaying.cover_image_url || currentPlaying.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop`}
+                                            alt={currentPlaying.title}
+                                            className="player-cover me-3"
+                                        />
+                                        <div>
+                                            <h6 className="fw-bold mb-0">{currentPlaying.title}</h6>
+                                            <small className="text-muted">{currentPlaying.artist || currentPlaying.user?.name}</small>
+                                        </div>
+                                    </div>
+                                </Col>
+                                <Col md={6}>
+                                    <div className="player-controls text-center">
+                                        <div className="d-flex justify-content-center align-items-center gap-3 mb-3">
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={() => setIsShuffled(!isShuffled)}
+                                                className={isShuffled ? 'active' : ''}
+                                            >
+                                                <FontAwesomeIcon icon={faRandom} />
+                                            </Button>
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={handlePreviousTrack}
+                                                disabled={currentPlaylist.length <= 1}
+                                            >
+                                                <FontAwesomeIcon icon={faStepBackward} />
+                                            </Button>
+                                            <Button
+                                                variant={isPlaying ? "warning" : "success"}
+                                                onClick={() => handlePlayPause(currentPlaying)}
+                                                className="play-btn-main"
+                                            >
+                                                <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
+                                            </Button>
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={handleNextTrack}
+                                                disabled={currentPlaylist.length <= 1}
+                                            >
+                                                <FontAwesomeIcon icon={faStepForward} />
+                                            </Button>
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={() => setIsRepeated(!isRepeated)}
+                                                className={isRepeated ? 'active' : ''}
+                                            >
+                                                <FontAwesomeIcon icon={faRepeat} />
+                                            </Button>
+                                        </div>
+                                        <div className="progress-controls">
+                                            <div className="d-flex align-items-center gap-2">
+                                                <small>{formatTime(currentTime)}</small>
+                                                <ProgressBar
+                                                    now={duration > 0 ? (currentTime / duration) * 100 : 0}
+                                                    className="flex-grow-1 music-progress"
+                                                    style={{ height: '6px', cursor: 'pointer' }}
+                                                    onClick={(e) => {
+                                                        const rect = e.target.getBoundingClientRect();
+                                                        const clickX = e.clientX - rect.left;
+                                                        const newTime = (clickX / rect.width) * duration;
+                                                        handleSeek(newTime);
+                                                    }}
+                                                />
+                                                <small>{formatTime(duration)}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Col>
+                                <Col md={3}>
+                                    <div className="d-flex align-items-center justify-content-end gap-3">
+                                        {/* Actions du son */}
+                                        {!currentPlaying.is_free && currentPlaying.price > 0 && (
+                                            <Button
+                                                variant="success"
+                                                size="sm"
+                                                onClick={() => handleAddToCart(currentPlaying)}
+                                                disabled={isInCart(currentPlaying.id, 'sound')}
+                                            >
+                                                <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                                                {isInCart(currentPlaying.id, 'sound') ? 'Dans le panier' : formatCurrency(currentPlaying.price)}
+                                            </Button>
+                                        )}
+                                        
+                                        {/* Contrôle du volume */}
+                                        <div className="volume-control d-flex align-items-center gap-2">
+                                            <FontAwesomeIcon 
+                                                icon={volume === 0 ? faVolumeMute : faVolumeUp} 
+                                                className="text-muted"
+                                            />
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="1"
+                                                step="0.1"
+                                                value={volume}
+                                                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                                                className="volume-slider"
+                                            />
+                                        </div>
+                                        
+                                        <Button
+                                            variant="outline-secondary"
+                                            size="sm"
+                                            onClick={() => setShowMusicPlayer(false)}
+                                        >
+                                            <FontAwesomeIcon icon={faTimes} />
+                                        </Button>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </Card.Body>
+                    </Card>
+                </div>
+            )}
+
+            {/* Audio element */}
+            <audio ref={audioRef} />
+
+            <style jsx>{`
+                .social-profile {
+                    min-height: 100vh;
+                    background: #f8f9fa;
+                }
+
+                .profile-header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .profile-header::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="80" r="1" fill="rgba(255,255,255,0.1)"/></svg>');
+                    animation: float 20s infinite linear;
+                }
+
+                @keyframes float {
+                    0% { transform: translateY(0px) rotate(0deg); }
+                    100% { transform: translateY(-100px) rotate(360deg); }
+                }
+
+                .profile-avatar {
+                    position: relative;
+                    display: inline-block;
+                }
+
+                .profile-img {
+                    width: 120px;
+                    height: 120px;
+                    object-fit: cover;
+                    border: 4px solid rgba(255,255,255,0.2);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                }
+
+                .edit-profile-btn {
+                    position: absolute;
+                    bottom: 0;
+                    right: 0;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    border: 2px solid white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .profile-name {
+                    font-size: 2rem;
+                    font-weight: bold;
+                    margin-bottom: 0.5rem;
+                }
+
+                .profile-bio {
+                    font-size: 1.1rem;
+                    opacity: 0.9;
+                    margin-bottom: 1.5rem;
+                }
+
+                .profile-stats {
+                    display: flex;
+                    gap: 2rem;
+                }
+
+                .stat-item {
+                    text-align: center;
+                }
+
+                .stat-number {
+                    display: block;
+                    font-size: 1.5rem;
+                    font-weight: bold;
+                }
+
+                .stat-label {
+                    display: block;
+                    font-size: 0.85rem;
+                    opacity: 0.8;
+                }
+
+                .profile-nav {
+                    background: white;
+                    border-bottom: 1px solid #e9ecef;
+                    padding: 1rem 0;
+                }
+
+                .nav-pill {
+                    border-radius: 25px;
+                    padding: 12px 24px;
+                    margin: 0 8px;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                }
+
+                .nav-pill:hover {
+                    background: #f8f9fa;
+                }
+
+                .nav-pill.active {
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    color: white;
+                }
+
+                .library-controls {
+                    border: none;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+                    border-radius: 15px;
+                }
+
+                .music-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                    gap: 1.5rem;
+                }
+
+                .music-card {
+                    border: none;
+                    border-radius: 15px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                    transition: all 0.3s ease;
+                    animation: fadeInUp 0.6s ease-out;
+                }
+
+                .music-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+                }
+
+                .music-cover {
+                    position: relative;
+                    border-radius: 15px 15px 0 0;
+                    overflow: hidden;
+                }
+
+                .cover-image {
+                    width: 100%;
+                    height: 200px;
+                    object-fit: cover;
+                }
+
+                .play-overlay {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    opacity: 0;
+                    transition: all 0.3s ease;
+                }
+
+                .music-cover:hover .play-overlay {
+                    opacity: 1;
+                }
+
+                .play-btn-overlay {
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 50%;
+                    border: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.2rem;
+                    background: rgba(255,255,255,0.9);
+                }
+
+                .price-badge {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                }
+
+                .sound-title {
+                    font-weight: bold;
+                    margin-bottom: 0.25rem;
+                }
+
+                .sound-artist {
+                    color: #6c757d;
+                    font-size: 0.9rem;
+                    margin-bottom: 0.5rem;
+                }
+
+                .sound-meta {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 1rem;
+                }
+
+                .sound-actions {
+                    display: flex;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
+                }
+
+                .music-list {
+                    border: none;
+                    border-radius: 15px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+                }
+
+                .music-list-item {
+                    border-bottom: 1px solid #f8f9fa;
+                    transition: all 0.3s ease;
+                    animation: fadeInLeft 0.6s ease-out;
+                }
+
+                .music-list-item:hover {
+                    background: #f8f9fa;
+                }
+
+                .music-list-item.playing {
+                    background: linear-gradient(135deg, #667eea20, #764ba220);
+                }
+
+                .list-cover {
+                    width: 50px;
+                    height: 50px;
+                    object-fit: cover;
+                    border-radius: 8px;
+                }
+
+                .advanced-music-player {
+                    position: fixed;
+                    bottom: 20px;
+                    left: 20px;
+                    right: 20px;
+                    z-index: 1050;
+                    animation: slideInUp 0.5s ease-out;
+                }
+
+                .player-card {
+                    border: none;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+                    border-radius: 20px;
+                    background: rgba(255,255,255,0.95);
+                    backdrop-filter: blur(20px);
+                }
+
+                .player-cover {
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 12px;
+                    object-fit: cover;
+                }
+
+                .play-btn-main {
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 50%;
+                    font-size: 1.2rem;
+                    border: none;
+                }
+
+                .music-progress {
+                    border-radius: 3px;
+                }
+
+                .music-progress .progress-bar {
+                    background: linear-gradient(90deg, #667eea, #764ba2);
+                    border-radius: 3px;
+                }
+
+                .volume-slider {
+                    width: 80px;
+                    height: 4px;
+                    background: #e9ecef;
+                    border-radius: 2px;
+                    outline: none;
+                }
+
+                .volume-slider::-webkit-slider-thumb {
+                    appearance: none;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 50%;
+                    background: #667eea;
+                    cursor: pointer;
+                }
+
+                .event-card {
+                    border: none;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+                    transition: all 0.3s ease;
+                }
+
+                .event-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 25px rgba(0,0,0,0.12);
+                }
+
+                .event-date {
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    color: white;
+                    border-radius: 12px;
+                    padding: 15px;
+                    text-align: center;
+                    min-width: 70px;
+                }
+
+                .date-number {
+                    font-size: 1.5rem;
+                    font-weight: bold;
+                    display: block;
+                }
+
+                .date-month {
+                    font-size: 0.8rem;
+                    text-transform: uppercase;
+                }
+
+                .artist-avatar {
+                    width: 80px;
+                    height: 80px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                }
+
+                .artist-card {
+                    border: none;
+                    border-radius: 15px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                    transition: all 0.3s ease;
+                }
+
+                .artist-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+                }
+
+                .clip-thumb {
+                    width: 50px;
+                    height: 50px;
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.2rem;
+                }
+
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes fadeInLeft {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+
+                @keyframes slideInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(100px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .profile-stats {
+                        gap: 1rem;
+                    }
+
+                    .stat-number {
+                        font-size: 1.2rem;
+                    }
+
+                    .advanced-music-player {
+                        left: 10px;
+                        right: 10px;
+                        bottom: 10px;
+                    }
+
+                    .profile-header .row {
+                        text-align: center;
+                    }
+
+                    .profile-actions {
+                        margin-top: 1rem;
+                        text-align: center;
+                    }
+
+                    .music-grid {
+                        grid-template-columns: 1fr;
+                    }
+                }
+            `}</style>
         </div>
     );
 };

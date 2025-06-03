@@ -1013,4 +1013,158 @@ class SoundController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Obtenir des recommandations de sons basées sur l'algorithme
+     */
+    public function recommendations(Request $request)
+    {
+        try {
+            $limit = min($request->get('limit', 10), 20);
+            $user = auth('sanctum')->user();
+
+            // Si utilisateur connecté, recommandations personnalisées
+            if ($user) {
+                $recommendations = $this->getPersonalizedRecommendations($user, $limit);
+            } else {
+                // Sinon, sons populaires et tendances
+                $recommendations = $this->getPopularRecommendations($limit);
+            }
+
+            return response()->json([
+                'success' => true,
+                'sounds' => $recommendations,
+                'algorithm' => $user ? 'personalized' : 'popular',
+                'user_id' => $user?->id
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des recommandations',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Recommandations personnalisées basées sur l'historique utilisateur
+     */
+    private function getPersonalizedRecommendations($user, $limit)
+    {
+        // 1. Récupérer les sons likés par l'utilisateur
+        $likedSounds = $user->likedSounds()->pluck('sounds.id');
+        $likedCategories = $user->likedSounds()->pluck('category_id')->unique();
+        $likedGenres = $user->likedSounds()->pluck('genre')->filter()->unique();
+
+        // 2. Récupérer l'historique d'écoute (à implémenter avec une table sound_plays)
+        // Pour l'instant, on utilise les likes comme indicateur
+
+        // 3. Construire la requête de recommandations
+        $recommendations = Sound::with(['user', 'category'])
+            ->published()
+            ->whereNotIn('id', $likedSounds) // Exclure les sons déjà likés
+            ->where(function($query) use ($likedCategories, $likedGenres) {
+                // Sons de catégories similaires (poids: 40%)
+                if ($likedCategories->isNotEmpty()) {
+                    $query->whereIn('category_id', $likedCategories);
+                }
+                
+                // Sons de genres similaires (poids: 30%)
+                if ($likedGenres->isNotEmpty()) {
+                    $query->orWhereIn('genre', $likedGenres);
+                }
+                
+                // Sons populaires (poids: 30%)
+                $query->orWhere('plays_count', '>', 100);
+            })
+            ->orderByRaw('
+                CASE 
+                    WHEN category_id IN (' . $likedCategories->implode(',') . ') THEN 4
+                    WHEN genre IN ("' . $likedGenres->implode('","') . '") THEN 3
+                    WHEN plays_count > 500 THEN 2
+                    ELSE 1
+                END DESC,
+                plays_count DESC,
+                created_at DESC
+            ')
+            ->limit($limit)
+            ->get();
+
+        // Si pas assez de recommandations, compléter avec des sons populaires
+        if ($recommendations->count() < $limit) {
+            $additionalSounds = Sound::with(['user', 'category'])
+                ->published()
+                ->whereNotIn('id', array_merge($likedSounds->toArray(), $recommendations->pluck('id')->toArray()))
+                ->orderBy('plays_count', 'desc')
+                ->limit($limit - $recommendations->count())
+                ->get();
+            
+            $recommendations = $recommendations->merge($additionalSounds);
+        }
+
+        return $this->formatSoundsForResponse($recommendations);
+    }
+
+    /**
+     * Recommandations populaires pour utilisateurs non connectés
+     */
+    private function getPopularRecommendations($limit)
+    {
+        $recommendations = Sound::with(['user', 'category'])
+            ->published()
+            ->where(function($query) {
+                // Mix de sons populaires, récents et featured
+                $query->where('plays_count', '>', 50)
+                      ->orWhere('is_featured', true)
+                      ->orWhere('created_at', '>', now()->subDays(7));
+            })
+            ->orderByRaw('
+                CASE 
+                    WHEN is_featured = 1 THEN 3
+                    WHEN created_at > NOW() - INTERVAL 7 DAY THEN 2
+                    ELSE 1
+                END DESC,
+                plays_count DESC,
+                likes_count DESC
+            ')
+            ->limit($limit)
+            ->get();
+
+        return $this->formatSoundsForResponse($recommendations);
+    }
+
+    /**
+     * Formater la réponse des sons
+     */
+    private function formatSoundsForResponse($sounds)
+    {
+        return $sounds->map(function ($sound) {
+            return [
+                'id' => $sound->id,
+                'title' => $sound->title,
+                'slug' => $sound->slug,
+                'artist' => $sound->user->name,
+                'artistId' => $sound->user->id,
+                'price' => $sound->price,
+                'is_free' => $sound->is_free,
+                'cover' => $sound->cover_image_url,
+                'category' => $sound->category->name ?? 'Non classé',
+                'category_id' => $sound->category_id,
+                'likes_count' => $sound->likes_count ?? 0,
+                'plays_count' => $sound->plays_count ?? 0,
+                'downloads_count' => $sound->downloads_count ?? 0,
+                'duration' => $sound->formatted_duration,
+                'duration_seconds' => $sound->duration,
+                'genre' => $sound->genre,
+                'bpm' => $sound->bpm,
+                'key' => $sound->key,
+                'file_url' => $sound->file_url,
+                'preview_url' => route('api.sounds.preview', $sound->id),
+                'is_featured' => $sound->is_featured,
+                'created_at' => $sound->created_at->format('Y-m-d'),
+                'tags' => $sound->tags ?? []
+            ];
+        });
+    }
 }

@@ -48,15 +48,15 @@ const Events = () => {
 
             const eventsData = Array.isArray(data) ? data : (data?.events || []);
             const adaptedEvents = eventsData.map(event => ({
-                ...event,
-                poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
-                artists_array: event.artists ? (
-                    typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
-                ) : [],
-                remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
-            }));
+                    ...event,
+                    poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
+                    artists_array: event.artists ? (
+                        typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
+                    ) : [],
+                    remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
+                }));
 
-            setEvents(adaptedEvents);
+                setEvents(adaptedEvents);
 
             const uniqueCategories = ['Tous', ...new Set(eventsData.map(event => event.category).filter(Boolean))];
             const existingCities = new Set(eventsData.map(event => event.city).filter(Boolean));
@@ -152,23 +152,23 @@ const Events = () => {
 
         if (!selectedEvent || selectedEvent.is_free) return;
 
-        const cartItem = {
-            id: selectedEvent.id,
-            type: 'event',
-            title: selectedEvent.title,
-            artist: selectedEvent.artists_array?.[0] || 'Event',
-            event_date: selectedEvent.event_date,
-            venue: selectedEvent.venue,
-            city: selectedEvent.city,
-            ticket_type: 'Standard',
-            ticket_price: selectedEvent.ticket_price,
-            price: selectedEvent.ticket_price,
-            quantity: 1,
-            poster: selectedEvent.poster_image_url,
-            max_attendees: selectedEvent.max_attendees
-        };
+            const cartItem = {
+                id: selectedEvent.id,
+                type: 'event',
+                title: selectedEvent.title,
+                artist: selectedEvent.artists_array?.[0] || 'Event',
+                event_date: selectedEvent.event_date,
+                venue: selectedEvent.venue,
+                city: selectedEvent.city,
+                ticket_type: 'Standard',
+                ticket_price: selectedEvent.ticket_price,
+                price: selectedEvent.ticket_price,
+                quantity: 1,
+                poster: selectedEvent.poster_image_url,
+                max_attendees: selectedEvent.max_attendees
+            };
 
-        addToCart(cartItem);
+            addToCart(cartItem);
         toast.success('Billet ajouté au panier', `Billet pour "${selectedEvent.title}" ajouté au panier`);
         closeTicketModal();
     };
@@ -191,11 +191,11 @@ const Events = () => {
                                 Découvrez les meilleurs événements musicaux du Cameroun
                             </p>
                             <InputGroup size="lg" className="mb-4">
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Rechercher des événements..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                        <Form.Control
+                                            type="text"
+                                            placeholder="Rechercher des événements..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
                                     className="border-0 shadow-sm"
                                     style={{ borderRadius: '25px 0 0 25px' }}
                                 />
@@ -205,7 +205,7 @@ const Events = () => {
                                 >
                                     <FontAwesomeIcon icon={faSearch} />
                                 </Button>
-                            </InputGroup>
+                                    </InputGroup>
 
                             {/* Filtres simples */}
                             <Row className="g-2 justify-content-center">
@@ -257,7 +257,7 @@ const Events = () => {
                     </div>
                 ) : (
                     <div className="events-feed">
-                        {filteredEvents.map((event, index) => (
+                                {filteredEvents.map((event, index) => (
                             <Card key={event.id} className="event-post border-0 shadow-sm mb-4">
                                 <Card.Body className="p-4">
                                     <Row className="align-items-center">
@@ -363,12 +363,12 @@ const Events = () => {
                                                     {event.current_attendees || 0} intéressé(s)
                                                 </Button>
                                             </div>
-                                        </Col>
-                                    </Row>
+                                    </Col>
+                            </Row>
                                 </Card.Body>
                             </Card>
-                        ))}
-                    </div>
+                                ))}
+                            </div>
                 )}
             </Container>
 

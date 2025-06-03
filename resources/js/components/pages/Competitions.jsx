@@ -427,6 +427,20 @@ const Competitions = () => {
                                                         <FontAwesomeIcon icon={faTrophy} className="me-2" />
                                                         Participer
                                                     </Button>
+                                                    
+                                                    {/* Bouton Démonstration Live */}
+                                                    <Button
+                                                        as={Link}
+                                                        to={`/competitions/${competition.id}/live?demo=true`}
+                                                        variant="outline-warning"
+                                                        size="sm"
+                                                        className="demo-live-btn"
+                                                        title="Aperçu Live (Démonstration)"
+                                                    >
+                                                        <FontAwesomeIcon icon={faEye} className="me-1" />
+                                                        Demo Live
+                                                    </Button>
+                                                    
                                                     <Button
                                                         variant="outline-secondary"
                                                         size="sm"
@@ -778,6 +792,25 @@ const Competitions = () => {
                     transform: translateY(-2px);
                     border-color: #667eea;
                     color: #667eea;
+                }
+
+                .demo-live-btn {
+                    background: transparent;
+                    border: 2px solid #ffc107;
+                    color: #ffc107;
+                    font-weight: 600;
+                    border-radius: 20px;
+                    transition: all 0.3s ease;
+                    padding: 8px 16px;
+                    font-size: 0.8rem;
+                    flex-shrink: 0;
+                }
+
+                .demo-live-btn:hover {
+                    background: #ffc107;
+                    color: white;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
                 }
 
                 .status-badge {

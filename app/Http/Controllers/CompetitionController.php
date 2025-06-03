@@ -563,4 +563,318 @@ class CompetitionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Obtenir les participants d'une compétition
+     */
+    public function getParticipants($id)
+    {
+        try {
+            $competition = Competition::findOrFail($id);
+            
+            $participants = \App\Models\CompetitionParticipant::where('competition_id', $id)
+                ->with(['user'])
+                ->orderBy('created_at')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'participants' => $participants,
+                'message' => 'Participants récupérés'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des participants',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les messages de chat d'une compétition
+     */
+    public function getChatMessages($id)
+    {
+        try {
+            $competition = Competition::findOrFail($id);
+            
+            $messages = \App\Models\CompetitionChatMessage::forCompetition($id)
+                ->visible()
+                ->with(['user'])
+                ->orderBy('created_at', 'desc')
+                ->limit(50)
+                ->get()
+                ->reverse()
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'messages' => $messages,
+                'message' => 'Messages de chat récupérés'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement du chat',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Envoyer un message dans le chat
+     */
+    public function sendChatMessage(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'competition_id' => 'required|exists:competitions,id',
+            'message' => 'required|string|max:500',
+            'type' => 'in:text,emoji',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = Auth::user();
+            $competition = Competition::findOrFail($request->competition_id);
+
+            // Vérifier si l'utilisateur peut envoyer des messages
+            if ($competition->status !== 'active' && $competition->status !== 'published') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chat non disponible pour cette compétition'
+                ], 400);
+            }
+
+            $message = \App\Models\CompetitionChatMessage::create([
+                'competition_id' => $request->competition_id,
+                'user_id' => $user->id,
+                'message' => $request->message,
+                'type' => $request->type ?? 'text'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message->load('user'),
+                'message_text' => 'Message envoyé'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'envoi du message',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Ajouter une réaction à un participant
+     */
+    public function addReaction(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'participant_id' => 'required|exists:competition_participants,id',
+            'reaction_type' => 'required|in:hearts,likes,fire,clap,wow,sad',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = Auth::user();
+            $participant = \App\Models\CompetitionParticipant::findOrFail($request->participant_id);
+            
+            // Vérifier que la compétition est active
+            if ($participant->competition->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Les réactions ne sont disponibles que pendant les compétitions actives'
+                ], 400);
+            }
+
+            // Créer ou mettre à jour la réaction
+            $reaction = \App\Models\CompetitionReaction::updateOrCreate([
+                'competition_id' => $participant->competition_id,
+                'participant_id' => $request->participant_id,
+                'user_id' => $user->id,
+                'reaction_type' => $request->reaction_type
+            ], [
+                'reacted_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'reaction' => $reaction,
+                'message' => 'Réaction ajoutée'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'ajout de la réaction',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Ajouter un vote pour un participant
+     */
+    public function addVote(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'participant_id' => 'required|exists:competition_participants,id',
+            'vote_type' => 'required|in:up,down',
+            'comment' => 'nullable|string|max:200'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = Auth::user();
+            $participant = \App\Models\CompetitionParticipant::findOrFail($request->participant_id);
+            
+            // Vérifier que l'utilisateur ne vote pas pour lui-même
+            if ($participant->user_id === $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas voter pour vous-même'
+                ], 400);
+            }
+
+            // Créer ou mettre à jour le vote
+            $vote = \App\Models\CompetitionVote::updateOrCreate([
+                'competition_id' => $participant->competition_id,
+                'participant_id' => $request->participant_id,
+                'user_id' => $user->id,
+            ], [
+                'vote_type' => $request->vote_type,
+                'score' => $request->vote_type === 'up' ? 1 : -1,
+                'comment' => $request->comment,
+                'voted_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'vote' => $vote,
+                'message' => 'Vote enregistré'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'enregistrement du vote',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Soumettre une performance audio
+     */
+    public function submitPerformance(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'competition_id' => 'required|exists:competitions,id',
+            'audio' => 'required|file|mimes:wav,mp3,ogg|max:10240', // 10MB max
+            'title' => 'nullable|string|max:100',
+            'description' => 'nullable|string|max:500',
+            'duration' => 'nullable|integer|min:1|max:180' // 3 minutes max
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = Auth::user();
+            $competition = Competition::findOrFail($request->competition_id);
+
+            // Vérifier que l'utilisateur est inscrit
+            $participant = \App\Models\CompetitionParticipant::where([
+                'competition_id' => $competition->id,
+                'user_id' => $user->id
+            ])->first();
+
+            if (!$participant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous devez être inscrit à cette compétition'
+                ], 400);
+            }
+
+            // Vérifier qu'une performance n'existe pas déjà
+            $existingPerformance = \App\Models\CompetitionPerformance::where([
+                'competition_id' => $competition->id,
+                'participant_id' => $participant->id
+            ])->first();
+
+            if ($existingPerformance) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous avez déjà soumis une performance pour cette compétition'
+                ], 400);
+            }
+
+            // Upload du fichier audio
+            $audioFile = $request->file('audio');
+            $fileName = time() . '_' . $user->id . '_' . $audioFile->getClientOriginalName();
+            $filePath = $audioFile->storeAs('competitions/performances', $fileName, 'public');
+
+            // Créer la performance
+            $performance = \App\Models\CompetitionPerformance::create([
+                'competition_id' => $competition->id,
+                'participant_id' => $participant->id,
+                'title' => $request->title,
+                'description' => $request->description,
+                'audio_file_path' => $filePath,
+                'audio_file_name' => $fileName,
+                'duration_seconds' => $request->duration ?? 0,
+                'file_size_kb' => round($audioFile->getSize() / 1024),
+                'metadata' => [
+                    'original_name' => $audioFile->getClientOriginalName(),
+                    'mime_type' => $audioFile->getMimeType(),
+                    'uploaded_at' => now()
+                ]
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'performance' => $performance,
+                'message' => 'Performance soumise avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la soumission de la performance',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

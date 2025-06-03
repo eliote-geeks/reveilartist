@@ -48,6 +48,7 @@ Route::prefix('sounds')->group(function () {
     Route::get('/featured', [ApiSoundController::class, 'featured'])->name('api.sounds.featured');
     Route::get('/popular', [ApiSoundController::class, 'popular'])->name('api.sounds.popular');
     Route::get('/recent', [ApiSoundController::class, 'recent'])->name('api.sounds.recent');
+    Route::get('/recommendations', [ApiSoundController::class, 'recommendations'])->name('api.sounds.recommendations');
     Route::get('/search', [ApiSoundController::class, 'search'])->name('api.sounds.search');
     Route::get('/{id}', [ApiSoundController::class, 'show'])->name('api.sounds.show')->where('id', '[0-9]+');
     Route::get('/{id}/preview', [ApiSoundController::class, 'preview'])->name('api.sounds.preview')->where('id', '[0-9]+');
@@ -118,6 +119,10 @@ Route::prefix('competitions')->group(function () {
     Route::get('/upcoming', [CompetitionController::class, 'upcoming'])->name('api.competitions.upcoming');
     Route::get('/popular', [CompetitionController::class, 'popular'])->name('api.competitions.popular');
     Route::get('/{id}', [CompetitionController::class, 'show'])->name('api.competitions.show')->where('id', '[0-9]+');
+    
+    // Routes publiques pour les fonctionnalités live
+    Route::get('/{id}/participants', [CompetitionController::class, 'getParticipants'])->name('api.competitions.participants')->where('id', '[0-9]+');
+    Route::get('/{id}/chat', [CompetitionController::class, 'getChatMessages'])->name('api.competitions.chat')->where('id', '[0-9]+');
 
     // Routes authentifiées pour les compétitions
     Route::middleware('auth:sanctum')->group(function () {
@@ -126,6 +131,12 @@ Route::prefix('competitions')->group(function () {
         Route::delete('/{id}', [CompetitionController::class, 'destroy'])->name('api.competitions.destroy')->where('id', '[0-9]+');
         Route::post('/{id}/register', [CompetitionController::class, 'register'])->name('api.competitions.register')->where('id', '[0-9]+');
         Route::delete('/{id}/unregister', [CompetitionController::class, 'unregister'])->name('api.competitions.unregister')->where('id', '[0-9]+');
+        
+        // Routes pour les fonctionnalités live
+        Route::post('/chat', [CompetitionController::class, 'sendChatMessage'])->name('api.competitions.chat.send');
+        Route::post('/react', [CompetitionController::class, 'addReaction'])->name('api.competitions.react');
+        Route::post('/vote', [CompetitionController::class, 'addVote'])->name('api.competitions.vote');
+        Route::post('/submit-performance', [CompetitionController::class, 'submitPerformance'])->name('api.competitions.submit-performance');
     });
 });
 
