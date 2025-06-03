@@ -1,29 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Form, InputGroup, Modal } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Form, InputGroup, Modal, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faCalendarAlt,
-    faMapMarkerAlt,
-    faTicketAlt,
-    faUsers,
-    faFilter,
-    faSearch,
-    faStar,
-    faMusic,
-    faClock,
-    faShare,
-    faPlus,
-    faMinus,
-    faShoppingCart,
-    faEye,
-    faTh,
-    faList,
-    faEuroSign
+    faCalendarAlt, faMapMarkerAlt, faTicketAlt, faUsers, faSearch,
+    faClock, faShoppingCart, faEye, faHeart, faShare
 } from '@fortawesome/free-solid-svg-icons';
 import LoadingScreen from '../common/LoadingScreen';
-import { AnimatedElement } from '../common/PageTransition';
-import FloatingActionButton from '../common/FloatingActionButton';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
@@ -37,38 +20,12 @@ const Events = () => {
     const [selectedCity, setSelectedCity] = useState('all');
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState(null);
-    const [ticketQuantities, setTicketQuantities] = useState({});
-    const [viewMode, setViewMode] = useState('grid');
     const [categories, setCategories] = useState(['Tous']);
     const [cities, setCities] = useState(['Toutes']);
 
-    // Villes populaires du Cameroun
     const cameroonCities = [
-        'Toutes',
-        'Yaoundé',
-        'Douala',
-        'Bamenda',
-        'Bafoussam',
-        'Garoua',
-        'Maroua',
-        'Ngaoundéré',
-        'Bertoua',
-        'Kribi',
-        'Limbe',
-        'Buea',
-        'Kumba',
-        'Edéa',
-        'Foumban',
-        'Dschang',
-        'Ebolowa',
-        'Sangmélima',
-        'Mbalmayo',
-        'Nkongsamba',
-        'Loum',
-        'Mbouda',
-        'Tiko',
-        'Yokadouma',
-        'Batouri'
+        'Toutes', 'Yaoundé', 'Douala', 'Bamenda', 'Bafoussam', 'Garoua',
+        'Maroua', 'Ngaoundéré', 'Bertoua', 'Kribi', 'Limbe', 'Buea'
     ];
 
     const { addToCart } = useCart();
@@ -89,39 +46,20 @@ const Events = () => {
             const response = await fetch('/api/events');
             const data = await response.json();
 
-            console.log('Données événements reçues:', data);
+            const eventsData = Array.isArray(data) ? data : (data?.events || []);
+            const adaptedEvents = eventsData.map(event => ({
+                ...event,
+                poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
+                artists_array: event.artists ? (
+                    typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
+                ) : [],
+                remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
+            }));
 
-            if (data && Array.isArray(data)) {
-                // Si data est directement un tableau
-                const adaptedEvents = data.map(event => ({
-                    ...event,
-                    poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
-                    artists_array: event.artists ? (
-                        typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
-                    ) : [],
-                    remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
-                }));
-                setEvents(adaptedEvents);
-            } else if (data && data.events) {
-                // Si data contient une propriété events
-                const adaptedEvents = data.events.map(event => ({
-                    ...event,
-                    poster_image_url: event.poster_image ? `/storage/${event.poster_image}` : null,
-                    artists_array: event.artists ? (
-                        typeof event.artists === 'string' ? JSON.parse(event.artists) : event.artists
-                    ) : [],
-                    remaining_spots: (event.max_attendees || 0) - (event.current_attendees || 0)
-                }));
-                setEvents(adaptedEvents);
-            } else {
-                console.error('Format de données inattendu:', data);
-                setEvents([]);
-            }
+            setEvents(adaptedEvents);
 
-            // Extraire les catégories et villes uniques
-            const allEvents = data && Array.isArray(data) ? data : (data && data.events ? data.events : []);
-            const uniqueCategories = ['Tous', ...new Set(allEvents.map(event => event.category).filter(Boolean))];
-            const existingCities = new Set(allEvents.map(event => event.city).filter(Boolean));
+            const uniqueCategories = ['Tous', ...new Set(eventsData.map(event => event.category).filter(Boolean))];
+            const existingCities = new Set(eventsData.map(event => event.city).filter(Boolean));
             const allCities = [...new Set([...cameroonCities, ...existingCities])];
 
             setCategories(uniqueCategories);
@@ -159,7 +97,6 @@ const Events = () => {
             filtered = filtered.filter(event => event.city === selectedCity);
         }
 
-        // Filtrer pour n'afficher que les événements publiés et à venir
         filtered = filtered.filter(event =>
             event.status === 'published' &&
             new Date(event.event_date) >= new Date().setHours(0, 0, 0, 0)
@@ -170,10 +107,15 @@ const Events = () => {
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('fr-FR', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+
+    const formatTime = (dateString) => {
+        return new Date(dateString).toLocaleDateString('fr-FR', {
+            weekday: 'short'
         });
     };
 
@@ -189,9 +131,6 @@ const Events = () => {
         if (event.is_free) return 0;
         if (event.ticket_price) return event.ticket_price;
         if (event.price_min) return event.price_min;
-        if (event.tickets && event.tickets.length > 0) {
-            return Math.min(...event.tickets.map(ticket => ticket.price));
-        }
         return 0;
     };
 
@@ -203,7 +142,6 @@ const Events = () => {
     const closeTicketModal = () => {
         setShowTicketModal(false);
         setSelectedEvent(null);
-        setTicketQuantities({});
     };
 
     const handleAddToCart = () => {
@@ -212,34 +150,26 @@ const Events = () => {
             return;
         }
 
-        if (!selectedEvent) return;
+        if (!selectedEvent || selectedEvent.is_free) return;
 
-        // Pour les événements payants, ajouter un billet standard
-        if (!selectedEvent.is_free && selectedEvent.ticket_price) {
-            const cartItem = {
-                id: selectedEvent.id,
-                type: 'event',
-                title: selectedEvent.title,
-                artist: selectedEvent.artists_array?.[0] || 'Event',
-                event_date: selectedEvent.event_date,
-                venue: selectedEvent.venue,
-                city: selectedEvent.city,
-                ticket_type: 'Standard',
-                ticket_price: selectedEvent.ticket_price,
-                price: selectedEvent.ticket_price,
-                quantity: 1,
-                poster: selectedEvent.poster_image_url,
-                max_attendees: selectedEvent.max_attendees
-            };
+        const cartItem = {
+            id: selectedEvent.id,
+            type: 'event',
+            title: selectedEvent.title,
+            artist: selectedEvent.artists_array?.[0] || 'Event',
+            event_date: selectedEvent.event_date,
+            venue: selectedEvent.venue,
+            city: selectedEvent.city,
+            ticket_type: 'Standard',
+            ticket_price: selectedEvent.ticket_price,
+            price: selectedEvent.ticket_price,
+            quantity: 1,
+            poster: selectedEvent.poster_image_url,
+            max_attendees: selectedEvent.max_attendees
+        };
 
-            addToCart(cartItem);
-
-            toast.success(
-                'Billet ajouté au panier',
-                `Billet pour "${selectedEvent.title}" ajouté au panier`
-            );
-        }
-
+        addToCart(cartItem);
+        toast.success('Billet ajouté au panier', `Billet pour "${selectedEvent.title}" ajouté au panier`);
         closeTicketModal();
     };
 
@@ -247,310 +177,43 @@ const Events = () => {
         return <LoadingScreen />;
     }
 
-    const EventCard = ({ event, index }) => (
-        <AnimatedElement
-            animation={index % 2 === 0 ? "slideInLeft" : "slideInRight"}
-            delay={200 + (index * 100)}
-        >
-            <Card className="event-card h-100 border-0 shadow-sm">
-                <div className="position-relative">
-                    <Card.Img
-                        variant="top"
-                        src={event.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=250&fit=crop`}
-                        className="event-image"
-                        style={{ height: '200px', objectFit: 'cover' }}
-                    />
-
-                    {/* Badges */}
-                    <div className="position-absolute top-0 start-0 m-3">
-                        <Badge bg="primary" className="mb-2">
-                            {event.category || 'Événement'}
-                        </Badge>
-                        {event.is_featured && (
-                            <Badge bg="warning" text="dark">
-                                <FontAwesomeIcon icon={faStar} className="me-1" />
-                                Featured
-                            </Badge>
-                        )}
-                    </div>
-
-                    {event.is_free && (
-                        <div className="position-absolute top-0 end-0 m-3">
-                            <Badge bg="success">
-                                Gratuit
-                            </Badge>
-                        </div>
-                    )}
-
-                    {/* Overlay au hover */}
-                    <div className="event-overlay">
-                        <div className="event-overlay-content text-center">
-                            <Button
-                                as={Link}
-                                to={`/events/${event.id}`}
-                                variant="light"
-                                className="mb-2 me-2"
-                            >
-                                <FontAwesomeIcon icon={faEye} className="me-2" />
-                                Voir détails
-                            </Button>
-                            {!event.is_free && (
-                                <Button
-                                    variant="primary"
-                                    onClick={() => openTicketModal(event)}
-                                >
-                                    <FontAwesomeIcon icon={faTicketAlt} className="me-2" />
-                                    Billets
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <Card.Body>
-                    <div className="d-flex justify-content-between align-items-start mb-2">
-                        <h5 className="card-title fw-bold mb-0">
-                            <Link
-                                to={`/events/${event.id}`}
-                                className="text-decoration-none text-dark"
-                            >
-                                {event.title}
-                            </Link>
-                        </h5>
-                    </div>
-
-                    <p className="text-muted small mb-2">
-                        {event.artists_array && event.artists_array.length > 0 &&
-                            `par ${event.artists_array.slice(0, 2).join(', ')}${event.artists_array.length > 2 ? '...' : ''}`
-                        }
-                    </p>
-
-                    <div className="mb-3">
-                        <div className="d-flex align-items-center mb-1">
-                            <FontAwesomeIcon icon={faCalendarAlt} className="text-primary me-2" />
-                            <small>{formatDate(event.event_date)}</small>
-                        </div>
-                        <div className="d-flex align-items-center mb-1">
-                            <FontAwesomeIcon icon={faClock} className="text-primary me-2" />
-                            <small>{event.start_time || 'Heure à confirmer'}</small>
-                        </div>
-                        <div className="d-flex align-items-center">
-                            <FontAwesomeIcon icon={faMapMarkerAlt} className="text-primary me-2" />
-                            <small>{event.venue}, {event.city}</small>
-                        </div>
-                    </div>
-
-                    <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                            {event.is_free ? (
-                                <span className="fw-bold text-success">Gratuit</span>
-                            ) : (
-                                <span className="fw-bold text-primary">
-                                    À partir de {formatCurrency(getLowestPrice(event))}
-                                </span>
-                            )}
-                        </div>
-                        <div className="d-flex gap-1">
-                            <Button
-                                as={Link}
-                                to={`/events/${event.id}`}
-                                variant="outline-primary"
-                                size="sm"
-                            >
-                                <FontAwesomeIcon icon={faEye} />
-                            </Button>
-                            {!event.is_free && (
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => openTicketModal(event)}
-                                >
-                                    <FontAwesomeIcon icon={faTicketAlt} />
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </Card.Body>
-            </Card>
-        </AnimatedElement>
-    );
-
-    const EventListItem = ({ event, index }) => (
-        <AnimatedElement animation="slideInUp" delay={100 + (index * 50)}>
-            <Card className="event-list-item border-0 shadow-sm mb-3">
-                <Row className="g-0">
-                    <Col md={3}>
-                        <img
-                            src={event.poster_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=300&h=200&fit=crop`}
-                            className="img-fluid rounded-start"
-                            style={{ height: '150px', width: '100%', objectFit: 'cover' }}
-                            alt={event.title}
-                        />
-                    </Col>
-                    <Col md={9}>
-                        <Card.Body>
-                            <Row className="h-100">
-                                <Col md={8}>
-                                    <div className="d-flex align-items-center mb-2">
-                                        <Badge bg="primary" className="me-2">{event.category || 'Événement'}</Badge>
-                                        {event.is_featured && (
-                                            <Badge bg="warning" text="dark">
-                                                <FontAwesomeIcon icon={faStar} className="me-1" />
-                                                Featured
-                                            </Badge>
-                                        )}
-                                        {event.is_free && (
-                                            <Badge bg="success" className="ms-2">Gratuit</Badge>
-                                        )}
-                                    </div>
-
-                                    <h5 className="fw-bold mb-2">
-                                        <Link
-                                            to={`/events/${event.id}`}
-                                            className="text-decoration-none text-dark"
-                                        >
-                                            {event.title}
-                                        </Link>
-                                    </h5>
-
-                                    {event.artists_array && event.artists_array.length > 0 && (
-                                        <p className="text-muted mb-2">
-                                            par {event.artists_array.slice(0, 2).join(', ')}
-                                            {event.artists_array.length > 2 ? '...' : ''}
-                                        </p>
-                                    )}
-
-                                    <p className="text-muted small mb-2">{event.description}</p>
-
-                                    <div className="event-details">
-                                        <div className="d-flex align-items-center mb-1">
-                                            <FontAwesomeIcon icon={faCalendarAlt} className="text-primary me-2" />
-                                            <span>{formatDate(event.event_date)} à {event.start_time || 'Heure à confirmer'}</span>
-                                        </div>
-                                        <div className="d-flex align-items-center">
-                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="text-primary me-2" />
-                                            <span>{event.venue}, {event.city}</span>
-                                        </div>
-                                    </div>
-                                </Col>
-                                <Col md={4} className="d-flex flex-column justify-content-between">
-                                    <div className="text-end">
-                                        {event.is_free ? (
-                                            <div className="fw-bold text-success fs-5">Gratuit</div>
-                                        ) : (
-                                            <div className="fw-bold text-primary fs-5">
-                                                À partir de {formatCurrency(getLowestPrice(event))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="d-flex gap-2 justify-content-end">
-                                        <Button
-                                            as={Link}
-                                            to={`/events/${event.id}`}
-                                            variant="outline-primary"
-                                            size="sm"
-                                        >
-                                            <FontAwesomeIcon icon={faEye} className="me-1" />
-                                            Détails
-                                        </Button>
-                                        {!event.is_free && (
-                                            <Button
-                                                variant="primary"
-                                                size="sm"
-                                                onClick={() => openTicketModal(event)}
-                                            >
-                                                <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
-                                                Billets
-                                            </Button>
-                                        )}
-                                    </div>
-                                </Col>
-                            </Row>
-                        </Card.Body>
-                    </Col>
-                </Row>
-            </Card>
-        </AnimatedElement>
-    );
-
     return (
-        <div className="min-vh-100 bg-light avoid-header-overlap">
-            {/* Hero Section */}
-            <div className="hero-gradient text-white">
+        <div className="events-social-feed">
+            {/* Header de recherche */}
+            <div className="events-header">
                 <Container>
-                    <div className="py-5">
-                        <Row className="align-items-center">
-                            <Col lg={8}>
-                                <AnimatedElement animation="slideInLeft" delay={100}>
-                                    <h1 className="display-4 fw-bold mb-3">
-                                        Événements Musicaux
-                                    </h1>
-                                    <p className="lead mb-4">
-                                        Découvrez les meilleurs événements musicaux du Cameroun.
-                                        Concerts, festivals, showcases et plus encore !
-                                    </p>
-                                    <div className="d-flex gap-3 flex-wrap">
-                                        <div className="d-flex align-items-center">
-                                            <FontAwesomeIcon icon={faCalendarAlt} className="me-2" />
-                                            <span>{filteredEvents.length} événements disponibles</span>
-                                        </div>
-                                        <div className="d-flex align-items-center">
-                                            <FontAwesomeIcon icon={faMapMarkerAlt} className="me-2" />
-                                            <span>Partout au Cameroun</span>
-                                        </div>
-                                    </div>
-                                </AnimatedElement>
-                            </Col>
-                            <Col lg={4}>
-                                <AnimatedElement animation="slideInRight" delay={200}>
-                                    <div className="text-end">
-                                        <Button
-                                            variant={viewMode === 'grid' ? 'primary' : 'outline-primary'}
-                                            size="sm"
-                                            onClick={() => setViewMode('grid')}
-                                            className="me-2"
-                                        >
-                                            <FontAwesomeIcon icon={faTh} />
-                                        </Button>
-                                        <Button
-                                            variant={viewMode === 'list' ? 'primary' : 'outline-primary'}
-                                            size="sm"
-                                            onClick={() => setViewMode('list')}
-                                        >
-                                            <FontAwesomeIcon icon={faList} />
-                                        </Button>
-                                    </div>
-                                </AnimatedElement>
-                            </Col>
-                        </Row>
-                    </div>
-                </Container>
-            </div>
+                    <Row className="py-4">
+                        <Col md={8} className="mx-auto text-center">
+                            <h2 className="fw-bold mb-3">
+                                Événements <span className="text-warning">musicaux</span>
+                            </h2>
+                            <p className="text-muted mb-4">
+                                Découvrez les meilleurs événements musicaux du Cameroun
+                            </p>
+                            <InputGroup size="lg" className="mb-4">
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Rechercher des événements..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="border-0 shadow-sm"
+                                    style={{ borderRadius: '25px 0 0 25px' }}
+                                />
+                                <Button
+                                    variant="warning"
+                                    style={{ borderRadius: '0 25px 25px 0' }}
+                                >
+                                    <FontAwesomeIcon icon={faSearch} />
+                                </Button>
+                            </InputGroup>
 
-            <Container className="py-4">
-                {/* Filtres */}
-                <AnimatedElement animation="slideInUp" delay={300}>
-                    <Card className="border-0 shadow-sm mb-4">
-                        <Card.Body>
-                            <Row className="g-3 align-items-center">
+                            {/* Filtres simples */}
+                            <Row className="g-2 justify-content-center">
                                 <Col md={4}>
-                                    <InputGroup>
-                                        <span className="input-group-text">
-                                            <FontAwesomeIcon icon={faSearch} />
-                                        </span>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Rechercher des événements..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                        />
-                                    </InputGroup>
-                                </Col>
-                                <Col md={3}>
                                     <Form.Select
                                         value={selectedCategory}
                                         onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="border-0 shadow-sm"
                                     >
                                         {categories.map(category => (
                                             <option
@@ -562,10 +225,11 @@ const Events = () => {
                                         ))}
                                     </Form.Select>
                                 </Col>
-                                <Col md={3}>
+                                <Col md={4}>
                                     <Form.Select
                                         value={selectedCity}
                                         onChange={(e) => setSelectedCity(e.target.value)}
+                                        className="border-0 shadow-sm"
                                     >
                                         {cities.map(city => (
                                             <option
@@ -577,17 +241,14 @@ const Events = () => {
                                         ))}
                                     </Form.Select>
                                 </Col>
-                                <Col md={2}>
-                                    <div className="text-muted small">
-                                        {filteredEvents.length} événement{filteredEvents.length > 1 ? 's' : ''}
-                                    </div>
-                                </Col>
                             </Row>
-                        </Card.Body>
-                    </Card>
-                </AnimatedElement>
+                        </Col>
+                    </Row>
+                </Container>
+            </div>
 
-                {/* Liste des événements */}
+            {/* Feed des événements */}
+            <Container className="py-4" style={{ maxWidth: '800px' }}>
                 {filteredEvents.length === 0 ? (
                     <div className="text-center py-5">
                         <FontAwesomeIcon icon={faCalendarAlt} size="3x" className="text-muted mb-3" />
@@ -595,30 +256,126 @@ const Events = () => {
                         <p className="text-secondary">Essayez de modifier vos critères de recherche</p>
                     </div>
                 ) : (
-                    <>
-                        {viewMode === 'grid' ? (
-                            <Row className="g-4">
-                                {filteredEvents.map((event, index) => (
-                                    <Col key={event.id} lg={4} md={6}>
-                                        <EventCard event={event} index={index} />
-                                    </Col>
-                                ))}
-                            </Row>
-                        ) : (
-                            <div>
-                                {filteredEvents.map((event, index) => (
-                                    <EventListItem key={event.id} event={event} index={index} />
-                                ))}
-                            </div>
-                        )}
-                    </>
+                    <div className="events-feed">
+                        {filteredEvents.map((event, index) => (
+                            <Card key={event.id} className="event-post border-0 shadow-sm mb-4">
+                                <Card.Body className="p-4">
+                                    <Row className="align-items-center">
+                                        {/* Date */}
+                                        <Col xs={3} md={2}>
+                                            <div className="event-date-badge">
+                                                <div className="date-day">{new Date(event.event_date).getDate()}</div>
+                                                <div className="date-month">{formatTime(event.event_date)}</div>
+                                                <div className="date-month">{new Date(event.event_date).toLocaleDateString('fr-FR', { month: 'short' })}</div>
+                                            </div>
+                                        </Col>
+
+                                        {/* Informations principales */}
+                                        <Col xs={6} md={7}>
+                                            <div className="event-info">
+                                                <h5 className="fw-bold mb-2">{event.title}</h5>
+
+                                                {event.artists_array && event.artists_array.length > 0 && (
+                                                    <p className="text-muted mb-2">
+                                                        <FontAwesomeIcon icon={faUsers} className="me-2" />
+                                                        {event.artists_array.slice(0, 2).join(', ')}
+                                                        {event.artists_array.length > 2 ? '...' : ''}
+                                                    </p>
+                                                )}
+
+                                                <div className="event-details">
+                                                    <div className="detail-item">
+                                                        <FontAwesomeIcon icon={faMapMarkerAlt} className="me-2 text-warning" />
+                                                        <span>{event.venue}, {event.city}</span>
+                                                    </div>
+                                                    <div className="detail-item">
+                                                        <FontAwesomeIcon icon={faClock} className="me-2 text-warning" />
+                                                        <span>{event.start_time || 'Heure à confirmer'}</span>
+                                                    </div>
+                                                </div>
+
+                                                {event.description && (
+                                                    <p className="text-muted small mt-2">
+                                                        {event.description.substring(0, 100)}...
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </Col>
+
+                                        {/* Prix et actions */}
+                                        <Col xs={3} md={3} className="text-end">
+                                            <div className="event-price mb-3">
+                                                {event.is_free ? (
+                                                    <div className="price-free">
+                                                        <span className="fw-bold text-success">Gratuit</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="price-paid">
+                                                        <div className="price-amount fw-bold text-warning">
+                                                            {formatCurrency(getLowestPrice(event))}
+                                                        </div>
+                                                        <small className="text-muted">À partir de</small>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="event-actions d-flex flex-column gap-2">
+                                                <Button
+                                                    as={Link}
+                                                    to={`/events/${event.id}`}
+                                                    variant="outline-warning"
+                                                    size="sm"
+                                                    className="rounded-pill"
+                                                >
+                                                    <FontAwesomeIcon icon={faEye} className="me-1" />
+                                                    Détails
+                                                </Button>
+
+                                                {!event.is_free && (
+                                                    <Button
+                                                        variant="warning"
+                                                        size="sm"
+                                                        onClick={() => openTicketModal(event)}
+                                                        className="rounded-pill"
+                                                    >
+                                                        <FontAwesomeIcon icon={faTicketAlt} className="me-1" />
+                                                        Billets
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </Col>
+                                    </Row>
+
+                                    {/* Actions sociales */}
+                                    <Row className="mt-3 pt-3 border-top">
+                                        <Col>
+                                            <div className="social-actions d-flex justify-content-around">
+                                                <Button variant="link" className="text-muted social-btn">
+                                                    <FontAwesomeIcon icon={faHeart} className="me-1" />
+                                                    J'aime
+                                                </Button>
+                                                <Button variant="link" className="text-muted social-btn">
+                                                    <FontAwesomeIcon icon={faShare} className="me-1" />
+                                                    Partager
+                                                </Button>
+                                                <Button variant="link" className="text-muted social-btn">
+                                                    <FontAwesomeIcon icon={faUsers} className="me-1" />
+                                                    {event.current_attendees || 0} intéressé(s)
+                                                </Button>
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                </Card.Body>
+                            </Card>
+                        ))}
+                    </div>
                 )}
             </Container>
 
             {/* Modal de billets */}
-            <Modal show={showTicketModal} onHide={closeTicketModal} size="lg" centered>
+            <Modal show={showTicketModal} onHide={closeTicketModal} centered>
                 <Modal.Header closeButton>
-                    <Modal.Title>Acheter des billets - {selectedEvent?.title}</Modal.Title>
+                    <Modal.Title>Billets - {selectedEvent?.title}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     {selectedEvent && (
@@ -641,13 +398,12 @@ const Events = () => {
                                 </div>
                             </div>
 
-                            <h6 className="fw-bold mb-3">Billet disponible</h6>
                             {!selectedEvent.is_free && selectedEvent.ticket_price ? (
                                 <div className="border rounded p-3 mb-3">
                                     <Row className="align-items-center">
-                                        <Col md={6}>
+                                        <Col md={8}>
                                             <h6 className="fw-bold mb-1">Billet Standard</h6>
-                                            <div className="text-primary fw-bold fs-5">
+                                            <div className="text-warning fw-bold fs-5">
                                                 {formatCurrency(selectedEvent.ticket_price)}
                                             </div>
                                             <small className="text-muted d-block">
@@ -656,18 +412,16 @@ const Events = () => {
                                                     'Places limitées'
                                                 }
                                             </small>
-                                            <small className="text-info d-block mt-1">
-                                                Accès général à l'événement
-                                            </small>
                                         </Col>
-                                        <Col md={6} className="text-end">
+                                        <Col md={4} className="text-end">
                                             <Button
-                                                variant="primary"
+                                                variant="warning"
                                                 onClick={handleAddToCart}
                                                 disabled={selectedEvent.remaining_spots <= 0}
+                                                className="rounded-pill"
                                             >
                                                 <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
-                                                Ajouter au panier
+                                                Ajouter
                                             </Button>
                                         </Col>
                                     </Row>
@@ -692,75 +446,118 @@ const Events = () => {
                 </Modal.Footer>
             </Modal>
 
-            <FloatingActionButton />
-
             <style jsx>{`
-                .event-card {
+                .events-social-feed {
+                    min-height: 100vh;
+                    background: #f8f9fa;
+                    padding-top: 80px;
+                }
+
+                .events-header {
+                    background: white;
+                    border-bottom: 1px solid #e9ecef;
+                    margin-bottom: 0;
+                }
+
+                .event-post {
                     transition: all 0.3s ease;
-                    overflow: hidden;
+                    border-radius: 15px !important;
                 }
 
-                .event-card:hover {
-                    transform: translateY(-5px);
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+                .event-post:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
                 }
 
-                .event-image {
-                    transition: transform 0.3s ease;
+                .event-date-badge {
+                    background: linear-gradient(135deg, #ffc107, #ff8f00);
+                    color: white;
+                    padding: 15px;
+                    border-radius: 15px;
+                    text-align: center;
+                    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
                 }
 
-                .event-card:hover .event-image {
-                    transform: scale(1.05);
+                .date-day {
+                    font-size: 1.8rem;
+                    font-weight: bold;
+                    line-height: 1;
                 }
 
-                .event-overlay {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0, 0, 0, 0.6);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
+                .date-month {
+                    font-size: 0.8rem;
+                    text-transform: uppercase;
+                    margin-top: 2px;
                 }
 
-                .event-card:hover .event-overlay {
-                    opacity: 1;
-                }
-
-                .event-overlay-content {
-                    transform: translateY(20px);
-                    transition: transform 0.3s ease;
-                }
-
-                .event-card:hover .event-overlay-content {
-                    transform: translateY(0);
-                }
-
-                .event-list-item {
-                    transition: all 0.3s ease;
-                }
-
-                .event-list-item:hover {
-                    transform: translateX(5px);
-                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1) !important;
+                .event-info {
+                    flex-grow: 1;
                 }
 
                 .event-details {
-                    font-size: 0.875rem;
+                    margin: 10px 0;
                 }
 
-                /* Responsive */
+                .detail-item {
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 5px;
+                    font-size: 0.9rem;
+                    color: #666;
+                }
+
+                .event-price {
+                    text-align: center;
+                }
+
+                .price-amount {
+                    font-size: 1.2rem;
+                }
+
+                .event-actions {
+                    min-width: 120px;
+                }
+
+                .social-actions {
+                    margin-top: 15px;
+                }
+
+                .social-btn {
+                    border: none;
+                    padding: 8px 15px;
+                    border-radius: 20px;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                    text-decoration: none;
+                }
+
+                .social-btn:hover {
+                    background: #f8f9fa;
+                    color: #ffc107 !important;
+                    transform: scale(1.05);
+                }
+
                 @media (max-width: 768px) {
-                    .event-card:hover {
-                        transform: translateY(-2px);
+                    .event-post .row {
+                        text-align: center;
                     }
 
-                    .event-list-item:hover {
-                        transform: translateX(2px);
+                    .event-date-badge {
+                        margin-bottom: 15px;
+                    }
+
+                    .event-actions {
+                        margin-top: 15px;
+                    }
+
+                    .social-actions {
+                        flex-wrap: wrap;
+                        gap: 10px;
+                    }
+
+                    .social-btn {
+                        font-size: 0.8rem;
+                        padding: 6px 12px;
                     }
                 }
             `}</style>

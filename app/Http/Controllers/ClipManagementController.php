@@ -85,18 +85,21 @@ class ClipManagementController extends Controller
     public function getClips(Request $request)
     {
         try {
+            Log::info('getClips called with params: ' . json_encode($request->all()));
+
             $query = Clip::with(['user:id,name,email,profile_photo_path']);
 
-            // Filtres - adapter pour is_active au lieu de status
-            if ($request->has('status') && $request->status !== 'all') {
+            // Appliquer les filtres seulement s'ils sont présents et valides
+            if ($request->filled('status') && $request->status !== 'all') {
                 if ($request->status === 'published') {
                     $query->where('is_active', true);
                 } elseif ($request->status === 'inactive') {
                     $query->where('is_active', false);
                 }
+                Log::info('Filter applied - status: ' . $request->status);
             }
 
-            if ($request->has('search') && !empty($request->search)) {
+            if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function($q) use ($searchTerm) {
                     $q->where('title', 'like', "%{$searchTerm}%")
@@ -105,18 +108,23 @@ class ClipManagementController extends Controller
                           $userQuery->where('name', 'like', "%{$searchTerm}%");
                       });
                 });
+                Log::info('Filter applied - search: ' . $searchTerm);
             }
 
-            if ($request->has('is_featured')) {
-                $query->where('featured', $request->boolean('is_featured'));
+            if ($request->filled('is_featured') && $request->is_featured !== 'all') {
+                $isFeatured = $request->boolean('is_featured');
+                $query->where('featured', $isFeatured);
+                Log::info('Filter applied - is_featured: ' . $isFeatured);
             }
 
-            if ($request->has('date_from')) {
+            if ($request->filled('date_from')) {
                 $query->where('created_at', '>=', $request->date_from);
+                Log::info('Filter applied - date_from: ' . $request->date_from);
             }
 
-            if ($request->has('date_to')) {
+            if ($request->filled('date_to')) {
                 $query->where('created_at', '<=', $request->date_to);
+                Log::info('Filter applied - date_to: ' . $request->date_to);
             }
 
             // Tri
@@ -124,9 +132,15 @@ class ClipManagementController extends Controller
             $sortOrder = $request->get('sort_order', 'desc');
             $query->orderBy($sortBy, $sortOrder);
 
+            // Compter le total avant pagination
+            $totalCount = $query->count();
+            Log::info('Total clips found (before pagination): ' . $totalCount);
+
             // Pagination
             $perPage = $request->get('per_page', 15);
             $clips = $query->paginate($perPage);
+
+            Log::info('Clips retrieved after pagination: ' . $clips->count());
 
             // Transformer les données
             $clips->getCollection()->transform(function ($clip) {
@@ -144,8 +158,8 @@ class ClipManagementController extends Controller
                         gmdate("H:i:s", (int)$clip->duration) :
                         '0:00'
                     ),
-                    'status' => $clip->is_active ? 'published' : 'inactive', // Mapper is_active vers status
-                    'is_featured' => $clip->featured, // Mapper featured vers is_featured
+                    'status' => $clip->is_active ? 'published' : 'inactive',
+                    'is_featured' => $clip->featured,
                     'views_count' => $clip->views ?? 0,
                     'likes_count' => $clip->likes ?? 0,
                     'comments_count' => $clip->comments_count ?? 0,
@@ -165,12 +179,14 @@ class ClipManagementController extends Controller
 
             return response()->json([
                 'success' => true,
-                'clips' => $clips
+                'clips' => $clips,
+                'total_count' => $totalCount
             ]);
 
         } catch (\Exception $e) {
             Log::error('Erreur getClips: ' . $e->getMessage());
-            return response()->json(['success' => false, 'error' => 'Erreur chargement clips'], 500);
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json(['success' => false, 'error' => 'Erreur chargement clips: ' . $e->getMessage()], 500);
         }
     }
 

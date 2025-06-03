@@ -77,17 +77,43 @@ const ClipManagement = () => {
         try {
             setLoading(true);
             console.log('Chargement des clips...');
-            const queryParams = new URLSearchParams({
-                search: searchTerm,
-                status: statusFilter !== 'all' ? statusFilter : '',
-                is_featured: featuredFilter !== 'all' ? featuredFilter : '',
-                date_from: dateFilter.from,
-                date_to: dateFilter.to,
-                per_page: 20,
-                ...params
+
+            // Construire les paramètres de requête en excluant les valeurs vides
+            const queryParams = new URLSearchParams();
+
+            if (searchTerm.trim()) {
+                queryParams.append('search', searchTerm);
+            }
+
+            if (statusFilter !== 'all') {
+                queryParams.append('status', statusFilter);
+            }
+
+            if (featuredFilter !== 'all') {
+                queryParams.append('is_featured', featuredFilter);
+            }
+
+            if (dateFilter.from) {
+                queryParams.append('date_from', dateFilter.from);
+            }
+
+            if (dateFilter.to) {
+                queryParams.append('date_to', dateFilter.to);
+            }
+
+            queryParams.append('per_page', '20');
+
+            // Ajouter les paramètres supplémentaires
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                    queryParams.append(key, value);
+                }
             });
 
-            const response = await fetch(`/api/admin/clips?${queryParams}`, {
+            const url = `/api/admin/clips${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+            console.log('URL de requête:', url);
+
+            const response = await fetch(url, {
                 headers: getAuthHeaders()
             });
 
