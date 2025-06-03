@@ -118,20 +118,51 @@ class Sound extends Model
     }
 
     /**
-     * Utilisateurs qui ont aimé ce son
+     * Relation vers les certifications
      */
-    public function likes()
+    public function certifications()
     {
-        return $this->belongsToMany(User::class, 'sound_likes', 'sound_id', 'user_id')
-                    ->withTimestamps();
+        return $this->hasMany(SoundCertification::class);
     }
 
     /**
-     * Compter le nombre de likes
+     * Relation vers les likes
      */
-    public function getLikesCountAttribute()
+    public function likes()
     {
-        return $this->likes()->count();
+        return $this->morphMany(Like::class, 'likeable');
+    }
+
+    /**
+     * Relation vers les achats
+     */
+    public function purchases()
+    {
+        return $this->hasMany(Purchase::class);
+    }
+
+    /**
+     * Relation vers les évaluations
+     */
+    public function ratings()
+    {
+        return $this->hasMany(Rating::class);
+    }
+
+    /**
+     * Relation vers les analyses
+     */
+    public function analytics()
+    {
+        return $this->hasMany(SoundAnalytic::class);
+    }
+
+    /**
+     * Relation vers le dernier certificat
+     */
+    public function latestCertification()
+    {
+        return $this->hasOne(SoundCertification::class)->latest('achieved_at');
     }
 
     /**

@@ -15,6 +15,10 @@ use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\ClipController;
 use App\Http\Controllers\CompetitionController;
 use App\Http\Controllers\CompetitionPaymentController;
+use App\Http\Controllers\ClipManagementController;
+use App\Http\Controllers\CertificationController;
+use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\PaymentManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -191,15 +195,40 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Gestion des clips
         Route::prefix('clips')->group(function () {
-            Route::get('/', [ClipController::class, 'getAllForAdmin'])->name('api.admin.clips.index');
-            Route::get('/stats', [ClipController::class, 'getStats'])->name('api.admin.clips.stats');
-            Route::get('/popular', [ClipController::class, 'getMostPopular'])->name('api.admin.clips.popular');
-            Route::get('/unpopular', [ClipController::class, 'getLeastPopular'])->name('api.admin.clips.unpopular');
-            Route::get('/problematic', [ClipController::class, 'getProblematicClips'])->name('api.admin.clips.problematic');
-            Route::post('/{id}/toggle-status', [ClipController::class, 'toggleStatus'])->name('api.admin.clips.toggle-status');
-            Route::post('/{id}/toggle-featured', [ClipController::class, 'toggleFeatured'])->name('api.admin.clips.toggle-featured');
-            Route::put('/{id}', [ClipController::class, 'update'])->name('api.admin.clips.update');
-            Route::delete('/{id}', [ClipController::class, 'destroy'])->name('api.admin.clips.destroy');
+            Route::get('/stats', [ClipManagementController::class, 'getClipStats'])->name('api.admin.clips.stats');
+            Route::get('/', [ClipManagementController::class, 'getClips'])->name('api.admin.clips.index');
+            Route::get('/pending', [ClipManagementController::class, 'getPendingClips'])->name('api.admin.clips.pending');
+            Route::post('/{clipId}/approve', [ClipManagementController::class, 'approveClip'])->name('api.admin.clips.approve');
+            Route::post('/{clipId}/reject', [ClipManagementController::class, 'rejectClip'])->name('api.admin.clips.reject');
+            Route::post('/{clipId}/toggle-featured', [ClipManagementController::class, 'toggleFeaturedClip'])->name('api.admin.clips.toggle-featured');
+            Route::delete('/{clipId}', [ClipManagementController::class, 'deleteClip'])->name('api.admin.clips.delete');
+            Route::post('/batch-action', [ClipManagementController::class, 'batchAction'])->name('api.admin.clips.batch-action');
+        });
+
+        // Gestion des certifications
+        Route::prefix('certifications')->group(function () {
+            Route::get('/stats', [CertificationController::class, 'getCertificationStats'])->name('api.admin.certifications.stats');
+            Route::get('/{soundId}/certificate', [CertificationController::class, 'generateCertificate'])->name('api.admin.certifications.certificate');
+            Route::get('/artist/{userId}', [CertificationController::class, 'getArtistCertifications'])->name('api.admin.certifications.artist');
+        });
+
+        // Analytics
+        Route::prefix('analytics')->group(function () {
+            Route::get('/global', [AnalyticsController::class, 'getGlobalAnalytics'])->name('api.admin.analytics.global');
+            Route::get('/users', [AnalyticsController::class, 'getUserAnalytics'])->name('api.admin.analytics.users');
+            Route::get('/content', [AnalyticsController::class, 'getContentAnalytics'])->name('api.admin.analytics.content');
+            Route::get('/trends', [AnalyticsController::class, 'getTrends'])->name('api.admin.analytics.trends');
+        });
+
+        // Gestion des paiements
+        Route::prefix('payments')->group(function () {
+            Route::get('/stats', [PaymentManagementController::class, 'getPaymentStats'])->name('api.admin.payments.stats');
+            Route::get('/transactions', [PaymentManagementController::class, 'getTransactions'])->name('api.admin.payments.transactions');
+            Route::get('/artist-revenues', [PaymentManagementController::class, 'getArtistRevenues'])->name('api.admin.payments.artist-revenues');
+            Route::post('/transactions/{transactionId}/approve', [PaymentManagementController::class, 'approvePayment'])->name('api.admin.payments.approve');
+            Route::post('/transactions/{transactionId}/reject', [PaymentManagementController::class, 'rejectPayment'])->name('api.admin.payments.reject');
+            Route::post('/transactions/{transactionId}/refund', [PaymentManagementController::class, 'refundPayment'])->name('api.admin.payments.refund');
+            Route::post('/batch-action', [PaymentManagementController::class, 'batchAction'])->name('api.admin.payments.batch-action');
         });
 
         // Gestion des utilisateurs

@@ -181,6 +181,20 @@ export const AuthProvider = ({ children }) => {
         return user && user.status === 'active';
     };
 
+    // Obtenir les headers d'authentification pour les requêtes fetch
+    const getAuthHeaders = () => {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return headers;
+    };
+
     const value = {
         user,
         token,
@@ -198,7 +212,8 @@ export const AuthProvider = ({ children }) => {
         isArtist,
         isProducer,
         isAdmin,
-        isActive
+        isActive,
+        getAuthHeaders
     };
 
     return (

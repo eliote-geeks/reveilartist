@@ -6,6 +6,8 @@ import App from './components/App';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
+import '../css/app.css';
+import 'react-toastify/dist/ReactToastify.css';
 
 const AppWrapper = () => {
     return (

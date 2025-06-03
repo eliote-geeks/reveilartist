@@ -49,9 +49,16 @@ import {
     faUndo,
     faUser,
     faCheck,
-    faTimes
+    faTimes,
+    faVideo,
+    faAward,
+    faCertificate
 } from '@fortawesome/free-solid-svg-icons';
 import CategoryManagement from './CategoryManagement';
+import ClipManagement from './ClipManagement';
+import CertificationManagement from './CertificationManagement';
+import Analytics from './Analytics';
+import PaymentManagement from './PaymentManagement';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import DataTable from 'react-data-table-component';
@@ -984,74 +991,18 @@ const Dashboard = () => {
 
     // Navigation items
     const navigationItems = [
-        {
-            id: 'overview',
-            label: 'Vue d\'ensemble',
-            icon: faTachometerAlt,
-            color: 'primary',
-            description: 'Statistiques générales'
-        },
-        {
-            id: 'sounds',
-            label: 'Sons',
-            icon: faMusic,
-            color: 'info',
-            count: stats.totalSounds,
-            description: 'Gestion des sons'
-        },
-        {
-            id: 'events',
-            label: 'Événements',
-            icon: faCalendarAlt,
-            color: 'success',
-            count: stats.activeEvents,
-            description: 'Gestion des événements'
-        },
-        {
-            id: 'users',
-            label: 'Utilisateurs',
-            icon: faUsers,
-            color: 'warning',
-            count: stats.totalUsers,
-            description: 'Gestion des utilisateurs'
-        },
-        {
-            id: 'revenue',
-            label: 'Revenus',
-            icon: faEuroSign,
-            color: 'success',
-            count: revenueStats.active_sellers || 0,
-            description: 'Revenus par utilisateur'
-        },
-        {
-            id: 'purchases',
-            label: 'Analyse des Achats',
-            icon: faShoppingCart,
-            color: 'info',
-            count: purchasesStats.total_buyers || 0,
-            description: 'Dépenses et recherche de paiements'
-        },
-        {
-            id: 'analytics',
-            label: 'Analytics',
-            icon: faChartLine,
-            color: 'danger',
-            description: 'Rapports détaillés'
-        },
-        {
-            id: 'categories',
-            label: 'Catégories',
-            icon: faTags,
-            color: 'secondary',
-            description: 'Gestion des catégories'
-        },
-        {
-            id: 'settings',
-            label: 'Paramètres',
-            icon: faCog,
-            color: 'secondary',
-            description: 'Configuration'
-        }
+        { id: 'overview', label: 'Vue d\'ensemble', icon: faTachometerAlt, color: 'primary' },
+        { id: 'sounds', label: 'Sons', icon: faMusic, color: 'info', count: stats.total_sounds },
+        { id: 'events', label: 'Événements', icon: faCalendarAlt, color: 'success', count: stats.total_events },
+        { id: 'clips', label: 'Clips', icon: faVideo, color: 'warning', count: 0 },
+        { id: 'users', label: 'Utilisateurs', icon: faUsers, color: 'warning', count: stats.total_users },
+        { id: 'revenue', label: 'Revenus', icon: faEuroSign, color: 'success', count: revenueStats.active_sellers || 0 },
+        { id: 'purchases', label: 'Achats', icon: faShoppingCart, color: 'info', count: purchasesStats.total_buyers || 0 },
+        { id: 'payments', label: 'Paiements', icon: faCreditCard, color: 'warning', count: stats.total_payments || 0 },
+        { id: 'certifications', label: 'Certifications', icon: faAward, color: 'success' },
+        { id: 'analytics', label: 'Analytics', icon: faChartLine, color: 'danger' },
+        { id: 'categories', label: 'Catégories', icon: faTags, color: 'secondary' },
+        { id: 'settings', label: 'Paramètres', icon: faCog, color: 'secondary' }
     ];
 
     // Fonctions de filtrage pour les DataTables
@@ -4225,12 +4176,15 @@ const Dashboard = () => {
                                 {activeTab === 'overview' && renderOverview()}
                                 {activeTab === 'sounds' && renderSoundsManagement()}
                                 {activeTab === 'events' && renderEventsManagement()}
+                                {activeTab === 'clips' && <ClipManagement />}
                                 {activeTab === 'users' && renderUsersManagement()}
                                 {activeTab === 'revenue' && renderRevenueManagement()}
-                                {activeTab === 'analytics' && renderAnalytics()}
+                                {activeTab === 'purchases' && renderPurchasesAnalysis()}
+                                {activeTab === 'payments' && <PaymentManagement />}
+                                {activeTab === 'certifications' && <CertificationManagement />}
+                                {activeTab === 'analytics' && <Analytics />}
                                 {activeTab === 'categories' && <CategoryManagement />}
                                 {activeTab === 'settings' && renderSettings()}
-                                {activeTab === 'purchases' && renderPurchasesAnalysis()}
                             </>
                         )}
                     </div>
