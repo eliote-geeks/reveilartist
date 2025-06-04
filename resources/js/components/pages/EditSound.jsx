@@ -52,11 +52,13 @@ const EditSound = () => {
     });
 
     useEffect(() => {
-        Promise.all([
-            loadSound(),
-            loadCategories()
-        ]);
-    }, [id]);
+        if (id && token) {
+            Promise.all([
+                loadSound(),
+                loadCategories()
+            ]);
+        }
+    }, [id, token]);
 
     const loadSound = async () => {
         try {
@@ -67,9 +69,13 @@ const EditSound = () => {
                 }
             });
 
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`);
+            }
+
             const data = await response.json();
 
-            if (data.success) {
+            if (data.success && data.sound) {
                 const soundData = data.sound;
                 setSound(soundData);
 
@@ -80,19 +86,20 @@ const EditSound = () => {
                     return;
                 }
 
-                // Remplir le formulaire
+                // Remplir le formulaire avec les données existantes
                 setFormData({
                     title: soundData.title || '',
                     description: soundData.description || '',
-                    category_id: soundData.category_id || '',
+                    category_id: soundData.category_id?.toString() || '',
                     genre: soundData.genre || '',
-                    price: soundData.price || '',
-                    is_free: soundData.is_free || false,
-                    is_featured: soundData.is_featured || false,
+                    price: soundData.price?.toString() || '',
+                    is_free: Boolean(soundData.is_free),
+                    is_featured: Boolean(soundData.is_featured),
                     status: soundData.status || 'pending',
-                    tags: Array.isArray(soundData.tags) ? soundData.tags.join(', ') :
-                          (typeof soundData.tags === 'string' ? soundData.tags : ''),
-                    bpm: soundData.bpm || '',
+                    tags: Array.isArray(soundData.tags)
+                        ? soundData.tags.join(', ')
+                        : (typeof soundData.tags === 'string' ? soundData.tags : ''),
+                    bpm: soundData.bpm?.toString() || '',
                     key: soundData.key || '',
                     credits: soundData.credits || '',
                     license_type: soundData.license_type || 'standard',
@@ -100,36 +107,50 @@ const EditSound = () => {
                     composer: soundData.composer || '',
                     performer: soundData.performer || '',
                     producer: soundData.producer || '',
-                    release_date: soundData.release_date || '',
+                    release_date: soundData.release_date ? soundData.release_date.split('T')[0] : '',
                     rights_statement: soundData.rights_statement || ''
                 });
             } else {
-                toast.error('Erreur', 'Impossible de charger le son');
-                navigate('/dashboard');
+                throw new Error(data.message || 'Son non trouvé');
             }
         } catch (error) {
-            console.error('Erreur lors du chargement:', error);
-            toast.error('Erreur', 'Erreur de connexion au serveur');
+            console.error('Erreur lors du chargement du son:', error);
+            toast.error('Erreur', error.message || 'Impossible de charger le son');
             navigate('/dashboard');
-        } finally {
-            setLoading(false);
         }
     };
 
     const loadCategories = async () => {
         try {
-            const response = await fetch('/api/categories');
+            const response = await fetch('/api/categories', {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Erreur HTTP: ${response.status}`);
+            }
+
             const data = await response.json();
-            if (data && Array.isArray(data)) {
-                setCategories(data);
+
+            if (data.success && Array.isArray(data.categories)) {
+                setCategories(data.categories.filter(cat => cat.is_active));
+            } else {
+                console.warn('Format de réponse inattendu pour les catégories:', data);
+                setCategories([]);
             }
         } catch (error) {
             console.error('Erreur lors du chargement des catégories:', error);
+            toast.error('Attention', 'Impossible de charger les catégories');
+            setCategories([]);
+        } finally {
+            setLoading(false);
         }
     };
 
     const canEditSound = (sound, user) => {
-        if (!user) return false;
+        if (!user || !sound) return false;
         return user.role === 'admin' || user.id === sound.user_id;
     };
 
@@ -168,11 +189,11 @@ const EditSound = () => {
             newErrors.genre = 'Le genre est requis';
         }
 
-        if (!formData.is_free && (!formData.price || formData.price <= 0)) {
+        if (!formData.is_free && (!formData.price || parseFloat(formData.price) <= 0)) {
             newErrors.price = 'Le prix est requis pour un son payant';
         }
 
-        if (formData.bpm && (formData.bpm < 60 || formData.bpm > 200)) {
+        if (formData.bpm && (parseInt(formData.bpm) < 60 || parseInt(formData.bpm) > 200)) {
             newErrors.bpm = 'Le BPM doit être entre 60 et 200';
         }
 
@@ -184,6 +205,7 @@ const EditSound = () => {
         e.preventDefault();
 
         if (!validateForm()) {
+            toast.error('Erreur', 'Veuillez corriger les erreurs du formulaire');
             return;
         }
 
@@ -192,7 +214,10 @@ const EditSound = () => {
         try {
             const submitData = {
                 ...formData,
-                tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : []
+                tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : [],
+                price: formData.is_free ? 0 : parseFloat(formData.price) || 0,
+                bpm: formData.bpm ? parseInt(formData.bpm) : null,
+                category_id: parseInt(formData.category_id)
             };
 
             const response = await fetch(`/api/sounds/${id}`, {
@@ -206,18 +231,18 @@ const EditSound = () => {
 
             const data = await response.json();
 
-            if (data.success) {
+            if (response.ok && data.success) {
                 toast.success('Succès', 'Son mis à jour avec succès');
                 navigate('/dashboard?tab=sounds');
             } else {
                 if (data.errors) {
                     setErrors(data.errors);
                 }
-                toast.error('Erreur', data.message || 'Impossible de mettre à jour le son');
+                throw new Error(data.message || 'Impossible de mettre à jour le son');
             }
         } catch (error) {
             console.error('Erreur lors de la sauvegarde:', error);
-            toast.error('Erreur', 'Erreur de connexion au serveur');
+            toast.error('Erreur', error.message || 'Erreur de connexion au serveur');
         } finally {
             setSaving(false);
         }
@@ -252,6 +277,23 @@ const EditSound = () => {
         );
     }
 
+    if (!sound) {
+        return (
+            <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ paddingTop: '80px' }}>
+                <div className="text-center">
+                    <h5 className="text-danger">Son introuvable</h5>
+                    <p className="text-muted">Le son demandé n'existe pas ou a été supprimé.</p>
+                    <Button
+                        variant="primary"
+                        onClick={() => navigate('/dashboard')}
+                    >
+                        Retour au tableau de bord
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-vh-100 bg-light" style={{ paddingTop: '80px' }}>
             <Container className="py-4">
@@ -274,44 +316,43 @@ const EditSound = () => {
                 </div>
 
                 {/* Info du son actuel */}
-                {sound && (
-                    <Card className="border-0 shadow-sm mb-4">
-                        <Card.Body>
-                            <Row className="align-items-center">
-                                <Col md={2}>
-                                    <img
-                                        src={sound.cover_image || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop`}
-                                        alt={sound.title}
-                                        className="rounded"
-                                        style={{ width: '80px', height: '80px', objectFit: 'cover' }}
-                                    />
-                                </Col>
-                                <Col md={6}>
-                                    <h5 className="fw-bold mb-1">{sound.title}</h5>
-                                    <p className="text-muted mb-1">{sound.genre}</p>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <Badge bg="light" text="dark">
-                                            <FontAwesomeIcon icon={faPlay} className="me-1" />
-                                            {sound.plays_count || 0} écoutes
-                                        </Badge>
-                                        <Badge bg="light" text="dark">
-                                            <FontAwesomeIcon icon={faClock} className="me-1" />
-                                            {sound.duration || 'N/A'}
-                                        </Badge>
-                                    </div>
-                                </Col>
-                                <Col md={4} className="text-end">
-                                    <div className="fw-bold text-success mb-1">
-                                        {sound.is_free ? 'Gratuit' : `${sound.price || 0} XAF`}
-                                    </div>
-                                    <Badge bg={sound.status === 'published' ? 'success' : 'warning'}>
-                                        {sound.status === 'published' ? 'Publié' : 'En attente'}
+                <Card className="border-0 shadow-sm mb-4">
+                    <Card.Body>
+                        <Row className="align-items-center">
+                            <Col md={2}>
+                                <img
+                                    src={sound.cover_image_url || sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop`}
+                                    alt={sound.title}
+                                    className="rounded"
+                                    style={{ width: '80px', height: '80px', objectFit: 'cover' }}
+                                />
+                            </Col>
+                            <Col md={6}>
+                                <h5 className="fw-bold mb-1">{sound.title}</h5>
+                                <p className="text-muted mb-1">{sound.genre}</p>
+                                <div className="d-flex align-items-center gap-2">
+                                    <Badge bg="light" text="dark">
+                                        <FontAwesomeIcon icon={faPlay} className="me-1" />
+                                        {sound.plays_count || 0} écoutes
                                     </Badge>
-                                </Col>
-                            </Row>
-                        </Card.Body>
-                    </Card>
-                )}
+                                    <Badge bg="light" text="dark">
+                                        <FontAwesomeIcon icon={faClock} className="me-1" />
+                                        {sound.duration || sound.formatted_duration || 'N/A'}
+                                    </Badge>
+                                </div>
+                            </Col>
+                            <Col md={4} className="text-end">
+                                <div className="fw-bold text-success mb-1">
+                                    {sound.is_free ? 'Gratuit' : `${sound.price || 0} XAF`}
+                                </div>
+                                <Badge bg={sound.status === 'published' ? 'success' : 'warning'}>
+                                    {sound.status === 'published' ? 'Publié' :
+                                     sound.status === 'pending' ? 'En attente' : 'Brouillon'}
+                                </Badge>
+                            </Col>
+                        </Row>
+                    </Card.Body>
+                </Card>
 
                 <Form onSubmit={handleSubmit}>
                     <Row className="g-4">
@@ -377,6 +418,11 @@ const EditSound = () => {
                                                 <Form.Control.Feedback type="invalid">
                                                     {errors.category_id}
                                                 </Form.Control.Feedback>
+                                                {categories.length === 0 && (
+                                                    <Form.Text className="text-warning">
+                                                        Aucune catégorie disponible. Contactez l'administrateur.
+                                                    </Form.Text>
+                                                )}
                                             </Form.Group>
                                         </Col>
 
@@ -668,6 +714,7 @@ const EditSound = () => {
                         <Button
                             variant="outline-secondary"
                             onClick={() => navigate('/dashboard?tab=sounds')}
+                            disabled={saving}
                         >
                             <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
                             Annuler

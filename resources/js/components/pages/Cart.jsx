@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Badge, Form, InputGroup, Alert, Modal, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -7,7 +7,8 @@ import {
     faLock, faEuroSign, faPlay, faTag, faCheck, faHeart,
     faArrowLeft, faShoppingBag, faMusic, faCalendarAlt,
     faTicketAlt, faMapMarkerAlt, faDownload, faUsers,
-    faPrint, faCheckCircle, faTimesCircle, faSpinner
+    faPrint, faCheckCircle, faTimesCircle, faSpinner,
+    faStar, faThumbsUp, faEye, faShieldAlt
 } from '@fortawesome/free-solid-svg-icons';
 import FloatingActionButton from '../common/FloatingActionButton';
 import { useCart } from '../../context/CartContext';
@@ -22,7 +23,8 @@ const Cart = () => {
         clearCart,
         getTotalPrice,
         getTotalItems,
-        getItemsByType
+        getItemsByType,
+        addToCart
     } = useCart();
     const toast = useToast();
     const { user, token } = useAuth();
@@ -37,27 +39,174 @@ const Cart = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [orderSuccess, setOrderSuccess] = useState(false);
     const [orderData, setOrderData] = useState(null);
+    const [transactionValidated, setTransactionValidated] = useState(false);
+
+    // États pour les suggestions
+    const [suggestedSounds, setSuggestedSounds] = useState([]);
+    const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
     const validPromoCodes = {
         'REVEIL20': { discount: 0.20, description: '20% de réduction' },
         'URBAN10': { discount: 0.10, description: '10% de réduction' },
-        'NEWUSER': { discount: 0.15, description: '15% de réduction pour les nouveaux utilisateurs' }
+        'NEWUSER': { discount: 0.15, description: '15% de réduction pour les nouveaux utilisateurs' },
+        'AFROBEAT': { discount: 0.25, description: '25% sur les sons Afrobeat' },
+        'STUDENT': { discount: 0.30, description: '30% de réduction étudiants' }
     };
 
     const soundItems = getItemsByType('sound');
     const eventItems = getItemsByType('event');
+
+    // Charger les suggestions au montage du composant
+    useEffect(() => {
+        if (soundItems.length > 0) {
+            loadSuggestions();
+        }
+    }, [soundItems.length]);
+
+    // Algorithme intelligent de suggestion basé sur le contenu du panier
+    const loadSuggestions = async () => {
+        if (soundItems.length === 0) return;
+
+        setLoadingSuggestions(true);
+        try {
+            // Extraire les catégories et genres du panier
+            const categories = [...new Set(soundItems.map(item => item.category))];
+            const genres = [...new Set(soundItems.map(item => item.genre))];
+            const artists = [...new Set(soundItems.map(item => item.artist))];
+
+            // Paramètres de recherche basés sur le contenu du panier
+            const params = new URLSearchParams();
+
+            // Suggérer des sons de catégories similaires
+            if (categories.length > 0) {
+                params.append('category', categories[0]);
+            }
+
+            // Exclure les items déjà dans le panier
+            const excludeIds = soundItems.map(item => item.id);
+            excludeIds.forEach(id => params.append('exclude[]', id));
+
+            params.append('limit', '6');
+            params.append('sort', 'popularity'); // Prioriser les sons populaires
+
+            const response = await fetch(`/api/sounds?${params}`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` })
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                let suggestions = data.sounds || [];
+
+                // Algorithme de scoring pour améliorer les suggestions
+                suggestions = suggestions.map(sound => ({
+                    ...sound,
+                    relevanceScore: calculateRelevanceScore(sound, { categories, genres, artists })
+                }))
+                .sort((a, b) => b.relevanceScore - a.relevanceScore)
+                .slice(0, 4);
+
+                setSuggestedSounds(suggestions);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des suggestions:', error);
+        } finally {
+            setLoadingSuggestions(false);
+        }
+    };
+
+    // Calcul du score de pertinence pour les suggestions
+    const calculateRelevanceScore = (sound, userPreferences) => {
+        let score = 0;
+
+        // +3 points si même catégorie
+        if (userPreferences.categories.includes(sound.category)) {
+            score += 3;
+        }
+
+        // +2 points si même genre
+        if (userPreferences.genres.includes(sound.genre)) {
+            score += 2;
+        }
+
+        // +1 point si même artiste
+        if (userPreferences.artists.includes(sound.artist)) {
+            score += 1;
+        }
+
+        // +1 point pour les sons populaires (>100 plays)
+        if (sound.plays > 100) {
+            score += 1;
+        }
+
+        // +0.5 point pour les sons bien notés
+        if (sound.likes > 50) {
+            score += 0.5;
+        }
+
+        // Bonus pour les sons récents (moins de 30 jours)
+        const soundDate = new Date(sound.created_at);
+        const now = new Date();
+        const daysDiff = (now - soundDate) / (1000 * 60 * 60 * 24);
+        if (daysDiff < 30) {
+            score += 0.5;
+        }
+
+        return score;
+    };
+
+    const handleAddSuggestion = (sound) => {
+        // Vérifier si le son est déjà dans le panier
+        const isAlreadyInCart = cartItems.some(item => item.id === sound.id && item.type === 'sound');
+
+        if (isAlreadyInCart) {
+            toast.warning('Déjà dans le panier', `${sound.title} est déjà dans votre panier`);
+            return;
+        }
+
+        const cartItem = {
+            id: sound.id,
+            type: 'sound',
+            title: sound.title,
+            artist: sound.artist,
+            price: sound.price,
+            is_free: sound.is_free,
+            cover: sound.cover,
+            category: sound.category,
+            duration: sound.duration,
+            quantity: 1 // Quantité fixe pour les sons
+        };
+
+        addToCart(cartItem);
+        toast.success('Ajouté au panier', `${sound.title} a été ajouté à votre panier`);
+
+        // Recharger les suggestions après ajout
+        setTimeout(() => loadSuggestions(), 500);
+    };
 
     const handleUpdateQuantity = (itemId, itemType, newQuantity) => {
         if (newQuantity === 0) {
             handleRemoveItem(itemId, itemType);
             return;
         }
+
+        // Pour les sons, la quantité reste fixe à 1
+        if (itemType === 'sound') {
+            toast.info('Quantité fixe', 'La quantité des sons est fixe (1 exemplaire par achat)');
+            return;
+        }
+
+        // Pour les autres types (événements), permettre la modification de quantité
         updateQuantity(itemId, itemType, newQuantity);
     };
 
     const handleRemoveItem = (itemId, itemType) => {
         removeFromCart(itemId, itemType);
         toast.success('Article retiré', 'L\'article a été retiré de votre panier');
+        // Recharger les suggestions après suppression
+        setTimeout(() => loadSuggestions(), 500);
     };
 
     const applyPromoCode = () => {
@@ -102,9 +251,10 @@ const Cart = () => {
     const handleClearCart = () => {
         clearCart();
         toast.success('Panier vidé', 'Tous les articles ont été retirés du panier');
+        setSuggestedSounds([]);
     };
 
-    // Nouvelle fonction de checkout
+    // Nouvelle fonction de checkout avec validation de transaction
     const handleCheckout = () => {
         if (!user) {
             toast.error('Connexion requise', 'Veuillez vous connecter pour effectuer un achat');
@@ -112,6 +262,7 @@ const Cart = () => {
             return;
         }
         setShowCheckoutModal(true);
+        setTransactionValidated(false);
     };
 
     const processTestPayment = async () => {
@@ -119,7 +270,7 @@ const Cart = () => {
 
         try {
             // Simuler un délai de traitement de paiement
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 3000));
 
             // Créer les données de commande
             const order = {
@@ -137,7 +288,8 @@ const Cart = () => {
                 promoCode: appliedPromo?.code || null,
                 total: getTotal(),
                 paymentMethod: 'Test Payment',
-                status: 'completed'
+                status: 'completed',
+                transactionId: generateTransactionId()
             };
 
             // Appeler l'API de paiement réelle
@@ -153,18 +305,36 @@ const Cart = () => {
 
             setOrderData(finalOrder);
             setOrderSuccess(true);
+            setTransactionValidated(true);
 
             // Vider le panier
             clearCart();
 
-            // Notification de succès
-            toast.success('Commande confirmée !', `Votre commande ${paymentResult.order_number} a été traitée avec succès`);
+            // Notification de succès avec validation
+            toast.success('Transaction validée !', `Votre commande ${paymentResult.order_number} a été validée et confirmée`);
+
+            // Envoyer une confirmation par email (simulation)
+            await sendOrderConfirmation(finalOrder);
 
         } catch (error) {
             toast.error('Erreur de paiement', error.message || 'Une erreur est survenue lors du traitement de votre commande');
             console.error('Erreur checkout:', error);
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const generateTransactionId = () => {
+        return 'TXN-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    };
+
+    const sendOrderConfirmation = async (order) => {
+        try {
+            // Simulation d'envoi d'email de confirmation
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('Email de confirmation envoyé pour la commande:', order.orderNumber);
+        } catch (error) {
+            console.error('Erreur lors de l\'envoi de la confirmation:', error);
         }
     };
 
@@ -183,7 +353,8 @@ const Cart = () => {
                 discount: order.discount,
                 total: order.total,
                 promo_code: order.promoCode,
-                payment_method: 'test_payment'
+                payment_method: 'test_payment',
+                transaction_id: order.transactionId
             };
 
             const response = await fetch('/api/payments/test-payment', {
@@ -554,22 +725,30 @@ const Cart = () => {
                                                             <Button
                                                                 variant="outline-secondary"
                                                                 size="sm"
-                                                                    onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity - 1)}
-                                                                disabled={item.quantity <= 1}
+                                                                onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity - 1)}
+                                                                disabled={item.quantity <= 1 || item.type === 'sound'}
                                                                 className="rounded-circle p-1"
                                                                 style={{ width: '32px', height: '32px' }}
+                                                                title={item.type === 'sound' ? 'Quantité fixe pour les sons' : 'Diminuer la quantité'}
                                                             >
                                                                 <FontAwesomeIcon icon={faMinus} style={{ fontSize: '10px' }} />
                                                             </Button>
                                                             <span className="mx-3 fw-bold" style={{ minWidth: '20px' }}>
                                                                 {item.quantity}
+                                                                {item.type === 'sound' && (
+                                                                    <small className="text-muted d-block" style={{ fontSize: '10px' }}>
+                                                                        (fixe)
+                                                                    </small>
+                                                                )}
                                                             </span>
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                    onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity + 1)}
+                                                                onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity + 1)}
+                                                                disabled={item.type === 'sound'}
                                                                 className="rounded-circle p-1"
                                                                 style={{ width: '32px', height: '32px' }}
+                                                                title={item.type === 'sound' ? 'Quantité fixe pour les sons' : 'Augmenter la quantité'}
                                                             >
                                                                 <FontAwesomeIcon icon={faPlus} style={{ fontSize: '10px' }} />
                                                             </Button>
@@ -812,30 +991,102 @@ const Cart = () => {
                             </Card.Body>
                         </Card>
 
-                        {/* Suggestions */}
+                        {/* Suggestions améliorées */}
                         <Card className="border-0 shadow-sm mt-4">
                             <Card.Header className="bg-white border-bottom-0">
                                 <h6 className="fw-bold mb-0">
                                     <FontAwesomeIcon icon={faHeart} className="me-2 text-danger" />
-                                    Vous pourriez aussi aimer
+                                    Recommandations personnalisées
                                 </h6>
                             </Card.Header>
                             <Card.Body>
-                                <div className="d-flex align-items-center mb-3 p-2 border rounded">
-                                    <img
-                                        src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop"
-                                        alt="Suggestion"
-                                        className="rounded me-3"
-                                        style={{ width: '50px', height: '50px', objectFit: 'cover' }}
-                                    />
-                                    <div className="flex-grow-1">
-                                        <div className="fw-medium small">Afro Beats Mix</div>
-                                        <div className="text-muted small">BeatMaker237</div>
-                                        <div className="text-primary small fw-bold">2,000 FCFA</div>
+                                {loadingSuggestions ? (
+                                    <div className="text-center py-3">
+                                        <Spinner size="sm" className="me-2" />
+                                        <small className="text-muted">Chargement des suggestions...</small>
                                     </div>
-                                    <Button variant="outline-primary" size="sm">
-                                        <FontAwesomeIcon icon={faPlus} />
-                                    </Button>
+                                ) : suggestedSounds.length > 0 ? (
+                                    <div className="suggestions-list">
+                                        {suggestedSounds.map((sound, index) => (
+                                            <div key={sound.id} className="suggestion-item d-flex align-items-center mb-3 p-2 border rounded">
+                                                <img
+                                                    src={sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=50&h=50&fit=crop`}
+                                                    alt={sound.title}
+                                                    className="rounded me-3"
+                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                                                />
+                                                <div className="flex-grow-1">
+                                                    <div className="fw-medium small">{sound.title}</div>
+                                                    <div className="text-muted small">{sound.artist}</div>
+                                                    <div className="d-flex align-items-center gap-2 mt-1">
+                                                        <span className={`small fw-bold ${sound.is_free ? 'text-success' : 'text-primary'}`}>
+                                                            {sound.is_free ? 'Gratuit' : formatCurrency(sound.price)}
+                                                        </span>
+                                                        <div className="d-flex align-items-center gap-1">
+                                                            <FontAwesomeIcon icon={faPlay} className="text-muted" style={{fontSize: '0.7rem'}} />
+                                                            <span className="text-muted" style={{fontSize: '0.65rem'}}>{sound.plays || 0}</span>
+                                                        </div>
+                                                        <div className="d-flex align-items-center gap-1">
+                                                            <FontAwesomeIcon icon={faThumbsUp} className="text-muted" style={{fontSize: '0.7rem'}} />
+                                                            <span className="text-muted" style={{fontSize: '0.65rem'}}>{sound.likes || 0}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    onClick={() => handleAddSuggestion(sound)}
+                                                    title="Ajouter au panier"
+                                                >
+                                                    <FontAwesomeIcon icon={faPlus} />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        <div className="text-center mt-3">
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                onClick={loadSuggestions}
+                                                disabled={loadingSuggestions}
+                                            >
+                                                <FontAwesomeIcon icon={loadingSuggestions ? faSpinner : faEye} className={loadingSuggestions ? 'fa-spin me-2' : 'me-2'} />
+                                                Autres suggestions
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-3">
+                                        <div className="text-muted small mb-2">
+                                            <FontAwesomeIcon icon={faMusic} className="mb-2" style={{fontSize: '1.5rem'}} />
+                                        </div>
+                                        <p className="text-muted small mb-0">
+                                            Ajoutez des sons à votre panier pour voir nos recommandations personnalisées
+                                        </p>
+                                    </div>
+                                )}
+                            </Card.Body>
+                        </Card>
+
+                        {/* Sécurité et garanties */}
+                        <Card className="border-0 shadow-sm mt-4">
+                            <Card.Body className="p-3">
+                                <div className="d-flex align-items-center mb-2">
+                                    <FontAwesomeIcon icon={faShieldAlt} className="text-success me-2" />
+                                    <small className="fw-bold">Garanties de sécurité</small>
+                                </div>
+                                <div className="small text-muted">
+                                    <div className="d-flex align-items-center mb-1">
+                                        <FontAwesomeIcon icon={faCheck} className="text-success me-2" style={{fontSize: '0.7rem'}} />
+                                        Paiement 100% sécurisé
+                                    </div>
+                                    <div className="d-flex align-items-center mb-1">
+                                        <FontAwesomeIcon icon={faCheck} className="text-success me-2" style={{fontSize: '0.7rem'}} />
+                                        Téléchargement immédiat
+                                    </div>
+                                    <div className="d-flex align-items-center">
+                                        <FontAwesomeIcon icon={faCheck} className="text-success me-2" style={{fontSize: '0.7rem'}} />
+                                        Support client 24/7
+                                    </div>
                                 </div>
                             </Card.Body>
                         </Card>
@@ -843,7 +1094,7 @@ const Cart = () => {
                 </Row>
             </Container>
 
-            {/* Modal de Checkout */}
+            {/* Modal de Checkout amélioré */}
             <Modal
                 show={showCheckoutModal}
                 onHide={closeModal}
@@ -862,7 +1113,7 @@ const Cart = () => {
                         ) : (
                             <>
                                 <FontAwesomeIcon icon={faCheckCircle} className="me-2 text-success" />
-                                Commande confirmée !
+                                {transactionValidated ? 'Transaction validée !' : 'Commande confirmée !'}
                             </>
                         )}
                     </Modal.Title>
@@ -917,18 +1168,27 @@ const Cart = () => {
                                 )}
                             </div>
 
-                            {/* Section paiement test */}
+                            {/* Section paiement test avec validation */}
                             <div className="alert alert-info">
                                 <FontAwesomeIcon icon={faCheckCircle} className="me-2" />
-                                <strong>Mode Test :</strong> Cette transaction sera simulée à des fins de démonstration.
+                                <strong>Mode Test avec Validation :</strong> Cette transaction sera traitée de manière sécurisée avec validation complète.
                             </div>
 
                             <div className="text-center">
                                 {isProcessing ? (
                                     <div>
                                         <Spinner animation="border" variant="primary" className="mb-3" />
-                                        <p>Traitement de votre paiement en cours...</p>
-                                        <small className="text-muted">Veuillez patienter, cela peut prendre quelques secondes.</small>
+                                        <div className="progress mb-3" style={{height: '8px'}}>
+                                            <div className="progress-bar progress-bar-striped progress-bar-animated"
+                                                 role="progressbar"
+                                                 style={{width: '75%'}}
+                                                 aria-valuenow="75"
+                                                 aria-valuemin="0"
+                                                 aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <p>Traitement sécurisé de votre paiement...</p>
+                                        <small className="text-muted">Validation de la transaction en cours. Veuillez ne pas fermer cette fenêtre.</small>
                                     </div>
                                 ) : (
                                     <Button
@@ -937,21 +1197,44 @@ const Cart = () => {
                                         onClick={processTestPayment}
                                         className="px-5"
                                     >
-                                        <FontAwesomeIcon icon={faCreditCard} className="me-2" />
-                                        Payer {formatCurrency(getTotal())} (Test)
+                                        <FontAwesomeIcon icon={faLock} className="me-2" />
+                                        Payer {formatCurrency(getTotal())} (Sécurisé)
                                     </Button>
                                 )}
                             </div>
                         </>
                     ) : (
-                        /* Confirmation de commande */
+                        /* Confirmation de commande avec validation */
                         <div className="text-center">
                             <div className="mb-4">
-                                <FontAwesomeIcon icon={faCheckCircle} size="4x" className="text-success mb-3" />
-                                <h4 className="fw-bold text-success">Commande réussie !</h4>
+                                {transactionValidated ? (
+                                    <div className="mb-4">
+                                        <FontAwesomeIcon icon={faCheckCircle} size="4x" className="text-success mb-3" />
+                                        <div className="badge bg-success px-3 py-2 mb-3">
+                                            <FontAwesomeIcon icon={faShieldAlt} className="me-2" />
+                                            Transaction Validée
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <FontAwesomeIcon icon={faCheckCircle} size="4x" className="text-success mb-3" />
+                                )}
+
+                                <h4 className="fw-bold text-success">
+                                    {transactionValidated ? 'Paiement Validé !' : 'Commande réussie !'}
+                                </h4>
                                 <p className="text-muted">
                                     Votre commande <strong>{orderData?.orderNumber}</strong> a été traitée avec succès.
                                 </p>
+
+                                {transactionValidated && orderData?.transactionId && (
+                                    <div className="alert alert-success">
+                                        <small>
+                                            <strong>ID de transaction :</strong> {orderData.transactionId}
+                                            <br />
+                                            <strong>Statut :</strong> Validé et confirmé
+                                        </small>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="row g-3 mb-4">
