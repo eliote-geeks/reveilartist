@@ -19,6 +19,7 @@ use App\Http\Controllers\ClipManagementController;
 use App\Http\Controllers\CertificationController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\PaymentManagementController;
+use App\Http\Controllers\AudioLiveController;
 
 /*
 |--------------------------------------------------------------------------
@@ -312,3 +313,6 @@ Route::get('/status', function () {
         'timestamp' => now()
     ]);
 });
+
+// Route pour les statistiques audio live
+Route::get('/competitions/{competition}/audio-stats', [AudioLiveController::class, 'getAudioStats']);

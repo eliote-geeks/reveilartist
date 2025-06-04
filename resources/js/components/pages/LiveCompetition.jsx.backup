@@ -101,8 +101,8 @@ const LiveCompetition = () => {
 
     // Données de démonstration
     const demoParticipants = [
-            {
-                id: 1,
+        {
+            id: 1,
             user: {
                 id: user?.id || 1, // Utiliser l'ID de l'utilisateur connecté ou 1 par défaut
                 name: user?.name || 'MC Freestyle',
@@ -110,9 +110,9 @@ const LiveCompetition = () => {
             },
             performance_title: 'Ma Performance Live',
             status: 'performing' // Statut par défaut
-            },
-            {
-                id: 2,
+        },
+        {
+            id: 2,
             user: {
                 id: 2,
                 name: 'Queen Vocal',
@@ -120,9 +120,9 @@ const LiveCompetition = () => {
             },
             performance_title: 'Afrobeat Vibes',
             status: 'waiting'
-            },
-            {
-                id: 3,
+        },
+        {
+            id: 3,
             user: {
                 id: 3,
                 name: 'Beat Master',
@@ -184,7 +184,7 @@ const LiveCompetition = () => {
         if (isDemoMode) {
             loadDemoData();
         } else {
-        loadCompetition();
+            loadCompetition();
         }
         // Initialiser WebSocket pour tous les modes (pas seulement démo)
         initializeWebSocket();
@@ -358,7 +358,7 @@ const LiveCompetition = () => {
             // WebSocket principal pour les updates de compétition
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsHost = window.location.hostname;
-            const wsPort = import.meta.env.VITE_WS_PORT || '8080';
+            const wsPort = process.env.REACT_APP_WS_PORT || '8080';
             const wsUrl = `${wsProtocol}//${wsHost}:${wsPort}`;
 
             console.log('🔗 Connexion WebSocket:', wsUrl);
@@ -405,12 +405,12 @@ const LiveCompetition = () => {
 
             websocketRef.current.onerror = (error) => {
                 console.error('❌ Erreur WebSocket:', error);
-                toast?.warning('Live', 'Serveur WebSocket non disponible (mode hors ligne)');
+                toast?.error('Live', 'Erreur de connexion temps réel');
             };
 
         } catch (error) {
             console.error('❌ Erreur initialisation WebSocket:', error);
-            toast?.info('Mode hors ligne', 'Fonctionnalités live limitées - Serveur WebSocket non disponible');
+            toast?.error('Live', 'Impossible de se connecter au serveur temps réel');
         }
     };
 
@@ -1118,7 +1118,7 @@ const LiveCompetition = () => {
                 setPhase('performing');
             } else if (progressPercentage < 100) {
                 setPhase('voting');
-        }
+            }
 
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -1168,7 +1168,7 @@ const LiveCompetition = () => {
 
             // Message du gagnant
             const winnerMessage = {
-            id: Date.now(),
+                id: Date.now(),
                 user: { name: 'Système 🏆' },
                 message: `🎉 GRAND GAGNANT ! ${winner.user.name} remporte la compétition avec ${winner.finalScore} points ! 🏆`,
                 created_at: new Date().toISOString(),
@@ -1570,130 +1570,62 @@ const LiveCompetition = () => {
         toast?.success('🎤 Compétition lancée !', 'La compétition a officiellement commencé');
     };
 
-    // =============== FONCTIONS MANQUANTES ===============
-
-    const checkBroadcastPermissions = () => {
-        // Vérifier si l'utilisateur peut diffuser
-        if (!user) {
-            return { allowed: false, message: 'Vous devez être connecté', roleLabel: 'Visiteur' };
+    const handleNextParticipant = () => {
+        if (!isAdmin) {
+            toast?.warning('Accès restreint', 'Seul l\'administrateur peut changer de participant');
+            return;
         }
 
-        // Si l'utilisateur est admin de la compétition, il peut toujours diffuser
-        if (isAdmin) {
-            return { allowed: true, message: 'Admin peut diffuser', roleLabel: 'Admin' };
+        if (!competitionStarted) {
+            toast?.warning('Compétition non lancée', 'Lancez d\'abord la compétition');
+            return;
         }
 
-        // Si l'utilisateur est le participant actuel, il peut diffuser
-        if (currentPerformer && currentPerformer.user?.id === user.id) {
-            return { allowed: true, message: 'Participant actuel peut diffuser', roleLabel: 'Participant' };
+        // Arrêter la diffusion du participant actuel s'il diffuse
+        if (currentPerformer && isBroadcasting && currentPerformer.user?.id === user?.id) {
+            stopAudioBroadcast();
+            toast?.info('🎤 Diffusion arrêtée', 'Votre performance est terminée');
         }
 
-        // Dans tous les autres cas, pas de diffusion autorisée
-        return { allowed: false, message: 'Seul le participant actuel peut diffuser', roleLabel: 'Spectateur' };
-    };
+        // Trouver le prochain participant en attente
+        const waitingParticipants = participants.filter(p => p.status === 'waiting');
 
-    const getUserRole = () => {
-        if (!user) return 'visitor';
-        if (isAdmin) return 'admin';
-        if (isUserParticipant) return 'participant';
-        return 'spectator';
-    };
-
-    const startListening = () => {
-        setIsListening(true);
-        toast?.success('🎧 Écoute activée', 'Vous recevrez les diffusions audio en direct');
-    };
-
-    const stopListening = () => {
-        setIsListening(false);
-
-        // Fermer toutes les connexions audio
-        remoteStreams.forEach((stream, userId) => {
-            stream.getTracks().forEach(track => track.stop());
-        });
-        setRemoteStreams(new Map());
-
-        // Fermer toutes les connexions peer
-        peerConnections.current.forEach((peer, userId) => {
-            peer.close();
-        });
-        peerConnections.current.clear();
-
-        toast?.info('🔇 Écoute désactivée', 'Vous ne recevrez plus les diffusions audio');
-    };
-
-    const addRemoteStream = (userId, stream) => {
-        console.log('🎵 Ajout stream distant:', userId);
-        setRemoteStreams(prev => {
-            const newStreams = new Map(prev);
-            newStreams.set(userId, stream);
-            return newStreams;
-        });
-
-        // Créer un élément audio pour la lecture
-        const audio = document.createElement('audio');
-        audio.srcObject = stream;
-        audio.autoplay = true;
-        audio.playsInline = true;
-
-        // Ajouter à la liste des audios distants
-        remoteAudiosRef.current.set(userId, audio);
-
-        toast?.success('🎵 Audio reçu', 'Vous entendez maintenant la diffusion en direct');
-    };
-
-    const highlightSpeaker = (userId) => {
-        // Mettre en évidence le participant qui parle
-        const participantCard = document.querySelector(`[data-participant-id="${userId}"]`);
-        if (participantCard) {
-            participantCard.classList.add('speaking');
-            setTimeout(() => {
-                participantCard.classList.remove('speaking');
-            }, 1000);
+        if (waitingParticipants.length === 0) {
+            // Tous les participants ont terminé, passer aux résultats
+            setPhase('results');
+            designateWinner();
+            toast?.info('🏁 Fin des performances', 'Tous les participants ont chanté !');
+            return;
         }
-    };
 
-    const formatPerformanceTime = (seconds) => {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    };
+        const nextPerformer = waitingParticipants[0];
 
-    const startPerformanceTimer = () => {
-        // Démarrer le timer de 3 minutes pour la performance (ou 1 minute en mode démo)
-        const maxTime = isDemoMode ? 60 : 180; // 1 minute en démo, 3 minutes sinon
-        setPerformanceTimeLeft(maxTime);
+        // Mettre à jour les statuts
+        setParticipants(prev => prev.map(p => {
+            if (p.id === currentPerformer?.id) return { ...p, status: 'completed' };
+            if (p.id === nextPerformer.id) return { ...p, status: 'performing' };
+            return p;
+        }));
 
-        const timer = setInterval(() => {
-            setPerformanceTimeLeft(prev => {
-                if (prev <= 1) {
-                    // Temps écoulé, arrêter automatiquement la diffusion
-                    clearInterval(timer);
-                    setPerformanceTimer(null);
+        setCurrentPerformer(nextPerformer);
 
-                    if (isBroadcasting) {
-                        stopAudioBroadcast();
-                        toast?.warning('⏰ Temps écoulé', 'Votre temps de performance est terminé');
-                    }
+        // Message système
+        const nextMessage = {
+            id: Date.now(),
+            user: { name: 'Système 🎤' },
+            message: `🎵 ${nextPerformer.user.name} monte sur scène ! À vous de jouer !`,
+            created_at: new Date().toISOString(),
+            isSystem: true
+        };
+        setChatMessages(prev => [...prev.slice(-50), nextMessage]);
 
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        setPerformanceTimer(timer);
-    };
-
-    const stopPerformanceTimer = () => {
-        if (performanceTimer) {
-            clearInterval(performanceTimer);
-            setPerformanceTimer(null);
+        // Notifier les auditeurs que le participant a changé
+        if (isListening) {
+            toast?.info('🎧 Nouveau participant', `${nextPerformer.user.name} peut maintenant diffuser`);
         }
-        setPerformanceTimeLeft(isDemoMode ? 60 : 180); // Reset au temps initial
-    };
 
-    // =============== FIN FONCTIONS MANQUANTES ===============
+        toast?.success('🎵 Participant suivant', `C'est au tour de ${nextPerformer.user.name} !`);
+    };
 
     // ============= FONCTIONS LIVE AUDIO WEBRTC (SUPPRIMÉES) =============
 
@@ -3172,62 +3104,6 @@ const LiveCompetition = () => {
                     background: rgba(33, 37, 41, 0.9) !important;
                     backdrop-filter: blur(10px);
                     border: 1px solid rgba(255, 255, 255, 0.1) !important;
-                }
-
-                /* =============== EFFET SPEAKING =============== */
-                .participant-rank-card.speaking {
-                    animation: speaking-pulse 1s ease-in-out;
-                    border-color: #17a2b8 !important;
-                    box-shadow: 0 0 20px rgba(23, 162, 184, 0.6) !important;
-                }
-
-                @keyframes speaking-pulse {
-                    0%, 100% {
-                        transform: scale(1);
-                        border-color: #17a2b8;
-                    }
-                    50% {
-                        transform: scale(1.02);
-                        border-color: #20c997;
-                    }
-                }
-
-                /* =============== RESPONSIVE FINAL =============== */
-                @media (max-width: 576px) {
-                    .live-header .d-flex {
-                        flex-direction: column;
-                        align-items: flex-start !important;
-                        gap: 10px;
-                    }
-
-                    .live-header .text-end {
-                        text-align: left !important;
-                    }
-
-                    .performance-stage {
-                        padding: 15px !important;
-                    }
-
-                    .performer-avatar {
-                        width: 80px !important;
-                        height: 80px !important;
-                    }
-
-                    .reaction-buttons .d-flex {
-                        flex-direction: column;
-                        gap: 8px !important;
-                    }
-
-                    .admin-control-card,
-                    .admin-live-controls {
-                        margin-bottom: 15px !important;
-                    }
-
-                    .start-competition-btn {
-                        width: 100%;
-                        padding: 12px 20px;
-                        font-size: 1rem;
-                    }
                 }
             `}</style>
         </div>

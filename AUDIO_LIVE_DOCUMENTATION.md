@@ -28,8 +28,20 @@ Participant A (Chanteur)  ←→  WebSocket Server  ←→  Participant B (Audit
 - ✅ **Diffusion audio** en temps réel via WebRTC
 - ✅ **Détection de voix** automatique avec visualisation
 - ✅ **Contrôle de diffusion** (start/stop)
-- ✅ **Restriction** : seul le participant actuel peut diffuser
+- ✅ **Permission exclusive** pendant leur performance
 - ✅ **Qualité audio** optimisée (44.1kHz, noise suppression)
+
+### **Pour les Administrateurs de Compétition (Organisateurs)**
+- ✅ **Diffusion audio** à tout moment (même quand ce n'est pas leur tour)
+- ✅ **Messages d'annonce** avec badge spécial "👑 Organisateur"
+- ✅ **Contrôle total** de la compétition
+- ✅ **Supervision** des participants et du chat
+
+### **Pour les Administrateurs de Plateforme**
+- ✅ **Accès audio total** sur toutes les compétitions
+- ✅ **Privilèges maximum** avec badge "⚡ Admin Plateforme"
+- ✅ **Modération audio** et intervention d'urgence
+- ✅ **Monitoring global** des connexions
 
 ### **Pour les Spectateurs (Auditeurs)**
 - ✅ **Écoute en direct** des performances
@@ -40,7 +52,7 @@ Participant A (Chanteur)  ←→  WebSocket Server  ←→  Participant B (Audit
 
 ### **Pour les Administrateurs**
 - ✅ **Monitoring** des connexions audio
-- ✅ **Statistiques** en temps réel
+- ✅ **Statistiques** en temps réel avec rôles
 - ✅ **Gestion des rooms** par compétition
 - ✅ **Logs** détaillés des événements audio
 
@@ -315,3 +327,85 @@ http://localhost:3000/competitions/1/live?demo=true
 ```
 
 **🎵 Votre système audio live est prêt ! Les participants peuvent maintenant s'entendre en temps réel comme dans un vrai appel audio !** 🎤✨ 
+
+## 🔑 **Système de Permissions Audio**
+
+### **Hiérarchie des Rôles**
+```
+🌟 Admin Plateforme (Niveau 3)
+   ├── Accès total à toutes les compétitions
+   ├── Diffusion audio sans restriction
+   └── Modération et intervention d'urgence
+
+👑 Admin Compétition (Niveau 2)  
+   ├── Organisateur de la compétition
+   ├── Diffusion audio à tout moment
+   └── Contrôle des participants
+
+🎤 Participant Actuel (Niveau 1)
+   ├── Diffusion pendant sa performance
+   ├── Priorité audio exclusive
+   └── Tour de rôle respecté
+
+👥 Spectateurs (Niveau 0)
+   ├── Écoute seulement
+   ├── Chat et réactions
+   └── Aucune diffusion audio
+```
+
+### **Détection Automatique des Rôles**
+```javascript
+// 1. Admin Plateforme
+user.role === 'admin' || user.is_admin === true
+
+// 2. Admin Compétition (Organisateur)
+user.id === competition.user_id
+
+// 3. Participant Actuel
+user.id === currentPerformer.user_id
+
+// 4. Spectateur
+default (tous les autres)
+```
+
+### **Messages de Permission**
+- **🎤 Participant** : "C'est votre tour ! Diffusez votre performance en direct"
+- **👑 Admin Compétition** : "En tant qu'organisateur, vous pouvez diffuser à tout moment"  
+- **⚡ Admin Plateforme** : "En tant qu'admin plateforme, vous avez accès total à la diffusion"
+- **❌ Refusé** : "Seuls les participants en cours de performance et les administrateurs peuvent diffuser"
+
+### **Notifications Chat Personnalisées**
+```javascript
+// Messages selon le rôle qui diffuse
+switch (userRole) {
+    case 'current_participant':
+        "🎤 {userName} performe maintenant !";
+    case 'competition_admin':
+        "👑 L'organisateur {userName} prend la parole";
+    case 'platform_admin':
+        "⚡ L'administrateur {userName} diffuse un message";
+}
+```
+
+## 🎵 **Interface Utilisateur**
+
+### **Panneau Audio Live**
+```javascript
+// Section Écoute
+🎧 Commencer l'écoute  →  Rejoindre la room audio
+⏹️ Arrêter l'écoute    →  Quitter toutes connexions
+
+// Section Diffusion  
+🎤 Diffuser ma voix    →  Démarrer WebRTC broadcast
+⏹️ Arrêter diffusion  →  Fermer toutes connexions P2P
+
+// Statut des Connexions
+👤 Vous (diffusion)    🔴 EN DIRECT
+👤 Participant 456     🎧 Écoute
+```
+
+### **Indicateurs Visuels**
+- **🔴 Point rouge pulsant** : Diffusion active
+- **🎧 Point bleu pulsant** : Écoute active  
+- **✨ Carte brillante** : Participant qui parle
+- **📊 Compteur** : Nombre de connexions

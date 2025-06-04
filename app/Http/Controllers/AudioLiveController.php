@@ -10,266 +10,635 @@ use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
 use SplObjectStorage;
 
-class AudioLiveController extends Controller implements MessageComponentInterface
+class AudioLiveController implements MessageComponentInterface
 {
     protected $clients;
     protected $rooms;
+    protected $userConnections;
+    protected $participantStatus;
 
     public function __construct()
     {
-        $this->clients = new SplObjectStorage();
+        $this->clients = new \SplObjectStorage;
         $this->rooms = [];
+        $this->userConnections = [];
+        $this->participantStatus = [];
+
+        echo "🎵 AudioLiveController initialisé\n";
     }
 
     public function onOpen(ConnectionInterface $conn)
     {
-        // Nouvelle connexion WebSocket
         $this->clients->attach($conn);
-        
-        $roomId = $this->getRoomFromConnection($conn);
-        if (!isset($this->rooms[$roomId])) {
-            $this->rooms[$roomId] = new SplObjectStorage();
-        }
-        
-        $this->rooms[$roomId]->attach($conn);
-        
-        Log::info("🔗 Nouvelle connexion audio: {$conn->resourceId} dans la room {$roomId}");
-        
-        // Notifier les autres participants qu'un utilisateur a rejoint
-        $this->broadcast($roomId, [
-            'type' => 'user-joined',
-            'userId' => $this->getUserIdFromConnection($conn),
-            'totalUsers' => count($this->rooms[$roomId])
-        ], $conn);
+        echo "🔗 Nouvelle connexion audio: {$conn->resourceId}\n";
+
+        // Envoyer un message de bienvenue
+        $conn->send(json_encode([
+            'type' => 'connection-established',
+            'connectionId' => $conn->resourceId,
+            'message' => 'Connexion audio établie',
+            'timestamp' => time()
+        ]));
     }
 
     public function onMessage(ConnectionInterface $from, $msg)
     {
-        $data = json_decode($msg, true);
-        $roomId = $this->getRoomFromConnection($from);
-        
-        Log::info("📨 Message audio reçu: " . $data['type'] ?? 'unknown');
-        
-        switch ($data['type'] ?? '') {
-            case 'join-room':
-                $this->handleJoinRoom($from, $data, $roomId);
-                break;
-                
-            case 'start-broadcasting':
-                $this->handleStartBroadcasting($from, $data, $roomId);
-                break;
-                
-            case 'stop-broadcasting':
-                $this->handleStopBroadcasting($from, $data, $roomId);
-                break;
-                
-            case 'offer':
-                $this->handleWebRTCOffer($from, $data, $roomId);
-                break;
-                
-            case 'answer':
-                $this->handleWebRTCAnswer($from, $data, $roomId);
-                break;
-                
-            case 'ice-candidate':
-                $this->handleICECandidate($from, $data, $roomId);
-                break;
-                
-            case 'user-speaking':
-                $this->handleUserSpeaking($from, $data, $roomId);
-                break;
+        try {
+            $data = json_decode($msg, true);
+
+            if (!$data || !isset($data['type'])) {
+                $this->sendError($from, 'Format de message invalide');
+                return;
+            }
+
+            echo "📨 Message reçu: {$data['type']} de {$from->resourceId}\n";
+
+            switch ($data['type']) {
+                case 'join-room':
+                    $this->handleJoinRoom($from, $data);
+                    break;
+
+                case 'leave-room':
+                    $this->handleLeaveRoom($from, $data);
+                    break;
+
+                case 'start-broadcasting':
+                    $this->handleStartBroadcasting($from, $data);
+                    break;
+
+                case 'stop-broadcasting':
+                    $this->handleStopBroadcasting($from, $data);
+                    break;
+
+                case 'webrtc-offer':
+                    $this->handleWebRTCOffer($from, $data);
+                    break;
+
+                case 'webrtc-answer':
+                    $this->handleWebRTCAnswer($from, $data);
+                    break;
+
+                case 'webrtc-ice-candidate':
+                    $this->handleWebRTCIceCandidate($from, $data);
+                    break;
+
+                case 'user-speaking':
+                    $this->handleUserSpeaking($from, $data);
+                    break;
+
+                case 'competition-update':
+                    $this->handleCompetitionUpdate($from, $data);
+                    break;
+
+                case 'participant-change':
+                    $this->handleParticipantChange($from, $data);
+                    break;
+
+                case 'heartbeat':
+                    $this->handleHeartbeat($from, $data);
+                    break;
+
+                default:
+                    $this->sendError($from, "Type de message non supporté: {$data['type']}");
+            }
+
+        } catch (\Exception $e) {
+            echo "❌ Erreur lors du traitement du message: " . $e->getMessage() . "\n";
+            $this->sendError($from, 'Erreur lors du traitement du message');
         }
     }
 
     public function onClose(ConnectionInterface $conn)
     {
-        $roomId = $this->getRoomFromConnection($conn);
-        $userId = $this->getUserIdFromConnection($conn);
-        
-        // Retirer de la room
-        if (isset($this->rooms[$roomId])) {
-            $this->rooms[$roomId]->detach($conn);
-            
-            // Notifier les autres qu'un utilisateur a quitté
-            $this->broadcast($roomId, [
-                'type' => 'user-left',
-                'userId' => $userId,
-                'totalUsers' => count($this->rooms[$roomId])
-            ]);
-        }
-        
-        // Retirer des clients
         $this->clients->detach($conn);
-        
-        Log::info("❌ Connexion audio fermée: {$conn->resourceId}");
+
+        // Nettoyer les données de l'utilisateur
+        $this->cleanupUserConnection($conn);
+
+        echo "❌ Connexion fermée: {$conn->resourceId}\n";
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e)
     {
-        Log::error("❌ Erreur WebSocket audio: " . $e->getMessage());
+        echo "💥 Erreur WebSocket: " . $e->getMessage() . "\n";
+        Log::error('WebSocket Audio Error', [
+            'connection_id' => $conn->resourceId,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
         $conn->close();
     }
 
-    private function handleJoinRoom($conn, $data, $roomId)
+    // =============== GESTION DES ROOMS ===============
+
+    protected function handleJoinRoom(ConnectionInterface $conn, array $data)
     {
-        $userId = $data['userId'] ?? 'anonymous';
+        $roomId = $data['roomId'] ?? null;
+        $userId = $data['userId'] ?? null;
         $userName = $data['userName'] ?? 'Utilisateur';
-        
-        // Envoyer la confirmation de join
+        $userRole = $data['userRole'] ?? 'spectator';
+
+        if (!$roomId) {
+            $this->sendError($conn, 'ID de room manquant');
+            return;
+        }
+
+        // Initialiser la room si elle n'existe pas
+        if (!isset($this->rooms[$roomId])) {
+            $this->rooms[$roomId] = [
+                'participants' => [],
+                'broadcasters' => [],
+                'listeners' => [],
+                'currentPerformer' => null,
+                'competitionId' => str_replace('competition_', '', $roomId)
+            ];
+        }
+
+        // Ajouter l'utilisateur à la room
+        $userInfo = [
+            'connection' => $conn,
+            'userId' => $userId,
+            'userName' => $userName,
+            'userRole' => $userRole,
+            'connectionId' => $conn->resourceId,
+            'joinedAt' => time(),
+            'isBroadcasting' => false,
+            'isListening' => true
+        ];
+
+        $this->rooms[$roomId]['participants'][$conn->resourceId] = $userInfo;
+        $this->userConnections[$conn->resourceId] = [
+            'roomId' => $roomId,
+            'userInfo' => $userInfo
+        ];
+
+        // Informer les autres participants
+        $this->broadcastToRoom($roomId, [
+            'type' => 'user-joined',
+            'userId' => $userId,
+            'userName' => $userName,
+            'userRole' => $userRole,
+            'connectionId' => $conn->resourceId,
+            'totalParticipants' => count($this->rooms[$roomId]['participants'])
+        ], $conn);
+
+        // Envoyer la liste des participants existants au nouveau client
         $conn->send(json_encode([
             'type' => 'room-joined',
             'roomId' => $roomId,
-            'userId' => $userId,
-            'totalUsers' => count($this->rooms[$roomId] ?? [])
+            'participants' => $this->getRoomParticipants($roomId),
+            'currentBroadcasters' => array_keys($this->rooms[$roomId]['broadcasters']),
+            'currentPerformer' => $this->rooms[$roomId]['currentPerformer']
         ]));
-        
-        // Notifier les autres
-        $this->broadcast($roomId, [
-            'type' => 'user-joined-room',
+
+        echo "✅ Utilisateur {$userName} ({$userRole}) a rejoint la room {$roomId}\n";
+    }
+
+    protected function handleLeaveRoom(ConnectionInterface $conn, array $data)
+    {
+        $this->cleanupUserConnection($conn);
+    }
+
+    // =============== GESTION BROADCAST ===============
+
+    protected function handleStartBroadcasting(ConnectionInterface $conn, array $data)
+    {
+        $userConnection = $this->userConnections[$conn->resourceId] ?? null;
+
+        if (!$userConnection) {
+            $this->sendError($conn, 'Utilisateur non trouvé dans une room');
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+        $userId = $data['userId'] ?? null;
+        $userName = $data['userName'] ?? 'Utilisateur';
+        $userRole = $data['userRole'] ?? 'spectator';
+
+        // Vérifier les permissions de diffusion
+        $canBroadcast = $this->checkBroadcastPermissions($userRole, $roomId, $userId);
+
+        if (!$canBroadcast['allowed']) {
+            $this->sendError($conn, $canBroadcast['message']);
+            return;
+        }
+
+        // Ajouter aux diffuseurs
+        $this->rooms[$roomId]['broadcasters'][$conn->resourceId] = [
+            'connection' => $conn,
             'userId' => $userId,
             'userName' => $userName,
-            'totalUsers' => count($this->rooms[$roomId] ?? [])
-        ], $conn);
-    }
+            'userRole' => $userRole,
+            'startedAt' => time()
+        ];
 
-    private function handleStartBroadcasting($conn, $data, $roomId)
-    {
-        $userId = $data['userId'] ?? 'unknown';
-        $userName = $data['userName'] ?? 'Broadcaster';
-        
-        // Marquer cette connexion comme diffuseur
-        $conn->broadcaster = true;
-        $conn->userId = $userId;
-        
-        // Notifier tous les participants qu'une diffusion commence
-        $this->broadcast($roomId, [
-            'type' => 'broadcast-started',
+        // Marquer comme diffuseur
+        $this->rooms[$roomId]['participants'][$conn->resourceId]['isBroadcasting'] = true;
+
+        // Si c'est un participant, le marquer comme performer actuel
+        if ($userRole === 'current_participant') {
+            $this->rooms[$roomId]['currentPerformer'] = [
+                'userId' => $userId,
+                'userName' => $userName,
+                'connectionId' => $conn->resourceId,
+                'startedAt' => time()
+            ];
+        }
+
+        // Informer tous les participants
+        $this->broadcastToRoom($roomId, [
+            'type' => 'broadcasting-started',
             'userId' => $userId,
-            'userName' => $userName
+            'userName' => $userName,
+            'userRole' => $userRole,
+            'connectionId' => $conn->resourceId,
+            'isCurrentPerformer' => $userRole === 'current_participant',
+            'message' => $this->getBroadcastMessage($userRole, $userName)
         ]);
-        
-        Log::info("🎤 Diffusion audio démarrée par {$userName} ({$userId})");
+
+        echo "🎤 {$userName} ({$userRole}) a commencé à diffuser dans {$roomId}\n";
     }
 
-    private function handleStopBroadcasting($conn, $data, $roomId)
+    protected function handleStopBroadcasting(ConnectionInterface $conn, array $data)
     {
-        $userId = $data['userId'] ?? 'unknown';
-        
-        // Retirer le marqueur de diffuseur
-        $conn->broadcaster = false;
-        
-        // Notifier tous les participants que la diffusion s'arrête
-        $this->broadcast($roomId, [
-            'type' => 'broadcast-stopped',
-            'userId' => $userId
-        ]);
-        
-        Log::info("⏹️ Diffusion audio arrêtée par {$userId}");
+        $userConnection = $this->userConnections[$conn->resourceId] ?? null;
+
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+        $userId = $data['userId'] ?? null;
+
+        // Retirer des diffuseurs
+        if (isset($this->rooms[$roomId]['broadcasters'][$conn->resourceId])) {
+            $broadcasterInfo = $this->rooms[$roomId]['broadcasters'][$conn->resourceId];
+            unset($this->rooms[$roomId]['broadcasters'][$conn->resourceId]);
+
+            // Marquer comme non-diffuseur
+            if (isset($this->rooms[$roomId]['participants'][$conn->resourceId])) {
+                $this->rooms[$roomId]['participants'][$conn->resourceId]['isBroadcasting'] = false;
+            }
+
+            // Si c'était le performer actuel, le retirer
+            if ($this->rooms[$roomId]['currentPerformer'] &&
+                $this->rooms[$roomId]['currentPerformer']['connectionId'] === $conn->resourceId) {
+                $this->rooms[$roomId]['currentPerformer'] = null;
+            }
+
+            // Informer tous les participants
+            $this->broadcastToRoom($roomId, [
+                'type' => 'broadcasting-stopped',
+                'userId' => $userId,
+                'userName' => $broadcasterInfo['userName'],
+                'userRole' => $broadcasterInfo['userRole'],
+                'connectionId' => $conn->resourceId
+            ]);
+
+            echo "🔇 {$broadcasterInfo['userName']} a arrêté de diffuser dans {$roomId}\n";
+        }
     }
 
-    private function handleWebRTCOffer($conn, $data, $roomId)
+    // =============== GESTION WEBRTC ===============
+
+    protected function handleWebRTCOffer(ConnectionInterface $from, array $data)
     {
         $targetUserId = $data['targetUserId'] ?? null;
         $offer = $data['offer'] ?? null;
-        
-        if (!$targetUserId || !$offer) return;
-        
-        // Transférer l'offer au destinataire
-        $this->sendToUser($roomId, $targetUserId, [
-            'type' => 'offer',
-            'userId' => $this->getUserIdFromConnection($conn),
-            'offer' => $offer
-        ]);
+
+        if (!$targetUserId || !$offer) {
+            $this->sendError($from, 'Données WebRTC offer incomplètes');
+            return;
+        }
+
+        $userConnection = $this->userConnections[$from->resourceId] ?? null;
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+
+        // Trouver la connexion cible
+        $targetConnection = $this->findUserConnectionInRoom($roomId, $targetUserId);
+
+        if ($targetConnection) {
+            $targetConnection->send(json_encode([
+                'type' => 'webrtc-offer',
+                'offer' => $offer,
+                'fromUserId' => $userConnection['userInfo']['userId'],
+                'fromUserName' => $userConnection['userInfo']['userName']
+            ]));
+
+            echo "📡 WebRTC Offer envoyé de {$userConnection['userInfo']['userName']} vers {$targetUserId}\n";
+        }
     }
 
-    private function handleWebRTCAnswer($conn, $data, $roomId)
+    protected function handleWebRTCAnswer(ConnectionInterface $from, array $data)
     {
         $targetUserId = $data['targetUserId'] ?? null;
         $answer = $data['answer'] ?? null;
-        
-        if (!$targetUserId || !$answer) return;
-        
-        // Transférer l'answer au destinataire
-        $this->sendToUser($roomId, $targetUserId, [
-            'type' => 'answer',
-            'userId' => $this->getUserIdFromConnection($conn),
-            'answer' => $answer
-        ]);
+
+        if (!$targetUserId || !$answer) {
+            $this->sendError($from, 'Données WebRTC answer incomplètes');
+            return;
+        }
+
+        $userConnection = $this->userConnections[$from->resourceId] ?? null;
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+
+        // Trouver la connexion cible
+        $targetConnection = $this->findUserConnectionInRoom($roomId, $targetUserId);
+
+        if ($targetConnection) {
+            $targetConnection->send(json_encode([
+                'type' => 'webrtc-answer',
+                'answer' => $answer,
+                'fromUserId' => $userConnection['userInfo']['userId'],
+                'fromUserName' => $userConnection['userInfo']['userName']
+            ]));
+
+            echo "📡 WebRTC Answer envoyé de {$userConnection['userInfo']['userName']} vers {$targetUserId}\n";
+        }
     }
 
-    private function handleICECandidate($conn, $data, $roomId)
+    protected function handleWebRTCIceCandidate(ConnectionInterface $from, array $data)
     {
         $targetUserId = $data['targetUserId'] ?? null;
         $candidate = $data['candidate'] ?? null;
-        
-        if (!$targetUserId || !$candidate) return;
-        
-        // Transférer le candidat ICE au destinataire
-        $this->sendToUser($roomId, $targetUserId, [
-            'type' => 'ice-candidate',
-            'userId' => $this->getUserIdFromConnection($conn),
-            'candidate' => $candidate
+
+        if (!$targetUserId || !$candidate) {
+            return;
+        }
+
+        $userConnection = $this->userConnections[$from->resourceId] ?? null;
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+
+        // Trouver la connexion cible
+        $targetConnection = $this->findUserConnectionInRoom($roomId, $targetUserId);
+
+        if ($targetConnection) {
+            $targetConnection->send(json_encode([
+                'type' => 'webrtc-ice-candidate',
+                'candidate' => $candidate,
+                'fromUserId' => $userConnection['userInfo']['userId']
+            ]));
+        }
+    }
+
+    // =============== GESTION COMPÉTITION ===============
+
+    protected function handleParticipantChange(ConnectionInterface $from, array $data)
+    {
+        $userConnection = $this->userConnections[$from->resourceId] ?? null;
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+        $newPerformerId = $data['newPerformerId'] ?? null;
+        $newPerformerName = $data['newPerformerName'] ?? null;
+
+        // Vérifier que l'utilisateur est admin
+        $userRole = $userConnection['userInfo']['userRole'];
+        if (!in_array($userRole, ['competition_admin', 'platform_admin'])) {
+            $this->sendError($from, 'Permissions insuffisantes pour changer de participant');
+            return;
+        }
+
+        // Arrêter le diffuseur actuel s'il y en a un
+        if ($this->rooms[$roomId]['currentPerformer']) {
+            $currentPerformerConn = $this->findConnectionById($this->rooms[$roomId]['currentPerformer']['connectionId']);
+            if ($currentPerformerConn) {
+                $this->handleStopBroadcasting($currentPerformerConn, [
+                    'userId' => $this->rooms[$roomId]['currentPerformer']['userId']
+                ]);
+            }
+        }
+
+        // Informer tout le monde du changement
+        $this->broadcastToRoom($roomId, [
+            'type' => 'participant-changed',
+            'newPerformerId' => $newPerformerId,
+            'newPerformerName' => $newPerformerName,
+            'adminName' => $userConnection['userInfo']['userName'],
+            'message' => "🎵 {$newPerformerName} monte sur scène ! À vous de jouer !"
+        ]);
+
+        echo "🔄 Admin {$userConnection['userInfo']['userName']} a changé le participant vers {$newPerformerName}\n";
+    }
+
+    protected function handleCompetitionUpdate(ConnectionInterface $from, array $data)
+    {
+        $userConnection = $this->userConnections[$from->resourceId] ?? null;
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
+
+        // Diffuser la mise à jour à tous les participants
+        $this->broadcastToRoom($roomId, [
+            'type' => 'competition-updated',
+            'updateType' => $data['updateType'] ?? 'general',
+            'data' => $data['data'] ?? [],
+            'timestamp' => time()
         ]);
     }
 
-    private function handleUserSpeaking($conn, $data, $roomId)
+    protected function handleUserSpeaking(ConnectionInterface $from, array $data)
     {
+        $userConnection = $this->userConnections[$from->resourceId] ?? null;
+        if (!$userConnection) {
+            return;
+        }
+
+        $roomId = $userConnection['roomId'];
         $userId = $data['userId'] ?? null;
-        
-        if (!$userId) return;
-        
-        // Notifier tous les participants que cet utilisateur parle
-        $this->broadcast($roomId, [
+        $userRole = $data['userRole'] ?? 'spectator';
+
+        // Informer les autres de l'activité vocale
+        $this->broadcastToRoom($roomId, [
             'type' => 'user-speaking',
-            'userId' => $userId
-        ], $conn);
+            'userId' => $userId,
+            'userRole' => $userRole,
+            'connectionId' => $from->resourceId,
+            'timestamp' => time()
+        ], $from);
     }
 
-    private function broadcast($roomId, $message, $except = null)
+    protected function handleHeartbeat(ConnectionInterface $from, array $data)
     {
-        if (!isset($this->rooms[$roomId])) return;
-        
-        $jsonMessage = json_encode($message);
-        
-        foreach ($this->rooms[$roomId] as $client) {
-            if ($client !== $except) {
-                $client->send($jsonMessage);
+        // Répondre au ping pour maintenir la connexion
+        $from->send(json_encode([
+            'type' => 'heartbeat-response',
+            'timestamp' => time()
+        ]));
+    }
+
+    // =============== FONCTIONS UTILITAIRES ===============
+
+    protected function checkBroadcastPermissions(string $userRole, string $roomId, $userId): array
+    {
+        switch ($userRole) {
+            case 'current_participant':
+                return ['allowed' => true, 'message' => ''];
+
+            case 'competition_admin':
+            case 'platform_admin':
+                return ['allowed' => true, 'message' => ''];
+
+            default:
+                return [
+                    'allowed' => false,
+                    'message' => 'Seuls les participants en cours de performance et les administrateurs peuvent diffuser'
+                ];
+        }
+    }
+
+    protected function getBroadcastMessage(string $userRole, string $userName): string
+    {
+        switch ($userRole) {
+            case 'current_participant':
+                return "🎤 {$userName} commence sa PERFORMANCE EN DIRECT ! 🎵";
+
+            case 'competition_admin':
+                return "👑 L'organisateur {$userName} diffuse maintenant";
+
+            case 'platform_admin':
+                return "⚡ L'administrateur {$userName} diffuse maintenant";
+
+            default:
+                return "🔊 {$userName} diffuse maintenant";
+        }
+    }
+
+    protected function broadcastToRoom(string $roomId, array $message, ConnectionInterface $exclude = null)
+    {
+        if (!isset($this->rooms[$roomId])) {
+            return;
+        }
+
+        $messageJson = json_encode($message);
+
+        foreach ($this->rooms[$roomId]['participants'] as $participant) {
+            if ($exclude && $participant['connection'] === $exclude) {
+                continue;
+            }
+
+            try {
+                $participant['connection']->send($messageJson);
+            } catch (\Exception $e) {
+                echo "❌ Erreur envoi message à {$participant['userName']}: " . $e->getMessage() . "\n";
             }
         }
     }
 
-    private function sendToUser($roomId, $userId, $message)
+    protected function findUserConnectionInRoom(string $roomId, $userId): ?ConnectionInterface
     {
-        if (!isset($this->rooms[$roomId])) return;
-        
-        $jsonMessage = json_encode($message);
-        
-        foreach ($this->rooms[$roomId] as $client) {
-            if (($client->userId ?? null) === $userId) {
-                $client->send($jsonMessage);
-                break;
+        if (!isset($this->rooms[$roomId])) {
+            return null;
+        }
+
+        foreach ($this->rooms[$roomId]['participants'] as $participant) {
+            if ($participant['userId'] == $userId) {
+                return $participant['connection'];
             }
         }
+
+        return null;
     }
 
-    private function getRoomFromConnection($conn)
+    protected function findConnectionById(string $connectionId): ?ConnectionInterface
     {
-        // Extraire l'ID de la room depuis l'URL ou les paramètres
-        $uri = $conn->httpRequest->getUri();
-        $path = $uri->getPath();
-        
-        // Format attendu: /ws/audio/competition_123
-        if (preg_match('/\/ws\/audio\/(.+)/', $path, $matches)) {
-            return $matches[1];
+        foreach ($this->clients as $client) {
+            if ($client->resourceId == $connectionId) {
+                return $client;
+            }
         }
-        
-        return 'default';
+
+        return null;
     }
 
-    private function getUserIdFromConnection($conn)
+    protected function getRoomParticipants(string $roomId): array
     {
-        // Retourner l'ID utilisateur stocké ou générer un ID temporaire
-        return $conn->userId ?? $conn->resourceId;
+        if (!isset($this->rooms[$roomId])) {
+            return [];
+        }
+
+        $participants = [];
+        foreach ($this->rooms[$roomId]['participants'] as $participant) {
+            $participants[] = [
+                'userId' => $participant['userId'],
+                'userName' => $participant['userName'],
+                'userRole' => $participant['userRole'],
+                'connectionId' => $participant['connectionId'],
+                'isBroadcasting' => $participant['isBroadcasting'],
+                'isListening' => $participant['isListening'],
+                'joinedAt' => $participant['joinedAt']
+            ];
+        }
+
+        return $participants;
+    }
+
+    protected function cleanupUserConnection(ConnectionInterface $conn)
+    {
+        $connectionId = $conn->resourceId;
+
+        if (isset($this->userConnections[$connectionId])) {
+            $userConnection = $this->userConnections[$connectionId];
+            $roomId = $userConnection['roomId'];
+            $userInfo = $userConnection['userInfo'];
+
+            // Retirer de la room
+            if (isset($this->rooms[$roomId])) {
+                unset($this->rooms[$roomId]['participants'][$connectionId]);
+                unset($this->rooms[$roomId]['broadcasters'][$connectionId]);
+
+                // Si c'était le performer actuel, le retirer
+                if ($this->rooms[$roomId]['currentPerformer'] &&
+                    $this->rooms[$roomId]['currentPerformer']['connectionId'] === $connectionId) {
+                    $this->rooms[$roomId]['currentPerformer'] = null;
+                }
+
+                // Informer les autres participants
+                $this->broadcastToRoom($roomId, [
+                    'type' => 'user-left',
+                    'userId' => $userInfo['userId'],
+                    'userName' => $userInfo['userName'],
+                    'userRole' => $userInfo['userRole'],
+                    'connectionId' => $connectionId,
+                    'totalParticipants' => count($this->rooms[$roomId]['participants'])
+                ]);
+
+                // Nettoyer la room si elle est vide
+                if (empty($this->rooms[$roomId]['participants'])) {
+                    unset($this->rooms[$roomId]);
+                    echo "🧹 Room {$roomId} supprimée (vide)\n";
+                }
+            }
+
+            unset($this->userConnections[$connectionId]);
+            echo "🧹 Connexion {$userInfo['userName']} nettoyée\n";
+        }
+    }
+
+    protected function sendError(ConnectionInterface $conn, string $message)
+    {
+        $conn->send(json_encode([
+            'type' => 'error',
+            'message' => $message,
+            'timestamp' => time()
+        ]));
     }
 
     // API REST pour obtenir les statistiques audio
@@ -277,10 +646,10 @@ class AudioLiveController extends Controller implements MessageComponentInterfac
     {
         $roomId = "competition_{$competitionId}";
         $totalConnections = count($this->rooms[$roomId] ?? []);
-        
+
         $broadcasters = 0;
         $listeners = 0;
-        
+
         if (isset($this->rooms[$roomId])) {
             foreach ($this->rooms[$roomId] as $client) {
                 if ($client->broadcaster ?? false) {
@@ -290,7 +659,7 @@ class AudioLiveController extends Controller implements MessageComponentInterfac
                 }
             }
         }
-        
+
         return response()->json([
             'success' => true,
             'stats' => [
@@ -301,4 +670,4 @@ class AudioLiveController extends Controller implements MessageComponentInterfac
             ]
         ]);
     }
-} 
+}
