@@ -340,6 +340,38 @@ const LiveCompetition = () => {
     };
 
     const initializeWebSocket = () => {
+        // Détection automatique du mode hébergement
+        const isDevelopment = import.meta.env.VITE_APP_ENV === 'development';
+        const isProduction = import.meta.env.VITE_APP_ENV === 'production';
+        const disableWebSocketInDev = import.meta.env.VITE_DISABLE_WEBSOCKET_DEV === 'true';
+        const disableWebSocketInProd = import.meta.env.VITE_DISABLE_WEBSOCKET_PROD === 'true';
+
+        // En production sur hébergement mutualisé, désactiver WebSocket
+        if (isProduction && disableWebSocketInProd) {
+            console.log('🌐 Mode production hébergement mutualisé - WebSocket désactivé');
+            toast?.info('Mode production', 'Fonctionnalités live simulées - Hébergement mutualisé');
+
+            // Utiliser uniquement les updates de simulation
+            const interval = setInterval(() => {
+                updateLiveData();
+            }, 5000); // Plus lent en production
+
+            return () => clearInterval(interval);
+        }
+
+        // En mode développement local, vérifier si on veut utiliser le WebSocket
+        if (isDevelopment && disableWebSocketInDev) {
+            console.log('🔇 WebSocket désactivé en mode développement');
+            toast?.info('Mode développement', 'WebSocket désactivé - Utilisation du mode démo');
+
+            // Utiliser uniquement les updates de démo
+            const interval = setInterval(() => {
+                updateLiveData();
+            }, 3000);
+
+            return () => clearInterval(interval);
+        }
+
         if (isDemoMode) {
             // En mode démo, simuler WebSocket avec des updates périodiques
             const interval = setInterval(() => {
@@ -1578,24 +1610,43 @@ const LiveCompetition = () => {
             return { allowed: false, message: 'Vous devez être connecté', roleLabel: 'Visiteur' };
         }
 
-        // Si l'utilisateur est admin de la compétition, il peut toujours diffuser
-        if (isAdmin) {
-            return { allowed: true, message: 'Admin peut diffuser', roleLabel: 'Admin' };
+        // Admin de la plateforme peut toujours diffuser
+        if (user.role === 'admin' || user.role === 'super_admin') {
+            return { allowed: true, message: 'Admin plateforme peut diffuser', roleLabel: 'Admin Plateforme' };
         }
 
-        // Si l'utilisateur est le participant actuel, il peut diffuser
-        if (currentPerformer && currentPerformer.user?.id === user.id) {
-            return { allowed: true, message: 'Participant actuel peut diffuser', roleLabel: 'Participant' };
+        // Créateur/organisateur de la compétition peut diffuser
+        if (competition && competition.user_id === user.id) {
+            return { allowed: true, message: 'Organisateur peut diffuser', roleLabel: 'Organisateur' };
         }
 
-        // Dans tous les autres cas, pas de diffusion autorisée
-        return { allowed: false, message: 'Seul le participant actuel peut diffuser', roleLabel: 'Spectateur' };
+        // Dans tous les autres cas (participants, spectateurs), pas de diffusion autorisée
+        return {
+            allowed: false,
+            message: 'Seuls l\'admin plateforme et l\'organisateur peuvent diffuser',
+            roleLabel: 'Spectateur'
+        };
     };
 
     const getUserRole = () => {
         if (!user) return 'visitor';
-        if (isAdmin) return 'admin';
-        if (isUserParticipant) return 'participant';
+
+        // Admin de la plateforme (super privilèges)
+        if (user.role === 'admin' || user.role === 'super_admin') {
+            return 'platform_admin';
+        }
+
+        // Organisateur de cette compétition
+        if (competition && competition.user_id === user.id) {
+            return 'competition_admin';
+        }
+
+        // Participant inscrit
+        if (isUserParticipant) {
+            return 'participant';
+        }
+
+        // Spectateur simple
         return 'spectator';
     };
 
@@ -1862,12 +1913,12 @@ const LiveCompetition = () => {
                             )}
 
                             {/* Section Performance Live spéciale en mode démo */}
-                            {isDemoMode && (
+                            {isDemoMode && checkBroadcastPermissions().allowed && (
                                 <Card className="bg-dark border-warning mb-3 demo-performance-test">
                                     <Card.Header className="bg-transparent border-warning">
                                         <h5 className="text-white mb-0 d-flex align-items-center">
                                             <FontAwesomeIcon icon={faMicrophone} className="me-2 text-warning" />
-                                            🎤 Test Performance Live (Mode Démo)
+                                            🎤 Test Diffusion Live ({checkBroadcastPermissions().roleLabel})
                                             {isBroadcasting && (
                                                 <Badge bg="danger" className="ms-2 live-performance-badge">
                                                     <FontAwesomeIcon icon={faRecordVinyl} className="me-1" />
@@ -1886,8 +1937,8 @@ const LiveCompetition = () => {
                                             {!isBroadcasting ? (
                                                 <div className="start-performance">
                                                     <p className="text-muted mb-4">
-                                                        Testez la diffusion live ! Cliquez pour commencer votre performance en direct.
-                                                        Tous les spectateurs vous entendront instantanément !
+                                                        <strong>Mode {checkBroadcastPermissions().roleLabel}</strong> : Vous pouvez diffuser votre voix en direct !<br/>
+                                                        Commentez la compétition, interagissez avec le public en temps réel.
                                                     </p>
                                                     <Button
                                                         variant="warning"
@@ -1896,15 +1947,15 @@ const LiveCompetition = () => {
                                                         className="start-live-performance-btn"
                                                     >
                                                         <FontAwesomeIcon icon={faMicrophone} className="me-2" />
-                                                        🎤 COMMENCER MA PERFORMANCE
+                                                        🎤 COMMENCER LA DIFFUSION
                                                     </Button>
                                                 </div>
                                             ) : (
                                                 <div className="live-performance-active">
                                                     <div className="performance-indicator mb-4">
                                                         <div className="live-pulse-large"></div>
-                                                        <h5 className="text-warning mb-2">🔴 PERFORMANCE EN DIRECT</h5>
-                                                        <p className="text-light">Vous diffusez maintenant • Chantez, rappez, ou parlez !</p>
+                                                        <h5 className="text-warning mb-2">🔴 DIFFUSION EN DIRECT</h5>
+                                                        <p className="text-light">Vous diffusez maintenant • Commentez, animez, interagissez !</p>
 
                                                         {/* Timer de performance */}
                                                         {performanceTimer && (
@@ -1956,7 +2007,7 @@ const LiveCompetition = () => {
                                                         className="stop-live-performance-btn"
                                                     >
                                                         <FontAwesomeIcon icon={faStop} className="me-2" />
-                                                        Terminer ma performance
+                                                        Terminer la diffusion
                                                     </Button>
                                                 </div>
                                             )}
@@ -1965,7 +2016,7 @@ const LiveCompetition = () => {
                                 </Card>
                             )}
 
-                            {/* Contrôles pour les spectateurs/participants non actifs */}
+                            {/* Contrôles pour les spectateurs/participants non autorisés */}
                             {!isBroadcasting && !checkBroadcastPermissions().allowed && (
                                 <Card className="bg-dark border-info mb-3 listening-instructions">
                                     <Card.Body className="text-center py-4">
@@ -1974,8 +2025,8 @@ const LiveCompetition = () => {
                                             Mode Spectateur
                                         </h6>
                                         <p className="text-light mb-3">
+                                            Seuls l'<strong>admin de la plateforme</strong> et l'<strong>organisateur</strong> peuvent diffuser leur voix en direct.
                                             Vous assistez à la compétition en tant que spectateur.
-                                            Seuls les participants actuels peuvent diffuser leur voix.
                                         </p>
                                         <div className="spectator-actions">
                                             <h6 className="text-white mb-3">Ce que vous pouvez faire :</h6>
@@ -1983,7 +2034,7 @@ const LiveCompetition = () => {
                                                 <Col md={4}>
                                                     <div className="action-item">
                                                         <FontAwesomeIcon icon={faHeadphones} className="text-info mb-2" size="2x" />
-                                                        <div className="action-text">Écouter les performances</div>
+                                                        <div className="action-text">Écouter les commentaires live</div>
                                                     </div>
                                                 </Col>
                                                 <Col md={4}>
