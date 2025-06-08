@@ -249,6 +249,40 @@ class UserProfileController extends Controller
 
             Log::info('Début getCompleteProfile', ['user_id' => $user->id]);
 
+            // Test simple pour identifier où est le problème
+            try {
+                $test1 = $user->payments()->count();
+                Log::info('Test payments count: ' . $test1);
+            } catch (\Exception $e) {
+                Log::error('Erreur test payments: ' . $e->getMessage());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur sur payments: ' . $e->getMessage()
+                ], 500);
+            }
+
+            try {
+                $test2 = $user->payments()->completed()->count();
+                Log::info('Test payments completed count: ' . $test2);
+            } catch (\Exception $e) {
+                Log::error('Erreur test payments completed: ' . $e->getMessage());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur sur payments completed: ' . $e->getMessage()
+                ], 500);
+            }
+
+            try {
+                $test3 = $user->sounds()->count();
+                Log::info('Test sounds count: ' . $test3);
+            } catch (\Exception $e) {
+                Log::error('Erreur test sounds: ' . $e->getMessage());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur sur sounds: ' . $e->getMessage()
+                ], 500);
+            }
+
             // === STATISTIQUES GÉNÉRALES ===
             $generalStats = [
                 'total_spent' => $user->payments()->completed()->sum('amount'),
@@ -294,7 +328,7 @@ class UserProfileController extends Controller
             $purchasedEvents = $user->payments()
                 ->completed()
                 ->events()
-                ->with(['event.user', 'event.category'])
+                ->with(['event.user'])
                 ->orderBy('paid_at', 'desc')
                 ->get()
                 ->map(function($payment) {
@@ -305,7 +339,7 @@ class UserProfileController extends Controller
                         'id' => $event->id,
                         'title' => $event->title,
                         'organizer' => $event->user->name ?? 'Organisateur inconnu',
-                        'category' => $event->category->name ?? 'Non catégorisé',
+                        'category' => $event->category ?? 'Non catégorisé',
                         'cover_image' => $event->cover_image ? Storage::url($event->cover_image) : null,
                         'event_date' => $event->event_date,
                         'location' => $event->location,
@@ -392,7 +426,6 @@ class UserProfileController extends Controller
 
             // === MES ÉVÉNEMENTS ===
             $myEvents = $user->events()
-                ->with(['category'])
                 ->orderBy('event_date', 'desc')
                 ->get()
                 ->map(function($event) {
@@ -408,11 +441,13 @@ class UserProfileController extends Controller
                     return [
                         'id' => $event->id,
                         'title' => $event->title,
-                        'category' => $event->category->name ?? 'Non catégorisé',
+                        'category' => $event->category ?? 'Non catégorisé',
                         'cover_image' => $event->cover_image ? Storage::url($event->cover_image) : null,
                         'event_date' => $event->event_date,
                         'location' => $event->location,
-                        'price' => $event->price,
+                        'ticket_price' => $event->ticket_price,
+                        'price_min' => $event->price_min,
+                        'price_max' => $event->price_max,
                         'status' => $event->status,
                         'tickets_sold' => $ticketsSold,
                         'revenue' => $revenue,
