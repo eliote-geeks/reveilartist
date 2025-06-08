@@ -32,6 +32,14 @@ use App\Http\Controllers\UserProfileController;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// Routes de diagnostic (à supprimer en production)
+Route::prefix('diagnostic')->group(function () {
+    Route::get('/sounds', [App\Http\Controllers\DiagnosticController::class, 'testSounds']);
+    Route::get('/events', [App\Http\Controllers\DiagnosticController::class, 'testEvents']);
+    Route::get('/profile', [App\Http\Controllers\DiagnosticController::class, 'testCompleteProfile']);
+    Route::get('/database', [App\Http\Controllers\DiagnosticController::class, 'testDatabase']);
+});
+
 // Routes publiques pour les catégories
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{category}', [CategoryController::class, 'show']);
