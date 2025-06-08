@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -40,16 +41,8 @@ return new class extends Migration
                 }
             });
 
-            // Ajouter les index après avoir ajouté les colonnes
-            Schema::table('clip_comments', function (Blueprint $table) {
-                try {
-                    $table->index(['clip_id', 'is_active']);
-                    $table->index(['user_id', 'is_active']);
-                    $table->index(['parent_id']);
-                } catch (\Exception $e) {
-                    // Index peut déjà exister
-                }
-            });
+            // Les index sont déjà créés dans la migration create_clip_comments_table
+            // Pas besoin de les recréer
         }
     }
 

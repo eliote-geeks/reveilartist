@@ -37,19 +37,8 @@ return new class extends Migration
             }
         });
 
-        // Ajouter les contraintes et index après avoir ajouté les colonnes
-        Schema::table('clip_likes', function (Blueprint $table) {
-            try {
-                // Contrainte unique pour éviter les doublons
-                $table->unique(['clip_id', 'user_id']);
-
-                // Index pour les performances
-                $table->index(['user_id']);
-                $table->index(['clip_id']);
-            } catch (\Exception $e) {
-                // Les index peuvent déjà exister
-            }
-        });
+        // Les contraintes et index sont déjà créés dans la migration create_clip_likes_table
+        // Pas besoin de les recréer
     }
 
     /**
