@@ -338,11 +338,11 @@ const Header = () => {
                         {[
                             { path: '/', icon: faHome, label: 'Accueil' },
                             { path: '/catalog', icon: faMusic, label: 'Catalogue' },
-                            { path: '/clips', icon: faVideo, label: 'Clips' },
+                            // { path: '/clips', icon: faVideo, label: 'Clips' },
                             { path: '/events', icon: faCalendarAlt, label: 'Événements' },
-                            { path: '/competitions', icon: faTrophy, label: 'Compétitions' },
+                            // { path: '/competitions', icon: faTrophy, label: 'Compétitions' },
                             { path: '/categories', icon: faTh, label: 'Catégories' },
-                            { path: '/artists', icon: faUsers, label: 'Artistes' }
+                            // { path: '/artists', icon: faUsers, label: 'Artistes' }
                         ].map((item) => (
                             <Nav.Link
                                 key={item.path}
