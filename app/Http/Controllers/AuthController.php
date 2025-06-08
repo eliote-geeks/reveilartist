@@ -339,9 +339,9 @@ class AuthController extends Controller
 
             // Charger les relations avec pagination
             $purchasedSounds = $user->purchasedSounds()->with('category')->paginate(10);
-            $purchasedEvents = $user->purchasedEvents()->with('category')->paginate(10);
+            $purchasedEvents = $user->purchasedEvents()->paginate(10); // Events n'ont pas de relation category
             $userSounds = $user->sounds()->with('category')->paginate(10);
-            $userEvents = $user->events()->with('category')->paginate(10);
+            $userEvents = $user->events()->paginate(10); // Events n'ont pas de relation category
             $following = $user->following()->paginate(10);
             $followers = $user->followers()->paginate(10);
 
