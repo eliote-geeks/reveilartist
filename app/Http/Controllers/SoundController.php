@@ -77,53 +77,53 @@ class SoundController extends Controller
      */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string|max:2000',
-            'category_id' => 'required|exists:categories,id',
-            'audio_file' => 'required|mimes:mp3,wav,m4a,aac|max:20480', // 20MB max
-            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-            'genre' => 'nullable|string|max:100',
-            'price' => 'nullable|numeric|min:0',
-            'is_free' => 'boolean',
-            'tags' => 'nullable|array',
-            'bpm' => 'nullable|string|max:20',
-            'key' => 'nullable|string|max:20',
-            'credits' => 'nullable|string|max:1000',
+        // $validator = Validator::make($request->all(), [
+        //     'title' => 'required|string|max:255',
+        //     'description' => 'nullable|string|max:2000',
+        //     'category_id' => 'required|exists:categories,id',
+        //     'audio_file' => 'required|mimes:mp3,wav,m4a,aac|max:20480', // 20MB max
+        //     'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+        //     'genre' => 'nullable|string|max:100',
+        //     'price' => 'nullable|numeric|min:0',
+        //     'is_free' => 'boolean',
+        //     'tags' => 'nullable|array',
+        //     'bpm' => 'nullable|string|max:20',
+        //     'key' => 'nullable|string|max:20',
+        //     'credits' => 'nullable|string|max:1000',
 
-            // Validation des nouveaux champs de licence et droits d'auteur
-            'license_type' => 'required|in:royalty_free,creative_commons,exclusive,custom',
-            'copyright_owner' => 'required|string|max:255',
-            'composer' => 'required|string|max:255',
-            'performer' => 'nullable|string|max:255',
-            'producer' => 'nullable|string|max:255',
-            'release_date' => 'nullable|date',
-            'isrc_code' => 'nullable|string|max:20',
-            'publishing_rights' => 'nullable|string|max:1000',
-            'usage_rights' => 'nullable|array',
-            'commercial_use' => 'boolean',
-            'attribution_required' => 'boolean',
-            'modifications_allowed' => 'boolean',
-            'distribution_allowed' => 'boolean',
-            'license_duration' => 'required|in:perpetual,1_year,5_years,10_years',
-            'territory' => 'required|in:worldwide,africa,cameroon,francophone',
-            'rights_statement' => 'nullable|string|max:2000',
-        ]);
+        //     // Validation des nouveaux champs de licence et droits d'auteur
+        //     'license_type' => 'required|in:royalty_free,creative_commons,exclusive,custom',
+        //     'copyright_owner' => 'required|string|max:255',
+        //     'composer' => 'required|string|max:255',
+        //     'performer' => 'nullable|string|max:255',
+        //     'producer' => 'nullable|string|max:255',
+        //     'release_date' => 'nullable|date',
+        //     'isrc_code' => 'nullable|string|max:20',
+        //     'publishing_rights' => 'nullable|string|max:1000',
+        //     'usage_rights' => 'nullable|array',
+        //     'commercial_use' => 'boolean',
+        //     'attribution_required' => 'boolean',
+        //     'modifications_allowed' => 'boolean',
+        //     'distribution_allowed' => 'boolean',
+        //     'license_duration' => 'required|in:perpetual,1_year,5_years,10_years',
+        //     'territory' => 'required|in:worldwide,africa,cameroon,francophone',
+        //     'rights_statement' => 'nullable|string|max:2000',
+        // ]);
 
-        if ($validator->fails()) {
-            // Log des erreurs pour débogage
-            \Log::error('Erreurs de validation lors de l\'ajout d\'un son:', [
-                'errors' => $validator->errors()->toArray(),
-                'input_data' => $request->except(['audio_file', 'cover_image']),
-                'user_id' => $request->user()->id
-            ]);
+        // if ($validator->fails()) {
+        //     // Log des erreurs pour débogage
+        //     \Log::error('Erreurs de validation lors de l\'ajout d\'un son:', [
+        //         'errors' => $validator->errors()->toArray(),
+        //         'input_data' => $request->except(['audio_file', 'cover_image']),
+        //         'user_id' => $request->user()->id
+        //     ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreurs de validation',
-                'errors' => $validator->errors()
-            ], 422);
-        }
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Erreurs de validation',
+        //         'errors' => $validator->errors()
+        //     ], 422);
+        // }
 
         try {
             // Upload du fichier audio
