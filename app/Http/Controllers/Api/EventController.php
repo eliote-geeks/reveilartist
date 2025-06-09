@@ -81,11 +81,12 @@ class EventController extends Controller
             $validator = Validator::make($request->all(), [
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
-                'category' => 'required|string|in:concert,festival,showcase,workshop,conference,party',
+                'category' => 'required|string|in:concert,festival,showcase,workshop,conference,party,soiree',
                 'event_date' => 'required|date|after_or_equal:today',
                 'start_time' => 'required|string',
                 'end_time' => 'nullable|string',
                 'venue' => 'required|string|max:255',
+                'location' => 'required|string|max:255', // AJOUT DU CHAMP OBLIGATOIRE
                 'address' => 'required|string|max:500',
                 'city' => 'required|string|max:100',
                 'country' => 'nullable|string|max:100',
@@ -115,6 +116,15 @@ class EventController extends Controller
             $eventData['slug'] = Str::slug($request->title);
             $eventData['status'] = 'pending'; // En attente de validation (valeur maintenant valide)
             $eventData['user_id'] = auth('sanctum')->user()->id;
+
+            // Assurer les valeurs par défaut pour les champs obligatoires
+            $eventData['country'] = $eventData['country'] ?? 'Cameroun';
+            $eventData['is_featured'] = false;
+            $eventData['featured'] = false;
+            $eventData['is_free'] = $request->boolean('is_free', true);
+            $eventData['current_attendees'] = 0;
+            $eventData['views_count'] = 0;
+            $eventData['revenue'] = 0.00; // Champ obligatoire manquant
 
             // Traiter les artistes si fourni (convertir en JSON pour la BDD)
             if ($request->has('artists') && is_array($request->artists) && !empty($request->artists)) {

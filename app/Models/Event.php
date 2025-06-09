@@ -55,7 +55,8 @@ class Event extends Model
         'instagram_url',
         'twitter_url',
         'views_count',
-        'featured'
+        'featured',
+        'revenue'
     ];
 
     /**
