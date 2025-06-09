@@ -693,7 +693,7 @@ class SoundController extends Controller
                 'genre' => 'nullable|string|max:100',
                 'price' => 'nullable|numeric|min:0',
                 'is_free' => 'boolean',
-                'audio_file' => 'required|file|mimes:mp3,wav,m4a|max:2048', // Max 2MB temporaire pour debug
+                'audio_file' => 'required|file|mimes:mp3,wav,m4a,aac,flac', // Pas de limite de taille temporaire
                 'cover_image' => 'nullable|file|image|max:5120', // Max 5MB
             ]);
 
@@ -792,7 +792,7 @@ class SoundController extends Controller
                 'genre' => 'nullable|string|max:100',
                 'price' => 'nullable|numeric|min:0',
                 'is_free' => 'boolean',
-                'audio_file' => 'nullable|file|mimes:mp3,wav,m4a|max:2048', // Max 2MB temporaire
+                'audio_file' => 'nullable|file|mimes:mp3,wav,m4a,aac,flac', // Pas de limite de taille temporaire
                 'cover_image' => 'nullable|file|image|max:5120',
             ]);
 

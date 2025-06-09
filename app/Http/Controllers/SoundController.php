@@ -82,8 +82,8 @@ class SoundController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'category_id' => 'required|exists:categories,id',
-            'audio_file' => 'required|mimes:mp3,wav,m4a,aac,flac|max:20480', // 20MB max
-            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'audio_file' => 'required|mimes:mp3,wav,m4a,aac,flac', // 20MB max
+            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg',
             'genre' => 'nullable|string|max:100',
             'price' => 'nullable|numeric|min:0',
             'is_free' => 'boolean',
@@ -230,7 +230,7 @@ class SoundController extends Controller
             'description' => 'nullable|string|max:2000',
             'category_id' => 'sometimes|required|exists:categories,id',
             'audio_file' => 'nullable|mimes:mp3,wav,m4a,aac,flac|max:20480',
-            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg',
             'genre' => 'nullable|string|max:100',
             'price' => 'nullable|numeric|min:0',
             'is_free' => 'boolean',
