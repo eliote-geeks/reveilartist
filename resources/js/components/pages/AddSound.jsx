@@ -55,13 +55,14 @@ const AddSound = () => {
         category_id: '',
         genre: '',
         price: '',
-        is_free: false,
+        is_free: true, // Par défaut gratuit pour commencer
         tags: [],
         bpm: '',
         key: '',
         credits: '',
         audio_file: null,
         cover_image: null,
+        // Champs de licence et droits d'auteur - correspondant exactement à la BDD
         license_type: 'royalty_free',
         copyright_owner: '',
         composer: '',
@@ -146,6 +147,20 @@ const AddSound = () => {
             icon: faQuestionCircle,
             color: 'secondary'
         }
+    };
+
+    const licenseDurations = {
+        'perpetual': 'Perpétuelle',
+        '1_year': '1 an',
+        '5_years': '5 ans',
+        '10_years': '10 ans'
+    };
+
+    const territories = {
+        'worldwide': 'Mondial',
+        'africa': 'Afrique',
+        'cameroon': 'Cameroun',
+        'francophone': 'Pays francophones'
     };
 
     const usageRightsOptions = [
@@ -411,6 +426,9 @@ const AddSound = () => {
                     submitData.append('isrc_code', cleanIsrc);
                 }
             }
+            if (formData.publishing_rights && formData.publishing_rights.trim()) {
+                submitData.append('publishing_rights', formData.publishing_rights.trim());
+            }
 
             // Droits d'utilisation
             submitData.append('commercial_use', formData.commercial_use ? '1' : '0');
@@ -419,7 +437,9 @@ const AddSound = () => {
             submitData.append('distribution_allowed', formData.distribution_allowed ? '1' : '0');
             submitData.append('license_duration', formData.license_duration);
             submitData.append('territory', formData.territory);
-            if (formData.rights_statement) submitData.append('rights_statement', formData.rights_statement);
+            if (formData.rights_statement && formData.rights_statement.trim()) {
+                submitData.append('rights_statement', formData.rights_statement.trim());
+            }
 
             // Tags
             if (formData.tags && formData.tags.length > 0) {
@@ -814,6 +834,19 @@ const AddSound = () => {
                                         </Col>
                                         <Col>
                                             <Form.Group>
+                                                    <Form.Label className="fw-medium">Droits d'édition</Form.Label>
+                                                <Form.Control
+                                                    as="textarea"
+                                rows={2}
+                                                    name="publishing_rights"
+                                                    value={formData.publishing_rights}
+                                                    onChange={handleInputChange}
+                                                    placeholder="Ex: Universal Music, Sony Music, indépendant..."
+                                                />
+                                            </Form.Group>
+                                        </Col>
+                                        <Col>
+                                            <Form.Group>
                                                     <Form.Label className="fw-medium">Crédits supplémentaires</Form.Label>
                                                 <Form.Control
                                                     as="textarea"
@@ -983,7 +1016,53 @@ const AddSound = () => {
                                 />
                                             </Col>
                                         </Row>
-                                    </div>
+                    </div>
+
+                    <Row className="g-3 mt-3">
+                        <Col md={6}>
+                            <Form.Group>
+                                <Form.Label className="fw-medium">Durée de la licence</Form.Label>
+                                <Form.Select
+                                    name="license_duration"
+                                    value={formData.license_duration}
+                                    onChange={handleInputChange}
+                                    size="lg"
+                                >
+                                    {Object.entries(licenseDurations).map(([key, value]) => (
+                                        <option key={key} value={key}>{value}</option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col md={6}>
+                            <Form.Group>
+                                <Form.Label className="fw-medium">Territoire</Form.Label>
+                                <Form.Select
+                                    name="territory"
+                                    value={formData.territory}
+                                    onChange={handleInputChange}
+                                    size="lg"
+                                >
+                                    {Object.entries(territories).map(([key, value]) => (
+                                        <option key={key} value={key}>{value}</option>
+                                    ))}
+                                </Form.Select>
+                            </Form.Group>
+                        </Col>
+                        <Col>
+                            <Form.Group>
+                                <Form.Label className="fw-medium">Déclaration de droits (optionnel)</Form.Label>
+                                <Form.Control
+                                    as="textarea"
+                                    rows={3}
+                                    name="rights_statement"
+                                    value={formData.rights_statement}
+                                    onChange={handleInputChange}
+                                    placeholder="Déclaration spécifique sur les droits d'utilisation..."
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
                                 </Card.Body>
                             </Card>
                                                 </div>

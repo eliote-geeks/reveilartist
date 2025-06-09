@@ -54,6 +54,7 @@ const AddEvent = () => {
         description: '',
         category: '',
         venue: '',
+        location: '', // AJOUT DU CHAMP OBLIGATOIRE
         address: '',
         city: 'Yaoundé',
         country: 'Cameroun',
@@ -113,7 +114,7 @@ const AddEvent = () => {
     ];
 
     const categories = [
-        'concert', 'festival', 'showcase', 'workshop', 'conference', 'party'
+        'concert', 'festival', 'showcase', 'workshop', 'conference', 'party', 'soiree'
     ];
 
     const categoryLabels = {
@@ -122,7 +123,8 @@ const AddEvent = () => {
         'showcase': 'Showcase',
         'workshop': 'Atelier',
         'conference': 'Conférence',
-        'party': 'Soirée'
+        'party': 'Soirée',
+        'soiree': 'Soirée'
     };
 
     const cities = [
@@ -143,7 +145,7 @@ const AddEvent = () => {
                 isValid = !!(formData.title.trim() && formData.description.trim() && formData.category);
                 break;
             case 2: // Lieu et date
-                isValid = !!(formData.venue.trim() && formData.address.trim() && formData.event_date && formData.start_time);
+                isValid = !!(formData.venue.trim() && formData.location.trim() && formData.address.trim() && formData.event_date && formData.start_time);
                 break;
             case 3: // Billetterie
                 isValid = formData.is_free || (formData.ticket_price && formData.ticket_price > 0);
@@ -298,6 +300,7 @@ const AddEvent = () => {
         if (!formData.description.trim()) newErrors.description = 'La description est requise';
         if (!formData.category) newErrors.category = 'La catégorie est requise';
         if (!formData.venue.trim()) newErrors.venue = 'Le lieu est requis';
+        if (!formData.location.trim()) newErrors.location = 'La zone/quartier est requise';
         if (!formData.address.trim()) newErrors.address = 'L\'adresse est requise';
         if (!formData.event_date) newErrors.event_date = 'La date est requise';
         if (!formData.start_time) newErrors.start_time = 'L\'heure de début est requise';
@@ -328,6 +331,7 @@ const AddEvent = () => {
             submitData.append('description', formData.description);
             submitData.append('category', formData.category);
             submitData.append('venue', formData.venue);
+            submitData.append('location', formData.location);
             submitData.append('address', formData.address);
             submitData.append('city', formData.city);
             submitData.append('country', formData.country);
@@ -535,6 +539,23 @@ const AddEvent = () => {
                                                 />
                                                 <Form.Control.Feedback type="invalid">
                                                     {errors.venue}
+                                                </Form.Control.Feedback>
+                                            </Form.Group>
+                                        </Col>
+                    <Col md={4}>
+                                            <Form.Group>
+                                                <Form.Label className="fw-medium">Zone/Quartier *</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    name="location"
+                                                    value={formData.location}
+                                                    onChange={handleInputChange}
+                                                    placeholder="Ex: Centre-ville, Melen, Bastos"
+                                                    isInvalid={!!errors.location}
+                                                    size="lg"
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.location}
                                                 </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
@@ -939,6 +960,7 @@ const AddEvent = () => {
                                 <h6 className="fw-bold text-primary mb-2">Lieu et date</h6>
                                 <p className="mb-1">{formData.venue || 'Lieu non défini'}</p>
                                 <small className="text-muted">
+                                    {formData.location && `${formData.location}, `}{formData.city}<br/>
                                     {formData.event_date ? new Date(formData.event_date).toLocaleDateString('fr-FR') : 'Date non définie'}
                                     {formData.start_time && ` à ${formData.start_time}`}
                                 </small>
