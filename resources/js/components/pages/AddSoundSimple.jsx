@@ -14,7 +14,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
     faMusic,
-    faUpload,
     faPlay,
     faPause,
     faImage,
@@ -23,16 +22,12 @@ import {
     faSave,
     faTimes,
     faSpinner,
-    faInfoCircle,
-    faShieldAlt,
-    faCopyright,
     faCloudUpload,
     faCheck,
 } from "@fortawesome/free-solid-svg-icons";
 import { useAuth } from "../../context/AuthContext";
-import "../../../css/admin.css";
 
-const AddSound = () => {
+const AddSoundSimple = () => {
     const navigate = useNavigate();
     const { user, token } = useAuth();
     const audioRef = useRef(null);
@@ -45,43 +40,30 @@ const AddSound = () => {
     const [categories, setCategories] = useState([]);
 
     const [formData, setFormData] = useState({
-        // Informations de base (obligatoires)
+        // Champs obligatoires
         title: "",
-        description: "",
         category_id: "",
         audio_file: null,
 
-        // Informations techniques (optionnelles)
+        // Champs optionnels de base
+        description: "",
         genre: "",
         bpm: "",
         key: "",
         credits: "",
         tags: [],
 
-        // Prix et licence
+        // Prix
         is_free: true,
         price: "",
 
-        // Image de couverture (optionnelle)
+        // Image de couverture
         cover_image: null,
 
-        // Champs de licence et droits d'auteur (optionnels)
-        license_type: "",
+        // Champs de droits d'auteur simplifiés
         copyright_owner: "",
         composer: "",
-        performer: "",
-        producer: "",
-        release_date: "",
-        isrc_code: "",
-        publishing_rights: "",
-        usage_rights: [],
-        commercial_use: false,
-        attribution_required: false,
-        modifications_allowed: false,
-        distribution_allowed: false,
-        license_duration: "",
-        territory: "",
-        rights_statement: "",
+        license_type: "",
     });
 
     const [previews, setPreviews] = useState({
@@ -91,39 +73,6 @@ const AddSound = () => {
     });
 
     const [tagsInput, setTagsInput] = useState("");
-
-    const licenseTypes = [
-        { value: "", label: "Sélectionner un type de licence" },
-        { value: "royalty_free", label: "Libre de droits" },
-        { value: "creative_commons", label: "Creative Commons" },
-        { value: "exclusive", label: "Licence exclusive" },
-        { value: "custom", label: "Licence personnalisée" },
-    ];
-
-    const licenseDurations = [
-        { value: "", label: "Sélectionner une durée" },
-        { value: "perpetual", label: "Perpétuelle" },
-        { value: "1_year", label: "1 an" },
-        { value: "5_years", label: "5 ans" },
-        { value: "10_years", label: "10 ans" },
-    ];
-
-    const territories = [
-        { value: "", label: "Sélectionner un territoire" },
-        { value: "worldwide", label: "Mondial" },
-        { value: "africa", label: "Afrique" },
-        { value: "cameroon", label: "Cameroun" },
-        { value: "francophone", label: "Pays francophones" },
-    ];
-
-    const usageRightsOptions = [
-        { value: "broadcast", label: "Diffusion radio/TV" },
-        { value: "streaming", label: "Plateformes de streaming" },
-        { value: "sync", label: "Synchronisation (films, pub)" },
-        { value: "live", label: "Performances live" },
-        { value: "remix", label: "Remix/Sampling" },
-        { value: "youtube", label: "Monétisation YouTube" },
-    ];
 
     useEffect(() => {
         fetchCategories();
@@ -176,15 +125,6 @@ const AddSound = () => {
         }
     };
 
-    const handleUsageRightsChange = (rightValue, checked) => {
-        setFormData((prev) => ({
-            ...prev,
-            usage_rights: checked
-                ? [...prev.usage_rights, rightValue]
-                : prev.usage_rights.filter((r) => r !== rightValue),
-        }));
-    };
-
     const handleFileUpload = (e, type) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -201,8 +141,7 @@ const AddSound = () => {
             if (!validTypes.includes(file.type)) {
                 setErrors((prev) => ({
                     ...prev,
-                    audio_file:
-                        "Format audio non supporté. Utilisez MP3, WAV, M4A, AAC ou FLAC.",
+                    audio_file: "Format audio non supporté. Utilisez MP3, WAV, M4A, AAC ou FLAC.",
                 }));
                 return;
             }
@@ -234,8 +173,7 @@ const AddSound = () => {
             if (!validTypes.includes(file.type)) {
                 setErrors((prev) => ({
                     ...prev,
-                    cover_image:
-                        "Format d'image non supporté. Utilisez JPG ou PNG.",
+                    cover_image: "Format d'image non supporté. Utilisez JPG ou PNG.",
                 }));
                 return;
             }
@@ -288,14 +226,9 @@ const AddSound = () => {
     const validateForm = () => {
         const newErrors = {};
 
-        // Champs obligatoires
         if (!formData.title.trim()) newErrors.title = "Le titre est requis";
-        if (!formData.category_id)
-            newErrors.category_id = "La catégorie est requise";
-        if (!formData.audio_file)
-            newErrors.audio_file = "Le fichier audio est requis";
-
-        // Validation du prix si son payant
+        if (!formData.category_id) newErrors.category_id = "La catégorie est requise";
+        if (!formData.audio_file) newErrors.audio_file = "Le fichier audio est requis";
         if (!formData.is_free && (!formData.price || formData.price <= 0)) {
             newErrors.price = "Le prix doit être supérieur à 0 pour un son payant";
         }
@@ -322,14 +255,17 @@ const AddSound = () => {
             submitData.append("category_id", formData.category_id);
             submitData.append("audio_file", formData.audio_file);
 
-            // Données optionnelles de base
+            // Données optionnelles
             if (formData.description) submitData.append("description", formData.description);
             if (formData.genre) submitData.append("genre", formData.genre);
             if (formData.bpm) submitData.append("bpm", formData.bpm);
             if (formData.key) submitData.append("key", formData.key);
             if (formData.credits) submitData.append("credits", formData.credits);
+            if (formData.copyright_owner) submitData.append("copyright_owner", formData.copyright_owner);
+            if (formData.composer) submitData.append("composer", formData.composer);
+            if (formData.license_type) submitData.append("license_type", formData.license_type);
 
-            // Prix et licence
+            // Prix
             submitData.append("is_free", formData.is_free ? "1" : "0");
             if (!formData.is_free && formData.price) {
                 submitData.append("price", formData.price);
@@ -345,32 +281,6 @@ const AddSound = () => {
             // Image de couverture
             if (formData.cover_image) {
                 submitData.append("cover_image", formData.cover_image);
-            }
-
-            // Champs de licence et droits d'auteur (optionnels)
-            if (formData.license_type) submitData.append("license_type", formData.license_type);
-            if (formData.copyright_owner) submitData.append("copyright_owner", formData.copyright_owner);
-            if (formData.composer) submitData.append("composer", formData.composer);
-            if (formData.performer) submitData.append("performer", formData.performer);
-            if (formData.producer) submitData.append("producer", formData.producer);
-            if (formData.release_date) submitData.append("release_date", formData.release_date);
-            if (formData.isrc_code) submitData.append("isrc_code", formData.isrc_code);
-            if (formData.publishing_rights) submitData.append("publishing_rights", formData.publishing_rights);
-            if (formData.license_duration) submitData.append("license_duration", formData.license_duration);
-            if (formData.territory) submitData.append("territory", formData.territory);
-            if (formData.rights_statement) submitData.append("rights_statement", formData.rights_statement);
-
-            // Droits d'utilisation booléens
-            submitData.append("commercial_use", formData.commercial_use ? "1" : "0");
-            submitData.append("attribution_required", formData.attribution_required ? "1" : "0");
-            submitData.append("modifications_allowed", formData.modifications_allowed ? "1" : "0");
-            submitData.append("distribution_allowed", formData.distribution_allowed ? "1" : "0");
-
-            // Droits d'usage multiples
-            if (formData.usage_rights && formData.usage_rights.length > 0) {
-                formData.usage_rights.forEach((right, index) => {
-                    submitData.append(`usage_rights[${index}]`, right);
-                });
             }
 
             // Simulation du progrès
@@ -440,13 +350,9 @@ const AddSound = () => {
                             <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
                             Ajouter un nouveau son
                         </h2>
-                        <p className="text-muted mb-0">Partagez votre création musicale avec la communauté</p>
+                        <p className="text-muted mb-0">Partagez votre création musicale</p>
                     </div>
-                    <Button
-                        as={Link}
-                        to="/dashboard"
-                        variant="outline-secondary"
-                    >
+                    <Button as={Link} to="/dashboard" variant="outline-secondary">
                         <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
                         Retour
                     </Button>
@@ -467,7 +373,6 @@ const AddSound = () => {
 
                 <Form onSubmit={handleSubmit}>
                     <Row className="g-4">
-                        {/* Colonne principale */}
                         <Col lg={8}>
                             {/* Upload audio */}
                             <Card className="border-0 shadow-sm mb-4">
@@ -489,9 +394,9 @@ const AddSound = () => {
                                             onClick={() => document.getElementById("audioFile").click()}
                                         >
                                             <FontAwesomeIcon icon={faMusic} size="3x" className="text-primary mb-3" />
-                                            <h5 className="mb-2">Cliquez ici pour sélectionner votre fichier audio</h5>
+                                            <h5 className="mb-2">Cliquez pour sélectionner votre fichier audio</h5>
                                             <p className="text-muted mb-0">
-                                                Formats supportés : MP3, WAV, M4A, AAC, FLAC (max 20MB)
+                                                Formats : MP3, WAV, M4A, AAC, FLAC (max 20MB)
                                             </p>
                                             <Form.Control
                                                 id="audioFile"
@@ -514,22 +419,14 @@ const AddSound = () => {
                                                         </small>
                                                     </div>
                                                 </div>
-                                                <Button
-                                                    variant="outline-danger"
-                                                    size="sm"
-                                                    onClick={() => removeFile("audio")}
-                                                >
+                                                <Button variant="outline-danger" size="sm" onClick={() => removeFile("audio")}>
                                                     <FontAwesomeIcon icon={faTimes} />
                                                 </Button>
                                             </div>
                                             {previews.audio && (
                                                 <div>
                                                     <audio ref={audioRef} src={previews.audio} className="d-none" />
-                                                    <Button
-                                                        variant="outline-primary"
-                                                        onClick={toggleAudioPreview}
-                                                        size="sm"
-                                                    >
+                                                    <Button variant="outline-primary" onClick={toggleAudioPreview} size="sm">
                                                         <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} className="me-2" />
                                                         {isPlaying ? "Pause" : "Écouter"}
                                                     </Button>
@@ -549,10 +446,7 @@ const AddSound = () => {
                             {/* Informations de base */}
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white">
-                                    <h5 className="fw-bold mb-0">
-                                        <FontAwesomeIcon icon={faInfoCircle} className="me-2 text-primary" />
-                                        Informations de base
-                                    </h5>
+                                    <h5 className="fw-bold mb-0">Informations de base</h5>
                                 </Card.Header>
                                 <Card.Body>
                                     <Row className="g-3">
@@ -611,7 +505,7 @@ const AddSound = () => {
                                                     name="description"
                                                     value={formData.description}
                                                     onChange={handleInputChange}
-                                                    placeholder="Décrivez l'ambiance, le style et l'utilisation de votre son..."
+                                                    placeholder="Décrivez votre son..."
                                                 />
                                             </Form.Group>
                                         </Col>
@@ -623,7 +517,7 @@ const AddSound = () => {
                                                     name="genre"
                                                     value={formData.genre}
                                                     onChange={handleInputChange}
-                                                    placeholder="Ex: Afrobeat, Hip-Hop..."
+                                                    placeholder="Ex: Afrobeat"
                                                 />
                                             </Form.Group>
                                         </Col>
@@ -649,7 +543,7 @@ const AddSound = () => {
                                                     name="key"
                                                     value={formData.key}
                                                     onChange={handleInputChange}
-                                                    placeholder="Ex: Am, C#"
+                                                    placeholder="Ex: Am"
                                                 />
                                             </Form.Group>
                                         </Col>
@@ -664,7 +558,7 @@ const AddSound = () => {
                                                             target: { name: "tags", value: e.target.value },
                                                         })
                                                     }
-                                                    placeholder="beat, instrumental, afro, commercial (séparés par des virgules)"
+                                                    placeholder="beat, instrumental, afro (séparés par des virgules)"
                                                 />
                                                 {formData.tags.length > 0 && (
                                                     <div className="mt-2">
@@ -686,7 +580,7 @@ const AddSound = () => {
                                                     name="credits"
                                                     value={formData.credits}
                                                     onChange={handleInputChange}
-                                                    placeholder="Compositeur, producteur, collaborateurs..."
+                                                    placeholder="Compositeur, producteur..."
                                                 />
                                             </Form.Group>
                                         </Col>
@@ -694,8 +588,8 @@ const AddSound = () => {
                                 </Card.Body>
                             </Card>
 
-                            {/* Prix et licence */}
-                            <Card className="border-0 shadow-sm mb-4">
+                            {/* Prix */}
+                            <Card className="border-0 shadow-sm">
                                 <Card.Header className="bg-white">
                                     <h5 className="fw-bold mb-0">
                                         <FontAwesomeIcon icon={faEuroSign} className="me-2 text-success" />
@@ -711,7 +605,7 @@ const AddSound = () => {
                                                     name="is_free"
                                                     checked={formData.is_free}
                                                     onChange={handleInputChange}
-                                                    label="💝 Son gratuit (recommandé pour débuter)"
+                                                    label="💝 Son gratuit"
                                                     className="mb-3"
                                                 />
                                                 {!formData.is_free && (
@@ -745,107 +639,11 @@ const AddSound = () => {
                                                     value={formData.license_type}
                                                     onChange={handleInputChange}
                                                 >
-                                                    {licenseTypes.map((type) => (
-                                                        <option key={type.value} value={type.value}>
-                                                            {type.label}
-                                                        </option>
-                                                    ))}
-                                                </Form.Select>
-                                            </Form.Group>
-                                        </Col>
-                                    </Row>
-
-                                    <hr className="my-3" />
-
-                                    <h6 className="fw-bold mb-3">Droits d'utilisation</h6>
-                                    <Row className="g-2">
-                                        {usageRightsOptions.map((option) => (
-                                            <Col md={6} key={option.value}>
-                                                <Form.Check
-                                                    type="checkbox"
-                                                    id={`usage_${option.value}`}
-                                                    checked={formData.usage_rights.includes(option.value)}
-                                                    onChange={(e) =>
-                                                        handleUsageRightsChange(option.value, e.target.checked)
-                                                    }
-                                                    label={option.label}
-                                                />
-                                            </Col>
-                                        ))}
-                                    </Row>
-
-                                    <hr className="my-3" />
-
-                                    <h6 className="fw-bold mb-3">Conditions spécifiques</h6>
-                                    <Row className="g-2">
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="commercial_use"
-                                                checked={formData.commercial_use}
-                                                onChange={handleInputChange}
-                                                label="💼 Utilisation commerciale"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="attribution_required"
-                                                checked={formData.attribution_required}
-                                                onChange={handleInputChange}
-                                                label="📝 Attribution requise"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="modifications_allowed"
-                                                checked={formData.modifications_allowed}
-                                                onChange={handleInputChange}
-                                                label="✂️ Modifications autorisées"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="distribution_allowed"
-                                                checked={formData.distribution_allowed}
-                                                onChange={handleInputChange}
-                                                label="🔄 Redistribution autorisée"
-                                            />
-                                        </Col>
-                                    </Row>
-
-                                    <Row className="g-3 mt-2">
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Label>Durée de licence</Form.Label>
-                                                <Form.Select
-                                                    name="license_duration"
-                                                    value={formData.license_duration}
-                                                    onChange={handleInputChange}
-                                                >
-                                                    {licenseDurations.map((duration) => (
-                                                        <option key={duration.value} value={duration.value}>
-                                                            {duration.label}
-                                                        </option>
-                                                    ))}
-                                                </Form.Select>
-                                            </Form.Group>
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Label>Territoire</Form.Label>
-                                                <Form.Select
-                                                    name="territory"
-                                                    value={formData.territory}
-                                                    onChange={handleInputChange}
-                                                >
-                                                    {territories.map((territory) => (
-                                                        <option key={territory.value} value={territory.value}>
-                                                            {territory.label}
-                                                        </option>
-                                                    ))}
+                                                    <option value="">Sélectionner</option>
+                                                    <option value="royalty_free">Libre de droits</option>
+                                                    <option value="creative_commons">Creative Commons</option>
+                                                    <option value="exclusive">Licence exclusive</option>
+                                                    <option value="custom">Licence personnalisée</option>
                                                 </Form.Select>
                                             </Form.Group>
                                         </Col>
@@ -868,15 +666,11 @@ const AddSound = () => {
                                     {!formData.cover_image ? (
                                         <div
                                             className="upload-zone border-2 border-dashed rounded p-3 text-center"
-                                            style={{
-                                                borderColor: "#6c757d",
-                                                cursor: "pointer",
-                                                backgroundColor: "#f8f9fa",
-                                            }}
+                                            style={{ cursor: "pointer", backgroundColor: "#f8f9fa" }}
                                             onClick={() => document.getElementById("coverImage").click()}
                                         >
                                             <FontAwesomeIcon icon={faImage} size="2x" className="text-muted mb-2" />
-                                            <p className="mb-0 small">Cliquez pour ajouter une image</p>
+                                            <p className="mb-0 small">Cliquez pour ajouter</p>
                                             <small className="text-muted">JPG, PNG (max 2MB)</small>
                                             <Form.Control
                                                 id="coverImage"
@@ -905,9 +699,7 @@ const AddSound = () => {
                                         </div>
                                     )}
                                     {errors.cover_image && (
-                                        <div className="text-danger small mt-2">
-                                            {errors.cover_image}
-                                        </div>
+                                        <div className="text-danger small mt-2">{errors.cover_image}</div>
                                     )}
                                 </Card.Body>
                             </Card>
@@ -915,10 +707,7 @@ const AddSound = () => {
                             {/* Droits d'auteur */}
                             <Card className="border-0 shadow-sm">
                                 <Card.Header className="bg-white">
-                                    <h5 className="fw-bold mb-0">
-                                        <FontAwesomeIcon icon={faCopyright} className="me-2 text-warning" />
-                                        Droits d'auteur
-                                    </h5>
+                                    <h5 className="fw-bold mb-0">Droits d'auteur</h5>
                                 </Card.Header>
                                 <Card.Body>
                                     <Form.Group className="mb-3">
@@ -928,11 +717,11 @@ const AddSound = () => {
                                             name="copyright_owner"
                                             value={formData.copyright_owner}
                                             onChange={handleInputChange}
-                                            placeholder="Nom du propriétaire"
+                                            placeholder="Votre nom"
                                         />
                                     </Form.Group>
 
-                                    <Form.Group className="mb-3">
+                                    <Form.Group>
                                         <Form.Label>Compositeur</Form.Label>
                                         <Form.Control
                                             type="text"
@@ -940,73 +729,6 @@ const AddSound = () => {
                                             value={formData.composer}
                                             onChange={handleInputChange}
                                             placeholder="Nom du compositeur"
-                                        />
-                                    </Form.Group>
-
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Interprète</Form.Label>
-                                        <Form.Control
-                                            type="text"
-                                            name="performer"
-                                            value={formData.performer}
-                                            onChange={handleInputChange}
-                                            placeholder="Nom de l'interprète"
-                                        />
-                                    </Form.Group>
-
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Producteur</Form.Label>
-                                        <Form.Control
-                                            type="text"
-                                            name="producer"
-                                            value={formData.producer}
-                                            onChange={handleInputChange}
-                                            placeholder="Nom du producteur"
-                                        />
-                                    </Form.Group>
-
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Date de sortie</Form.Label>
-                                        <Form.Control
-                                            type="date"
-                                            name="release_date"
-                                            value={formData.release_date}
-                                            onChange={handleInputChange}
-                                        />
-                                    </Form.Group>
-
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Code ISRC</Form.Label>
-                                        <Form.Control
-                                            type="text"
-                                            name="isrc_code"
-                                            value={formData.isrc_code}
-                                            onChange={handleInputChange}
-                                            placeholder="Ex: USUM71703692"
-                                        />
-                                    </Form.Group>
-
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Droits d'édition</Form.Label>
-                                        <Form.Control
-                                            as="textarea"
-                                            rows={2}
-                                            name="publishing_rights"
-                                            value={formData.publishing_rights}
-                                            onChange={handleInputChange}
-                                            placeholder="Maison d'édition, éditeur..."
-                                        />
-                                    </Form.Group>
-
-                                    <Form.Group>
-                                        <Form.Label>Déclaration de droits</Form.Label>
-                                        <Form.Control
-                                            as="textarea"
-                                            rows={3}
-                                            name="rights_statement"
-                                            value={formData.rights_statement}
-                                            onChange={handleInputChange}
-                                            placeholder="Informations supplémentaires sur les droits..."
                                         />
                                     </Form.Group>
                                 </Card.Body>
@@ -1027,22 +749,12 @@ const AddSound = () => {
 
                     {/* Actions */}
                     <div className="d-flex justify-content-between mt-4 pt-3 border-top">
-                        <Button
-                            as={Link}
-                            to="/dashboard"
-                            variant="outline-secondary"
-                            disabled={loading}
-                        >
+                        <Button as={Link} to="/dashboard" variant="outline-secondary" disabled={loading}>
                             <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
                             Annuler
                         </Button>
 
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            disabled={loading}
-                            size="lg"
-                        >
+                        <Button type="submit" variant="primary" disabled={loading} size="lg">
                             {loading ? (
                                 <>
                                     <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
@@ -1062,4 +774,4 @@ const AddSound = () => {
     );
 };
 
-export default AddSound;
+export default AddSoundSimple;

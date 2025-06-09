@@ -7,6 +7,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SoundController extends Controller
@@ -77,53 +78,53 @@ class SoundController extends Controller
      */
     public function store(Request $request)
     {
-        // $validator = Validator::make($request->all(), [
-        //     'title' => 'required|string|max:255',
-        //     'description' => 'nullable|string|max:2000',
-        //     'category_id' => 'required|exists:categories,id',
-        //     'audio_file' => 'required|mimes:mp3,wav,m4a,aac|max:20480', // 20MB max
-        //     'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        //     'genre' => 'nullable|string|max:100',
-        //     'price' => 'nullable|numeric|min:0',
-        //     'is_free' => 'boolean',
-        //     'tags' => 'nullable|array',
-        //     'bpm' => 'nullable|string|max:20',
-        //     'key' => 'nullable|string|max:20',
-        //     'credits' => 'nullable|string|max:1000',
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string|max:2000',
+            'category_id' => 'required|exists:categories,id',
+            'audio_file' => 'required|mimes:mp3,wav,m4a,aac,flac|max:20480', // 20MB max
+            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'genre' => 'nullable|string|max:100',
+            'price' => 'nullable|numeric|min:0',
+            'is_free' => 'boolean',
+            'tags' => 'nullable|array',
+            'bpm' => 'nullable|string|max:20',
+            'key' => 'nullable|string|max:20',
+            'credits' => 'nullable|string|max:1000',
 
-        //     // Validation des nouveaux champs de licence et droits d'auteur
-        //     'license_type' => 'required|in:royalty_free,creative_commons,exclusive,custom',
-        //     'copyright_owner' => 'required|string|max:255',
-        //     'composer' => 'required|string|max:255',
-        //     'performer' => 'nullable|string|max:255',
-        //     'producer' => 'nullable|string|max:255',
-        //     'release_date' => 'nullable|date',
-        //     'isrc_code' => 'nullable|string|max:20',
-        //     'publishing_rights' => 'nullable|string|max:1000',
-        //     'usage_rights' => 'nullable|array',
-        //     'commercial_use' => 'boolean',
-        //     'attribution_required' => 'boolean',
-        //     'modifications_allowed' => 'boolean',
-        //     'distribution_allowed' => 'boolean',
-        //     'license_duration' => 'required|in:perpetual,1_year,5_years,10_years',
-        //     'territory' => 'required|in:worldwide,africa,cameroon,francophone',
-        //     'rights_statement' => 'nullable|string|max:2000',
-        // ]);
+            // Validation des champs de licence et droits d'auteur (basés sur la structure BDD)
+            'license_type' => 'nullable|string|max:255',
+            'copyright_owner' => 'nullable|string|max:255',
+            'composer' => 'nullable|string|max:255',
+            'performer' => 'nullable|string|max:255',
+            'producer' => 'nullable|string|max:255',
+            'release_date' => 'nullable|date',
+            'isrc_code' => 'nullable|string|max:20',
+            'publishing_rights' => 'nullable|string',
+            'usage_rights' => 'nullable|array',
+            'commercial_use' => 'boolean',
+            'attribution_required' => 'boolean',
+            'modifications_allowed' => 'boolean',
+            'distribution_allowed' => 'boolean',
+            'license_duration' => 'nullable|string|max:255',
+            'territory' => 'nullable|string|max:255',
+            'rights_statement' => 'nullable|string',
+        ]);
 
-        // if ($validator->fails()) {
-        //     // Log des erreurs pour débogage
-        //     \Log::error('Erreurs de validation lors de l\'ajout d\'un son:', [
-        //         'errors' => $validator->errors()->toArray(),
-        //         'input_data' => $request->except(['audio_file', 'cover_image']),
-        //         'user_id' => $request->user()->id
-        //     ]);
+        if ($validator->fails()) {
+            // Log des erreurs pour débogage
+            Log::error('Erreurs de validation lors de l\'ajout d\'un son:', [
+                'errors' => $validator->errors()->toArray(),
+                'input_data' => $request->except(['audio_file', 'cover_image']),
+                'user_id' => $request->user()->id ?? 'non_connecté'
+            ]);
 
-        //     return response()->json([
-        //         'success' => false,
-        //         'message' => 'Erreurs de validation',
-        //         'errors' => $validator->errors()
-        //     ], 422);
-        // }
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreurs de validation',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
         try {
             // Upload du fichier audio
@@ -150,14 +151,18 @@ class SoundController extends Controller
                 'duration' => $duration,
                 'genre' => $request->genre,
                 'price' => $request->boolean('is_free') ? 0 : ($request->price ?? 0),
-                'is_free' => $request->boolean('is_free', false),
-                'tags' => $request->tags,
+                'is_free' => $request->boolean('is_free', true), // Par défaut gratuit
+                'is_featured' => false,
+                'status' => 'pending', // En attente de validation
+                'plays_count' => 0,
+                'downloads_count' => 0,
+                'likes_count' => 0,
+                'tags' => $request->tags ? json_encode($request->tags) : null,
                 'bpm' => $request->bpm,
                 'key' => $request->key,
                 'credits' => $request->credits,
-                'status' => 'pending', // En attente de validation
 
-                // Nouveaux champs de licence et droits d'auteur
+                // Champs de licence et droits d'auteur
                 'license_type' => $request->license_type,
                 'copyright_owner' => $request->copyright_owner,
                 'composer' => $request->composer,
@@ -166,11 +171,11 @@ class SoundController extends Controller
                 'release_date' => $request->release_date,
                 'isrc_code' => $request->isrc_code,
                 'publishing_rights' => $request->publishing_rights,
-                'usage_rights' => $request->usage_rights,
-                'commercial_use' => $request->boolean('commercial_use', true),
+                'usage_rights' => $request->usage_rights ? json_encode($request->usage_rights) : null,
+                'commercial_use' => $request->boolean('commercial_use', false),
                 'attribution_required' => $request->boolean('attribution_required', false),
-                'modifications_allowed' => $request->boolean('modifications_allowed', true),
-                'distribution_allowed' => $request->boolean('distribution_allowed', true),
+                'modifications_allowed' => $request->boolean('modifications_allowed', false),
+                'distribution_allowed' => $request->boolean('distribution_allowed', false),
                 'license_duration' => $request->license_duration,
                 'territory' => $request->territory,
                 'rights_statement' => $request->rights_statement,
@@ -224,34 +229,35 @@ class SoundController extends Controller
             'title' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'category_id' => 'sometimes|required|exists:categories,id',
-            'audio_file' => 'nullable|mimes:mp3,wav,m4a,aac|max:20480',
+            'audio_file' => 'nullable|mimes:mp3,wav,m4a,aac,flac|max:20480',
             'cover_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'genre' => 'nullable|string|max:100',
             'price' => 'nullable|numeric|min:0',
             'is_free' => 'boolean',
+            'is_featured' => 'boolean',
             'status' => 'sometimes|in:draft,pending,published,rejected',
             'tags' => 'nullable|array',
             'bpm' => 'nullable|string|max:20',
             'key' => 'nullable|string|max:20',
             'credits' => 'nullable|string|max:1000',
 
-            // Validation des nouveaux champs de licence et droits d'auteur
-            'license_type' => 'sometimes|required|in:royalty_free,creative_commons,exclusive,custom',
-            'copyright_owner' => 'sometimes|required|string|max:255',
-            'composer' => 'sometimes|required|string|max:255',
+            // Validation des champs de licence et droits d'auteur
+            'license_type' => 'nullable|string|max:255',
+            'copyright_owner' => 'nullable|string|max:255',
+            'composer' => 'nullable|string|max:255',
             'performer' => 'nullable|string|max:255',
             'producer' => 'nullable|string|max:255',
             'release_date' => 'nullable|date',
             'isrc_code' => 'nullable|string|max:20',
-            'publishing_rights' => 'nullable|string|max:1000',
+            'publishing_rights' => 'nullable|string',
             'usage_rights' => 'nullable|array',
             'commercial_use' => 'boolean',
             'attribution_required' => 'boolean',
             'modifications_allowed' => 'boolean',
             'distribution_allowed' => 'boolean',
-            'license_duration' => 'sometimes|required|in:perpetual,1_year,5_years,10_years',
-            'territory' => 'sometimes|required|in:worldwide,africa,cameroon,francophone',
-            'rights_statement' => 'nullable|string|max:2000',
+            'license_duration' => 'nullable|string|max:255',
+            'territory' => 'nullable|string|max:255',
+            'rights_statement' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -265,14 +271,23 @@ class SoundController extends Controller
         try {
             $updateData = $request->only([
                 'title', 'description', 'category_id', 'genre', 'price',
-                'is_free', 'tags', 'bpm', 'key', 'credits',
-                // Nouveaux champs de licence et droits d'auteur
+                'is_free', 'is_featured', 'bpm', 'key', 'credits',
+                // Champs de licence et droits d'auteur
                 'license_type', 'copyright_owner', 'composer', 'performer',
                 'producer', 'release_date', 'isrc_code', 'publishing_rights',
-                'usage_rights', 'commercial_use', 'attribution_required',
+                'commercial_use', 'attribution_required',
                 'modifications_allowed', 'distribution_allowed',
                 'license_duration', 'territory', 'rights_statement'
             ]);
+
+            // Traitement spécial pour les champs JSON
+            if ($request->has('tags')) {
+                $updateData['tags'] = $request->tags ? json_encode($request->tags) : null;
+            }
+
+            if ($request->has('usage_rights')) {
+                $updateData['usage_rights'] = $request->usage_rights ? json_encode($request->usage_rights) : null;
+            }
 
             // Upload du nouveau fichier audio si fourni
             if ($request->hasFile('audio_file')) {
@@ -390,11 +405,21 @@ class SoundController extends Controller
      */
     public function getCategories()
     {
-        $categories = Category::active()->ordered()->get();
+        try {
+            $categories = Category::where('is_active', true)
+                                ->orderBy('name', 'asc')
+                                ->get(['id', 'name', 'description']);
 
-        return response()->json([
-            'success' => true,
-            'categories' => $categories
-        ]);
+            return response()->json([
+                'success' => true,
+                'categories' => $categories
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des catégories',
+                'categories' => []
+            ], 500);
+        }
     }
 }
