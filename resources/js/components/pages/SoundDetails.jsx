@@ -7,7 +7,8 @@ import {
     faClock, faCalendar, faFileAudio, faUser, faEuroSign, faArrowLeft,
     faMusic, faCompactDisc, faWaveSquare, faTachometerAlt, faKey,
     faCheckCircle, faTimesCircle, faEye, faThumbsUp, faVolumeUp,
-    faHeadphones, faTag, faStar, faGlobe, faShield, faCopyright
+    faHeadphones, faTag, faStar, faGlobe, faShield, faCopyright,
+    faInfo, faHistory, faChartLine, faAward, faQuoteLeft
 } from '@fortawesome/free-solid-svg-icons';
 import AudioPlayer from '../common/AudioPlayer';
 import { useAuth } from '../../context/AuthContext';
@@ -30,6 +31,7 @@ const SoundDetails = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [downloading, setDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
+    const [isPurchased, setIsPurchased] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -41,6 +43,7 @@ const SoundDetails = () => {
     useEffect(() => {
         if (token && soundData) {
             checkLikeStatus();
+            checkPurchaseStatus();
         }
     }, [token, soundData]);
 
@@ -90,6 +93,20 @@ const SoundDetails = () => {
             }
         } catch (error) {
             console.error('Erreur lors de la vérification du like:', error);
+        }
+    };
+
+    const checkPurchaseStatus = async () => {
+        try {
+            const response = await axios.get('/user/purchased-sounds');
+            const data = response.data;
+
+            if (data.success) {
+                const purchased = data.data.some(sound => sound.id === parseInt(id));
+                setIsPurchased(purchased);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la vérification des achats:', error);
         }
     };
 
@@ -163,7 +180,7 @@ const SoundDetails = () => {
         }
 
         // Vérifier si le son est déjà acheté
-        if (checkIfPurchased(soundData.id)) {
+        if (isPurchased) {
             toast.info(
                 'Son déjà acheté',
                 'Vous avez déjà acheté ce son. Vous pouvez le télécharger directement depuis votre profil.'
@@ -314,6 +331,15 @@ const SoundDetails = () => {
         return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
     };
 
+    // Fonction pour formater le prix
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('fr-CM', {
+            style: 'currency',
+            currency: 'XAF',
+            minimumFractionDigits: 0
+        }).format(price);
+    };
+
     if (loading) {
         return (
             <Container className="py-5 text-center">
@@ -365,7 +391,7 @@ const SoundDetails = () => {
                             <Col md={4}>
                                 <div className="position-relative">
                                     <img
-                                        src={soundData.cover}
+                                        src={soundData.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop`}
                                         alt={soundData.title}
                                         className="w-100 h-100"
                                         style={{
@@ -388,6 +414,14 @@ const SoundDetails = () => {
                                             </Badge>
                                         </div>
                                     )}
+                                    {isPurchased && (
+                                        <div className="position-absolute bottom-0 start-0 m-3">
+                                            <Badge bg="success" className="px-3 py-2">
+                                                <FontAwesomeIcon icon={faCheckCircle} className="me-1" />
+                                                Acheté
+                                            </Badge>
+                                        </div>
+                                    )}
                                 </div>
                             </Col>
                             <Col md={8}>
@@ -395,6 +429,16 @@ const SoundDetails = () => {
                                     <div className="sound-info">
                                         <h1 className="sound-title mb-2">{soundData.title}</h1>
                                         <div className="sound-meta mb-3">
+                                            <Link
+                                                to={`/artist/${soundData.artistId}`}
+                                                className="text-decoration-none"
+                                            >
+                                                <h5 className="text-primary mb-2">
+                                                    <FontAwesomeIcon icon={faUser} className="me-2" />
+                                                    {soundData.artist}
+                                                </h5>
+                                            </Link>
+                                            <div className="d-flex flex-wrap gap-2 mb-3">
                                             <Badge bg="light" text="dark" className="me-2">
                                                 {soundData.category}
                                             </Badge>
@@ -403,9 +447,20 @@ const SoundDetails = () => {
                                                     {soundData.genre}
                                                 </Badge>
                                             )}
+                                                {soundData.bpm && (
+                                                    <Badge bg="info" className="me-2">
+                                                        {soundData.bpm} BPM
+                                                    </Badge>
+                                                )}
+                                                {soundData.key && (
+                                                    <Badge bg="success">
+                                                        {soundData.key}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                             <span className="text-muted small">
                                                 <FontAwesomeIcon icon={faClock} className="me-1" />
-                                                {formatDuration(soundData.duration_seconds) || soundData.duration || 'N/A'}
+                                                {soundData.duration || formatDuration(soundData.duration_seconds) || 'N/A'}
                                             </span>
                                         </div>
                                         <div className="sound-stats d-flex gap-3 mb-3">
@@ -427,6 +482,10 @@ const SoundDetails = () => {
                                         {/* Tags */}
                                         {soundData.tags && soundData.tags.length > 0 && (
                                     <div className="mb-3">
+                                            <h6 className="fw-bold mb-2">
+                                                <FontAwesomeIcon icon={faTag} className="me-2" />
+                                                Tags
+                                            </h6>
                                         {soundData.tags.map(tag => (
                                             <Badge key={tag} bg="light" text="dark" className="me-1 mb-1">
                                                         <FontAwesomeIcon icon={faTag} className="me-1" />
@@ -468,7 +527,7 @@ const SoundDetails = () => {
                                                 <span className="fw-bold fs-3 text-warning">
                                                     {soundData.is_free || soundData.price === 0
                                                         ? 'Gratuit'
-                                                        : `${soundData.price?.toLocaleString()} FCFA`
+                                                    : formatPrice(soundData.price)
                                                     }
                                                 </span>
                                             </div>
@@ -483,7 +542,7 @@ const SoundDetails = () => {
                                                 </div>
                                             )}
 
-                                            {soundData.is_free || soundData.price === 0 ? (
+                                        {soundData.is_free || soundData.price === 0 ? (
                                                 <Button
                                                     variant="success"
                                                     size="lg"
@@ -499,6 +558,7 @@ const SoundDetails = () => {
                                                     size="lg"
                                                     onClick={handleAddToCart}
                                                     disabled={!token || isInCart(soundData.id, 'sound')}
+                                                    id={`cart-button-${soundData.id}`}
                                                 >
                                                     <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
                                                     {isInCart(soundData.id, 'sound') ? 'Dans le panier' : 'Ajouter au Panier'}
@@ -508,24 +568,6 @@ const SoundDetails = () => {
                                 </Card.Body>
                             </Col>
                         </Row>
-                    </Card>
-
-                    {/* Player */}
-                    <Card className="border-0 shadow-sm mb-4">
-                        <Card.Body>
-                            <h5 className="fw-bold mb-3">
-                                <FontAwesomeIcon icon={faVolumeUp} className="me-2 text-primary" />
-                                Écouter
-                            </h5>
-                            <AudioPlayer
-                                sound={soundData}
-                                isCompact={false}
-                                showDetails={false}
-                                onLike={handleLike}
-                                previewDuration={20}
-                                showPreviewBadge={true}
-                            />
-                        </Card.Body>
                     </Card>
 
                     {/* Description */}
@@ -543,6 +585,94 @@ const SoundDetails = () => {
                         </Card>
                     )}
 
+                    {/* Crédits */}
+                    {soundData.credits && (
+                        <Card className="border-0 shadow-sm mb-4">
+                            <Card.Body>
+                                <h5 className="fw-bold mb-3">
+                                    <FontAwesomeIcon icon={faAward} className="me-2 text-primary" />
+                                    Crédits
+                                </h5>
+                                <p className="text-muted mb-0" style={{ lineHeight: '1.6' }}>
+                                    <FontAwesomeIcon icon={faQuoteLeft} className="me-2" />
+                                    {soundData.credits}
+                                </p>
+                            </Card.Body>
+                        </Card>
+                    )}
+
+                    {/* Player - Déplacé plus bas */}
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
+                            <div className="d-flex align-items-center justify-content-between mb-3">
+                                <h5 className="fw-bold mb-0">
+                                    <FontAwesomeIcon icon={faVolumeUp} className="me-2 text-primary" />
+                                    {soundData.is_free || soundData.price === 0 ? 'Écouter le son complet' : 'Prévisualisation (20 secondes)'}
+                                </h5>
+                                {!soundData.is_free && soundData.price > 0 && (
+                                    <Badge bg="warning" text="dark">
+                                        <FontAwesomeIcon icon={faClock} className="me-1" />
+                                        Prévisualisation limitée
+                                    </Badge>
+                                )}
+                                {(soundData.is_free || soundData.price === 0) && (
+                                    <Badge bg="success">
+                                        <FontAwesomeIcon icon={faCheckCircle} className="me-1" />
+                                        Audio complet gratuit
+                                    </Badge>
+                                )}
+                            </div>
+
+                            {/* Informations d'écoute */}
+                            <div className="mb-3 p-3 bg-light rounded">
+                                <div className="row align-items-center">
+                                                                        <div className="col-md-8">
+                                        {soundData.is_free || soundData.price === 0 ? (
+                                            <div className="d-flex align-items-center text-success">
+                                                <FontAwesomeIcon icon={faHeadphones} className="me-2" />
+                                                <span className="small">
+                                                    Vous pouvez écouter l'intégralité de ce son gratuit.
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="d-flex align-items-center text-warning">
+                                                <FontAwesomeIcon icon={faClock} className="me-2" />
+                                                <span className="small">
+                                                    Prévisualisation limitée à 20 secondes. Achetez le son pour l'écouter en entier.
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="col-md-4 text-end">
+                                        <div className="d-flex align-items-center justify-content-end gap-2">
+                                            <FontAwesomeIcon icon={faPlay} className="text-muted" />
+                                            <span className="small text-muted">
+                                                {(soundData.is_free || soundData.price === 0)
+                                                    ? (soundData.duration || formatDuration(soundData.duration_seconds) || 'N/A')
+                                                    : '0:20'
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                                                        <AudioPlayer
+                                sound={soundData}
+                                isCompact={false}
+                                showDetails={false}
+                                onLike={handleLike}
+                                previewDuration={
+                                    (soundData.is_free || soundData.price === 0)
+                                        ? null // Pas de limitation pour les sons gratuits
+                                        : 20   // 20 secondes pour les sons payants
+                                }
+                                showPreviewBadge={!soundData.is_free && soundData.price > 0}
+                                allowFullPlayback={soundData.is_free || soundData.price === 0}
+                            />
+                        </Card.Body>
+                    </Card>
+
                     {/* Informations Techniques Complètes */}
                     <Card className="border-0 shadow-sm mb-4">
                         <Card.Body>
@@ -559,7 +689,7 @@ const SoundDetails = () => {
                                                 Durée
                                             </span>
                                             <span className="fw-medium">
-                                                {formatDuration(soundData.duration_seconds) || soundData.duration || 'N/A'}
+                                                {soundData.duration || formatDuration(soundData.duration_seconds) || 'N/A'}
                                             </span>
                                         </ListGroup.Item>
                                         <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
@@ -609,6 +739,15 @@ const SoundDetails = () => {
                                                 <span className="fw-medium">{soundData.key}</span>
                                 </ListGroup.Item>
                                         )}
+                                        {soundData.genre && (
+                                            <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
+                                                <span className="d-flex align-items-center">
+                                                    <FontAwesomeIcon icon={faMusic} className="me-2 text-muted" />
+                                                    Genre
+                                                </span>
+                                                <span className="fw-medium">{soundData.genre}</span>
+                                            </ListGroup.Item>
+                                        )}
                                         <ListGroup.Item className="d-flex justify-content-between border-0 px-0">
                                             <span className="d-flex align-items-center">
                                                 <FontAwesomeIcon icon={faShield} className="me-2 text-muted" />
@@ -622,12 +761,41 @@ const SoundDetails = () => {
                                 </Col>
                             </Row>
 
-                            {/* Informations légales */}
+                            {/* Informations légales étendues */}
                             <div className="mt-4 p-3 bg-light rounded">
                                 <h6 className="fw-bold mb-2">
                                     <FontAwesomeIcon icon={faCopyright} className="me-2" />
-                                    Droits d'utilisation
+                                    Droits d'utilisation et licence
                                 </h6>
+
+                                {/* Informations de copyright */}
+                                {(soundData.copyright_owner || soundData.composer || soundData.performer || soundData.producer) && (
+                                    <div className="mb-3">
+                                        <h6 className="small fw-bold mb-2">Crédits officiels :</h6>
+                                        {soundData.copyright_owner && (
+                                            <div className="small text-muted mb-1">
+                                                <strong>Propriétaire :</strong> {soundData.copyright_owner}
+                                            </div>
+                                        )}
+                                        {soundData.composer && (
+                                            <div className="small text-muted mb-1">
+                                                <strong>Compositeur :</strong> {soundData.composer}
+                                            </div>
+                                        )}
+                                        {soundData.performer && (
+                                            <div className="small text-muted mb-1">
+                                                <strong>Interprète :</strong> {soundData.performer}
+                                            </div>
+                                        )}
+                                        {soundData.producer && (
+                                            <div className="small text-muted mb-1">
+                                                <strong>Producteur :</strong> {soundData.producer}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Droits d'utilisation */}
                                 <Row className="g-2">
                                     <Col sm={6}>
                                         <div className="d-flex align-items-center">
@@ -640,23 +808,58 @@ const SoundDetails = () => {
                                     </Col>
                                     <Col sm={6}>
                                         <div className="d-flex align-items-center">
-                                            <FontAwesomeIcon icon={faCheckCircle} className="me-2 text-success" />
-                                            <span className="small">Usage personnel</span>
-                                        </div>
-                                    </Col>
-                                    <Col sm={6}>
-                                        <div className="d-flex align-items-center">
-                                            <FontAwesomeIcon icon={faCheckCircle} className="me-2 text-success" />
+                                            <FontAwesomeIcon
+                                                icon={soundData.modifications_allowed !== false ? faCheckCircle : faTimesCircle}
+                                                className={`me-2 ${soundData.modifications_allowed !== false ? 'text-success' : 'text-danger'}`}
+                                            />
                                             <span className="small">Modification autorisée</span>
                                         </div>
                                     </Col>
                                     <Col sm={6}>
                                         <div className="d-flex align-items-center">
-                                            <FontAwesomeIcon icon={faTimesCircle} className="me-2 text-danger" />
-                                            <span className="small">Revente interdite</span>
+                                            <FontAwesomeIcon
+                                                icon={soundData.distribution_allowed !== false ? faCheckCircle : faTimesCircle}
+                                                className={`me-2 ${soundData.distribution_allowed !== false ? 'text-success' : 'text-danger'}`}
+                                            />
+                                            <span className="small">Distribution autorisée</span>
+                                        </div>
+                                    </Col>
+                                    <Col sm={6}>
+                                        <div className="d-flex align-items-center">
+                                            <FontAwesomeIcon
+                                                icon={soundData.attribution_required ? faCheckCircle : faTimesCircle}
+                                                className={`me-2 ${soundData.attribution_required ? 'text-warning' : 'text-success'}`}
+                                            />
+                                            <span className="small">Attribution {soundData.attribution_required ? 'requise' : 'non requise'}</span>
                                         </div>
                                     </Col>
                                 </Row>
+
+                                {/* Informations supplémentaires */}
+                                {(soundData.license_duration || soundData.territory) && (
+                                    <div className="mt-3">
+                                        {soundData.license_duration && (
+                                            <div className="small text-muted mb-1">
+                                                <strong>Durée de licence :</strong> {soundData.license_duration}
+                                            </div>
+                                        )}
+                                        {soundData.territory && (
+                                            <div className="small text-muted mb-1">
+                                                <strong>Territoire :</strong> {soundData.territory}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Déclaration de droits */}
+                                {soundData.rights_statement && (
+                                    <div className="mt-3 p-2 bg-white rounded border-start border-primary border-3">
+                                        <div className="small text-muted">
+                                            <strong>Déclaration de droits :</strong><br />
+                                            {soundData.rights_statement}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </Card.Body>
                     </Card>
@@ -664,6 +867,81 @@ const SoundDetails = () => {
 
                 {/* Sidebar */}
                 <Col lg={4}>
+                    {/* Artiste */}
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
+                            <h6 className="fw-bold mb-3">
+                                <FontAwesomeIcon icon={faUser} className="me-2" />
+                                Artiste
+                            </h6>
+                            <div className="d-flex align-items-center">
+                                <div className="me-3">
+                                    <div
+                                        className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold"
+                                        style={{ width: '50px', height: '50px' }}
+                                    >
+                                        {soundData.artist ? soundData.artist.charAt(0).toUpperCase() : 'A'}
+                                    </div>
+                                </div>
+                                <div className="flex-grow-1">
+                                    <Link
+                                        to={`/artist/${soundData.artistId}`}
+                                        className="text-decoration-none"
+                                    >
+                                        <h6 className="fw-bold mb-0">{soundData.artist}</h6>
+                                    </Link>
+                                    <small className="text-muted">Artiste</small>
+                                </div>
+                                <Button
+                                    as={Link}
+                                    to={`/artist/${soundData.artistId}`}
+                                    variant="outline-primary"
+                                    size="sm"
+                                >
+                                    Voir profil
+                                </Button>
+                            </div>
+                        </Card.Body>
+                    </Card>
+
+                    {/* Statistiques détaillées */}
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
+                            <h6 className="fw-bold mb-3">
+                                <FontAwesomeIcon icon={faChartLine} className="me-2" />
+                                Statistiques
+                            </h6>
+                            <div className="row g-3">
+                                <div className="col-6">
+                                    <div className="text-center p-2 bg-light rounded">
+                                        <div className="fw-bold text-primary fs-5">{soundData.plays || 0}</div>
+                                        <small className="text-muted">Écoutes</small>
+                                    </div>
+                                </div>
+                                <div className="col-6">
+                                    <div className="text-center p-2 bg-light rounded">
+                                        <div className="fw-bold text-success fs-5">{soundData.downloads || 0}</div>
+                                        <small className="text-muted">Téléchargements</small>
+                                    </div>
+                                </div>
+                                <div className="col-6">
+                                    <div className="text-center p-2 bg-light rounded">
+                                        <div className="fw-bold text-danger fs-5">{soundData.likes || 0}</div>
+                                        <small className="text-muted">Likes</small>
+                                    </div>
+                                </div>
+                                <div className="col-6">
+                                    <div className="text-center p-2 bg-light rounded">
+                                        <div className="fw-bold text-info fs-5">
+                                            {new Date(soundData.created_at).getFullYear()}
+                                        </div>
+                                        <small className="text-muted">Année</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+
                     {/* Suggested Sounds */}
                     <Card className="border-0 shadow-sm">
                         <Card.Body>
@@ -675,7 +953,7 @@ const SoundDetails = () => {
                                 suggestedSounds.map(suggestedSound => (
                                     <div key={suggestedSound.id} className="d-flex align-items-center mb-3 p-2 border rounded hover-shadow">
                                     <img
-                                        src={suggestedSound.cover}
+                                            src={suggestedSound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=40&fit=crop`}
                                         alt={suggestedSound.title}
                                         className="rounded me-3"
                                         width="60"
@@ -716,6 +994,29 @@ const SoundDetails = () => {
                     </Card>
                 </Col>
             </Row>
+
+            <style jsx>{`
+                .cart-animation {
+                    animation: cartBounce 0.5s ease-in-out;
+                }
+
+                @keyframes cartBounce {
+                    0% {
+                        transform: scale(1);
+                    }
+                    50% {
+                        transform: scale(1.2);
+                    }
+                    100% {
+                        transform: scale(1);
+                    }
+                }
+
+                .hover-shadow:hover {
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                    transition: box-shadow 0.2s ease;
+                }
+            `}</style>
         </Container>
     );
 };

@@ -276,17 +276,35 @@ const Home = () => {
             } else {
                 // Play
                 if (currentPlaying?.id !== sound.id) {
-                    audio.src = sound.preview_url || sound.file_url;
+                    // Utiliser preview_url pour les sons payants, file_url pour les gratuits
+                    const audioSource = sound.is_free || sound.price === 0
+                        ? (sound.file_url || sound.preview_url)
+                        : (sound.preview_url || sound.file_url);
+
+                    audio.src = audioSource;
                     audio.volume = volume;
 
-                    // Ajouter un écouteur pour arrêter après 20 secondes
-                    audio.addEventListener('timeupdate', () => {
+                    // Supprimer les anciens écouteurs
+                    audio.removeEventListener('timeupdate', audio.previewHandler);
+
+                    // Ajouter un écouteur pour limiter la prévisualisation selon le type de son
+                    const isFreeSong = sound.is_free || sound.price === 0;
+
+                    if (!isFreeSong) {
+                        // Pour les sons payants : limiter à 20 secondes
+                        audio.previewHandler = () => {
                         if (audio.currentTime >= 20) {
                             audio.pause();
                             setIsPlaying(false);
-                            toast.info('Prévisualisation', 'La prévisualisation est limitée à 20 secondes');
+                                toast.info('Prévisualisation limitée', 'Prévisualisation de 20 secondes pour les sons payants. Achetez le son pour l\'écouter en entier.');
                         }
-                    });
+                        };
+                        audio.addEventListener('timeupdate', audio.previewHandler);
+                    } else {
+                        // Pour les sons gratuits : lecture complète autorisée
+                        audio.previewHandler = null;
+                        toast.success('Son gratuit', 'Lecture complète disponible');
+                    }
                 }
 
                 const playPromise = audio.play();
@@ -821,7 +839,34 @@ const Home = () => {
 
                                             {/* Contenu */}
                                             <Card.Body className="p-3">
-                                                <h6 className="fw-bold mb-2">{sound.title}</h6>
+                                                <h6 className="fw-bold mb-2">
+                                                    <Link
+                                                        to={`/sounds/${sound.id}`}
+                                                        className="text-decoration-none text-dark hover-link"
+                                                        title="Voir les détails complets"
+                                                    >
+                                                        {sound.title}
+                                                    </Link>
+                                                </h6>
+
+                                                {/* Artiste */}
+                                                {sound.artist && (
+                                                    <div className="mb-2">
+                                                        <small className="text-muted">
+                                                            Par{' '}
+                                                            {sound.artist_id ? (
+                                                                <Link
+                                                                    to={`/artists/${sound.artist_id}`}
+                                                                    className="text-decoration-none text-primary hover-link"
+                                                                >
+                                                                    <strong>{sound.artist}</strong>
+                                                                </Link>
+                                                            ) : (
+                                                                <strong>{sound.artist}</strong>
+                                                            )}
+                                                        </small>
+                                                    </div>
+                                                )}
 
                                                 {/* Métadonnées du son */}
                                                 <div className="d-flex align-items-center gap-2 mb-3">
@@ -878,15 +923,48 @@ const Home = () => {
 
                                                     <div className="d-flex gap-2">
                                                         <Button
+                                                            as={Link}
+                                                            to={`/sounds/${sound.id}`}
                                                             variant="primary"
                                                             size="sm"
                                                             className="btn-details rounded-pill"
                                                             style={{ fontSize: '0.8rem' }}
-                                                            onClick={() => handleViewDetails(sound)}
                                                         >
                                                             <FontAwesomeIcon icon={faEye} className="me-1" />
-                                                            Détails
+                                                            Voir plus
                                                         </Button>
+
+                                                        {!sound.is_free && sound.price > 0 && (
+                                                            <Button
+                                                                variant="outline-success"
+                                                                size="sm"
+                                                                className="rounded-pill"
+                                                                style={{ fontSize: '0.8rem' }}
+                                                                onClick={() => handleAddToCart(sound)}
+                                                                id={`cart-button-${sound.id}`}
+                                                            >
+                                                                <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
+                                                                Acheter
+                                                            </Button>
+                                                        )}
+
+                                                        {(sound.is_free || sound.price === 0) && (
+                                                            <Button
+                                                                variant="outline-success"
+                                                                size="sm"
+                                                                className="rounded-pill"
+                                                                style={{ fontSize: '0.8rem' }}
+                                                                onClick={() => handleDownload(sound)}
+                                                                disabled={downloadingTracks.has(sound.id)}
+                                                            >
+                                                                {downloadingTracks.has(sound.id) ? (
+                                                                    <Spinner as="span" animation="border" size="sm" className="me-1" />
+                                                                ) : (
+                                                                    <FontAwesomeIcon icon={faDownload} className="me-1" />
+                                                                )}
+                                                                {downloadingTracks.has(sound.id) ? 'Téléchargement...' : 'Télécharger'}
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </Card.Body>
@@ -1028,11 +1106,24 @@ const Home = () => {
                                 />
                                 <div className="flex-grow-1">
                                     <h6 className="fw-bold mb-1">{currentPlaying.title}</h6>
+                                    <div className="d-flex gap-2 align-items-center">
                                     {currentPlaying.genre && (
                                         <Badge bg="light" text="dark" className="small">
                                             {currentPlaying.genre}
                                         </Badge>
                                     )}
+                                        {(currentPlaying.is_free || currentPlaying.price === 0) ? (
+                                            <Badge bg="success" className="small">
+                                                <FontAwesomeIcon icon={faHeart} className="me-1" />
+                                                Gratuit - Lecture complète
+                                            </Badge>
+                                        ) : (
+                                            <Badge bg="warning" className="small">
+                                                <FontAwesomeIcon icon={faStopwatch} className="me-1" />
+                                                Prévisualisation 20s
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
                                 <Button
                                     variant="outline-secondary"
@@ -1160,12 +1251,12 @@ const Home = () => {
 
                                 <Button
                                     as={Link}
-                                    to={`/sound/${currentPlaying.id}`}
+                                    to={`/sounds/${currentPlaying.id}`}
                                     variant="outline-primary"
                                     size="sm"
                                 >
                                     <FontAwesomeIcon icon={faEye} className="me-1" />
-                                    Voir détails
+                                    Page complète
                                 </Button>
                             </div>
                         </Card.Body>
@@ -1775,6 +1866,31 @@ const Home = () => {
                     100% {
                         transform: scale(1);
                     }
+                }
+
+                /* Styles pour les liens hover */
+                .hover-link {
+                    transition: all 0.3s ease;
+                }
+
+                .hover-link:hover {
+                    color: #8B5CF6 !important;
+                    transform: translateY(-1px);
+                }
+
+                /* Style pour les badges de type de lecture */
+                .audio-player-card .badge {
+                    font-weight: 500;
+                    font-size: 0.7rem;
+                }
+
+                .audio-player-card .badge.bg-success {
+                    background-color: #10B981 !important;
+                }
+
+                .audio-player-card .badge.bg-warning {
+                    background-color: #F59E0B !important;
+                    color: white !important;
                 }
 
                 /* Styles pour le conteneur des catégories */

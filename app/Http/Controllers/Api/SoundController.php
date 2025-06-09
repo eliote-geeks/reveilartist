@@ -787,12 +787,40 @@ class SoundController extends Controller
             // Validation
             $validator = Validator::make($request->all(), [
                 'title' => 'sometimes|required|string|max:255',
-                'description' => 'nullable|string',
+                'description' => 'nullable|string|max:2000',
                 'category_id' => 'sometimes|required|exists:categories,id',
                 'genre' => 'nullable|string|max:100',
                 'price' => 'nullable|numeric|min:0',
                 'is_free' => 'boolean',
-                'audio_file' => 'nullable|file|mimes:mp3,wav,m4a,aac,flac', // Pas de limite de taille temporaire
+                'is_featured' => 'boolean',
+                'status' => 'nullable|in:draft,pending,published,rejected',
+                'bpm' => 'nullable|string|max:20',
+                'key' => 'nullable|string|max:20',
+                'credits' => 'nullable|string|max:1000',
+                'tags' => 'nullable|array',
+                'tags.*' => 'string',
+
+                // Champs de licence
+                'license_type' => 'nullable|string|max:255',
+                'copyright_owner' => 'nullable|string|max:255',
+                'composer' => 'nullable|string|max:255',
+                'performer' => 'nullable|string|max:255',
+                'producer' => 'nullable|string|max:255',
+                'release_date' => 'nullable|date',
+                'isrc_code' => 'nullable|string|max:255',
+                'publishing_rights' => 'nullable|string|max:1000',
+                'rights_statement' => 'nullable|string|max:2000',
+
+                // Droits d'utilisation
+                'commercial_use' => 'boolean',
+                'attribution_required' => 'boolean',
+                'modifications_allowed' => 'boolean',
+                'distribution_allowed' => 'boolean',
+                'license_duration' => 'nullable|string|max:255',
+                'territory' => 'nullable|string|max:255',
+
+                // Fichiers
+                'audio_file' => 'nullable|file|mimes:mp3,wav,m4a,aac,flac',
                 'cover_image' => 'nullable|file|image|max:5120',
             ]);
 
@@ -806,6 +834,8 @@ class SoundController extends Controller
 
             // Mise à jour des champs
             $updateData = [];
+
+            // Champs principaux
             if ($request->has('title')) {
                 $updateData['title'] = $request->title;
                 $updateData['slug'] = Str::slug($request->title);
@@ -822,6 +852,81 @@ class SoundController extends Controller
             if ($request->has('price') || $request->has('is_free')) {
                 $updateData['price'] = $request->boolean('is_free') ? 0 : ($request->price ?? 0);
                 $updateData['is_free'] = $request->boolean('is_free');
+            }
+
+            // Statut (seulement pour les admins)
+            if ($request->has('status') && $user->role === 'admin') {
+                $updateData['status'] = $request->status;
+            }
+
+            // Champs techniques
+            if ($request->has('bpm')) {
+                $updateData['bpm'] = $request->bpm;
+            }
+            if ($request->has('key')) {
+                $updateData['key'] = $request->key;
+            }
+            if ($request->has('credits')) {
+                $updateData['credits'] = $request->credits;
+            }
+            if ($request->has('tags')) {
+                $updateData['tags'] = is_array($request->tags)
+                    ? json_encode($request->tags)
+                    : json_encode(array_map('trim', explode(',', $request->tags)));
+            }
+
+            // Champs de licence
+            if ($request->has('license_type')) {
+                $updateData['license_type'] = $request->license_type;
+            }
+            if ($request->has('copyright_owner')) {
+                $updateData['copyright_owner'] = $request->copyright_owner;
+            }
+            if ($request->has('composer')) {
+                $updateData['composer'] = $request->composer;
+            }
+            if ($request->has('performer')) {
+                $updateData['performer'] = $request->performer;
+            }
+            if ($request->has('producer')) {
+                $updateData['producer'] = $request->producer;
+            }
+            if ($request->has('release_date')) {
+                $updateData['release_date'] = $request->release_date;
+            }
+            if ($request->has('isrc_code')) {
+                $updateData['isrc_code'] = $request->isrc_code;
+            }
+            if ($request->has('publishing_rights')) {
+                $updateData['publishing_rights'] = $request->publishing_rights;
+            }
+            if ($request->has('rights_statement')) {
+                $updateData['rights_statement'] = $request->rights_statement;
+            }
+
+            // Droits d'utilisation
+            if ($request->has('commercial_use')) {
+                $updateData['commercial_use'] = $request->boolean('commercial_use');
+            }
+            if ($request->has('attribution_required')) {
+                $updateData['attribution_required'] = $request->boolean('attribution_required');
+            }
+            if ($request->has('modifications_allowed')) {
+                $updateData['modifications_allowed'] = $request->boolean('modifications_allowed');
+            }
+            if ($request->has('distribution_allowed')) {
+                $updateData['distribution_allowed'] = $request->boolean('distribution_allowed');
+            }
+            if ($request->has('license_duration')) {
+                $updateData['license_duration'] = $request->license_duration;
+            }
+            if ($request->has('territory')) {
+                $updateData['territory'] = $request->territory;
+            }
+
+            // Featured (seulement pour les admins)
+            if ($request->has('is_featured') && $user->role === 'admin') {
+                $updateData['is_featured'] = $request->boolean('is_featured');
             }
 
             // Upload nouveau fichier audio si fourni

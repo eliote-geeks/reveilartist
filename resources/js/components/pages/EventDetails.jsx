@@ -28,8 +28,18 @@ import {
     faEnvelope,
     faPhone,
     faPlus,
-    faMinus
+    faMinus,
+    faGlobe,
+    faMoneyBillWave,
+    faUserFriends,
+    faExclamationTriangle,
+    faThumbsUp
 } from '@fortawesome/free-solid-svg-icons';
+import {
+    faFacebook,
+    faInstagram,
+    faTwitter
+} from '@fortawesome/free-brands-svg-icons';
 import LoadingScreen from '../common/LoadingScreen';
 import { AnimatedElement } from '../common/PageTransition';
 import FloatingActionButton from '../common/FloatingActionButton';
@@ -51,6 +61,27 @@ const EventDetails = () => {
     const toast = useToast();
     const { token, user } = useAuth();
 
+    // Fonction helper pour parser JSON en toute sécurité
+    const safeJsonParse = (value, fallback = []) => {
+        if (!value) return fallback;
+        if (typeof value !== 'string') return value;
+
+        try {
+            return JSON.parse(value);
+        } catch (error) {
+            console.warn('Erreur parsing JSON:', error, 'Valeur:', value);
+            // Si c'est une string simple séparée par des virgules, on la transforme en array
+            if (typeof value === 'string' && value.includes(',')) {
+                return value.split(',').map(item => item.trim()).filter(item => item.length > 0);
+            }
+            // Si c'est une string simple, on la met dans un array
+            if (typeof value === 'string' && value.trim().length > 0) {
+                return [value.trim()];
+            }
+            return fallback;
+        }
+    };
+
     useEffect(() => {
         loadEvent();
     }, [id]);
@@ -68,19 +99,36 @@ const EventDetails = () => {
                     ...eventData,
                     // S'assurer que les URLs d'images sont correctes
                     poster_image_url: eventData.poster_image ? `/storage/${eventData.poster_image}` : null,
-                    // Décoder les artistes et sponsors depuis JSON si ils existent
-                    artists_array: eventData.artists ? (
-                        typeof eventData.artists === 'string' ? JSON.parse(eventData.artists) : eventData.artists
-                    ) : [],
-                    sponsors_array: eventData.sponsors ? (
-                        typeof eventData.sponsors === 'string' ? JSON.parse(eventData.sponsors) : eventData.sponsors
-                    ) : [],
-                    // Décoder les images de galerie si elles existent
-                    gallery_images_array: eventData.gallery_images ? (
-                        typeof eventData.gallery_images === 'string' ? JSON.parse(eventData.gallery_images) : eventData.gallery_images
-                    ) : [],
+                    featured_image_url: eventData.featured_image ? `/storage/${eventData.featured_image}` : null,
+
+                    // Décoder les artistes et sponsors depuis JSON avec gestion d'erreur
+                    artists_array: safeJsonParse(eventData.artists, []),
+                    sponsors_array: safeJsonParse(eventData.sponsors, []),
+
+                    // Décoder les images de galerie avec gestion d'erreur
+                    gallery_images_array: safeJsonParse(eventData.gallery_images, []),
+
+                    // Décoder les types de billets avec gestion d'erreur
+                    tickets_array: safeJsonParse(eventData.tickets, []),
+
+                    // Décoder les liens sociaux avec gestion d'erreur
+                    social_links_array: safeJsonParse(eventData.social_links, []),
+
                     // Calculer le nombre de places restantes
-                    remaining_spots: (eventData.max_attendees || 0) - (eventData.current_attendees || 0)
+                    remaining_spots: (eventData.max_attendees || eventData.capacity || 0) - (eventData.current_attendees || 0),
+
+                    // Formatage des dates
+                    formatted_date: eventData.event_date ? new Date(eventData.event_date).toLocaleDateString('fr-FR', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    }) : null,
+
+                    // Formatage des prix
+                    price_range: eventData.price_min && eventData.price_max ?
+                        `${formatCurrency(eventData.price_min)} - ${formatCurrency(eventData.price_max)}` :
+                        (eventData.ticket_price ? formatCurrency(eventData.ticket_price) : 'Gratuit')
                 };
 
                 setEvent(adaptedEvent);
@@ -196,21 +244,21 @@ const EventDetails = () => {
         if (!event) return;
 
         // Pour les événements payants, ajouter un billet standard
-        if (!event.is_free && event.ticket_price) {
+        if (!event.is_free && (event.ticket_price || event.price_min)) {
             const cartItem = {
                 id: event.id,
                 type: 'event',
                 title: event.title,
-                artist: event.artists_array?.[0] || 'Event',
+                artist: event.artist || event.artists_array?.[0] || 'Événement',
                 event_date: event.event_date,
-                venue: event.venue,
+                venue: event.venue || event.location,
                 city: event.city,
                 ticket_type: 'Standard',
-                ticket_price: event.ticket_price,
-                price: event.ticket_price,
+                ticket_price: event.ticket_price || event.price_min,
+                price: event.ticket_price || event.price_min,
                 quantity: 1,
-                poster: event.poster_image_url,
-                max_attendees: event.max_attendees
+                poster: event.poster_image_url || event.featured_image_url,
+                max_attendees: event.max_attendees || event.capacity
             };
 
             addToCart(cartItem);
@@ -222,6 +270,42 @@ const EventDetails = () => {
         }
 
         closeTicketModal();
+    };
+
+    // Fonction pour obtenir le badge de statut
+    const getStatusBadge = (status) => {
+        const statusConfig = {
+            'active': { color: 'success', text: 'Actif' },
+            'published': { color: 'primary', text: 'Publié' },
+            'pending': { color: 'warning', text: 'En attente' },
+            'draft': { color: 'secondary', text: 'Brouillon' },
+            'cancelled': { color: 'danger', text: 'Annulé' },
+            'completed': { color: 'info', text: 'Terminé' }
+        };
+
+        const config = statusConfig[status] || { color: 'secondary', text: status };
+        return <Badge bg={config.color}>{config.text}</Badge>;
+    };
+
+    // Fonction pour obtenir le badge de catégorie
+    const getCategoryBadge = (category) => {
+        const categoryConfig = {
+            'concert': { color: 'primary', icon: faMusic },
+            'festival': { color: 'warning', icon: faStar },
+            'showcase': { color: 'info', icon: faEye },
+            'workshop': { color: 'success', icon: faUsers },
+            'conference': { color: 'dark', icon: faUserFriends },
+            'party': { color: 'danger', icon: faHeart },
+            'soiree': { color: 'secondary', icon: faClock }
+        };
+
+        const config = categoryConfig[category] || { color: 'light', icon: faMusic };
+        return (
+            <Badge bg={config.color} className="d-flex align-items-center gap-1">
+                <FontAwesomeIcon icon={config.icon} />
+                {category}
+            </Badge>
+        );
     };
 
     if (loading) {
@@ -250,7 +334,7 @@ const EventDetails = () => {
                         <Row>
                             <Col md={4}>
                                 <img
-                                    src={event.poster_image_url || event.featured_image || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=300&fit=crop`}
+                                    src={event.poster_image_url || event.featured_image_url || `https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=300&fit=crop`}
                                     alt={event.title}
                                     className="img-fluid rounded"
                                     style={{ width: '100%', height: '200px', objectFit: 'cover' }}
@@ -259,30 +343,40 @@ const EventDetails = () => {
                             <Col md={8}>
                                 <div className="d-flex justify-content-between align-items-start mb-3">
                                     <div>
-                                        <Badge bg={event.status === 'active' ? 'success' : 'secondary'} className="mb-2">
-                                            {event.status === 'active' ? 'Actif' :
-                                             event.status === 'published' ? 'Publié' :
-                                             event.status === 'pending' ? 'En attente' : 'Brouillon'}
-                                        </Badge>
+                                        <div className="d-flex gap-2 mb-2">
+                                            {getStatusBadge(event.status)}
+                                            {getCategoryBadge(event.category)}
+                                            {event.is_featured && (
+                                                <Badge bg="warning" text="dark">
+                                                    <FontAwesomeIcon icon={faStar} className="me-1" />
+                                                    En vedette
+                                                </Badge>
+                                            )}
+                                        </div>
                                         <h4 className="fw-bold">{event.title}</h4>
                                         <p className="text-muted">{event.description}</p>
                                     </div>
                                     {user && user.id === event.user_id && (
-                                    <div className="d-flex gap-2">
-                                        <Button variant="outline-primary" size="sm">
-                                            <FontAwesomeIcon icon={faEdit} />
-                                        </Button>
-                                        <Button variant="outline-secondary" size="sm">
-                                            <FontAwesomeIcon icon={faCopy} />
-                                        </Button>
-                                    </div>
+                                        <div className="d-flex gap-2">
+                                            <Button
+                                                variant="outline-primary"
+                                                size="sm"
+                                                as={Link}
+                                                to={`/events/${event.id}/edit`}
+                                            >
+                                                <FontAwesomeIcon icon={faEdit} />
+                                            </Button>
+                                            <Button variant="outline-secondary" size="sm">
+                                                <FontAwesomeIcon icon={faCopy} />
+                                            </Button>
+                                        </div>
                                     )}
                                 </div>
 
                                 <div className="mb-3">
                                     <div className="d-flex align-items-center mb-2">
                                         <FontAwesomeIcon icon={faCalendarAlt} className="text-primary me-2" />
-                                        <span>{formatDate(event.event_date)} à {event.start_time}</span>
+                                        <span>{event.formatted_date || formatDate(event.event_date)} à {event.start_time}</span>
                                     </div>
                                     {event.end_time && (
                                         <div className="d-flex align-items-center mb-2">
@@ -297,7 +391,7 @@ const EventDetails = () => {
                                     {event.address && (
                                         <div className="d-flex align-items-center">
                                             <FontAwesomeIcon icon={faMapMarkerAlt} className="text-muted me-2" />
-                                            <span className="text-muted small">{event.address}, {event.city}</span>
+                                            <span className="text-muted small">{event.address}, {event.city}, {event.country}</span>
                                         </div>
                                     )}
                                 </div>
@@ -330,6 +424,17 @@ const EventDetails = () => {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Exigences */}
+                                {event.requirements && (
+                                    <div className="mb-3">
+                                        <h6 className="fw-bold mb-2">
+                                            <FontAwesomeIcon icon={faExclamationTriangle} className="me-2 text-warning" />
+                                            Exigences
+                                        </h6>
+                                        <p className="text-muted small">{event.requirements}</p>
+                                    </div>
+                                )}
                             </Col>
                         </Row>
                     </Card.Body>
@@ -337,8 +442,8 @@ const EventDetails = () => {
 
                 {/* Description complète */}
                 {event.description && (
-                <Card className="border-0 shadow-sm mb-4">
-                    <Card.Body>
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
                             <h5 className="fw-bold mb-3">
                                 <FontAwesomeIcon icon={faInfoCircle} className="me-2 text-primary" />
                                 À propos de l'événement
@@ -346,14 +451,40 @@ const EventDetails = () => {
                             <p className="text-muted" style={{ lineHeight: '1.6' }}>
                                 {event.description}
                             </p>
-                    </Card.Body>
-                </Card>
+                        </Card.Body>
+                    </Card>
+                )}
+
+                {/* Types de billets */}
+                {event.tickets_array && event.tickets_array.length > 0 && (
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
+                            <h5 className="fw-bold mb-3">
+                                <FontAwesomeIcon icon={faTicketAlt} className="me-2 text-primary" />
+                                Types de billets
+                            </h5>
+                            {event.tickets_array.map((ticket, index) => (
+                                <div key={index} className="border rounded p-3 mb-2">
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 className="fw-bold mb-1">{ticket.type}</h6>
+                                            <p className="text-muted small mb-0">{ticket.description}</p>
+                                        </div>
+                                        <div className="text-end">
+                                            <div className="fw-bold text-primary">{formatCurrency(ticket.price)}</div>
+                                            <small className="text-muted">{ticket.available} places</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </Card.Body>
+                    </Card>
                 )}
 
                 {/* Galerie d'images */}
                 {event.gallery_images_array && event.gallery_images_array.length > 0 && (
                     <Card className="border-0 shadow-sm mb-4">
-                    <Card.Body>
+                        <Card.Body>
                             <h5 className="fw-bold mb-3">
                                 <FontAwesomeIcon icon={faEye} className="me-2 text-primary" />
                                 Galerie
@@ -370,8 +501,66 @@ const EventDetails = () => {
                                     </Col>
                                 ))}
                             </Row>
-                    </Card.Body>
-                </Card>
+                        </Card.Body>
+                    </Card>
+                )}
+
+                {/* Réseaux sociaux */}
+                {(event.facebook_url || event.instagram_url || event.twitter_url || event.website_url || (event.social_links_array && event.social_links_array.length > 0)) && (
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
+                            <h5 className="fw-bold mb-3">
+                                <FontAwesomeIcon icon={faShare} className="me-2 text-primary" />
+                                Suivez-nous
+                            </h5>
+                            <div className="d-flex gap-3">
+                                {event.website_url && (
+                                    <Button
+                                        variant="outline-primary"
+                                        href={event.website_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <FontAwesomeIcon icon={faGlobe} className="me-2" />
+                                        Site web
+                                    </Button>
+                                )}
+                                {event.facebook_url && (
+                                    <Button
+                                        variant="outline-primary"
+                                        href={event.facebook_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ backgroundColor: '#1877f2', borderColor: '#1877f2', color: 'white' }}
+                                    >
+                                        <FontAwesomeIcon icon={faFacebook} />
+                                    </Button>
+                                )}
+                                {event.instagram_url && (
+                                    <Button
+                                        variant="outline-primary"
+                                        href={event.instagram_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ backgroundColor: '#E4405F', borderColor: '#E4405F', color: 'white' }}
+                                    >
+                                        <FontAwesomeIcon icon={faInstagram} />
+                                    </Button>
+                                )}
+                                {event.twitter_url && (
+                                    <Button
+                                        variant="outline-primary"
+                                        href={event.twitter_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ backgroundColor: '#1da1f2', borderColor: '#1da1f2', color: 'white' }}
+                                    >
+                                        <FontAwesomeIcon icon={faTwitter} />
+                                    </Button>
+                                )}
+                            </div>
+                        </Card.Body>
+                    </Card>
                 )}
             </Col>
 
@@ -381,12 +570,37 @@ const EventDetails = () => {
                     <Card.Body>
                         <h5 className="fw-bold mb-3">Actions</h5>
                         <div className="d-grid gap-2">
-                            {!event.is_free && event.ticket_price && (
+                            <Button
+                                variant={isFavorite ? "danger" : "outline-danger"}
+                                onClick={handleToggleFavorite}
+                                disabled={!token}
+                            >
+                                <FontAwesomeIcon icon={faHeart} className="me-2" />
+                                {isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                            </Button>
+
+                            {!event.is_free && (event.ticket_price || event.price_min) && (
                                 <Button variant="primary" onClick={openTicketModal}>
                                     <FontAwesomeIcon icon={faTicketAlt} className="me-2" />
                                     Acheter des billets
                                 </Button>
                             )}
+
+                            <Button variant="outline-secondary" onClick={() => {
+                                if (navigator.share) {
+                                    navigator.share({
+                                        title: event.title,
+                                        text: `Découvrez l'événement "${event.title}"`,
+                                        url: window.location.href,
+                                    });
+                                } else {
+                                    navigator.clipboard.writeText(window.location.href);
+                                    toast.success('Lien copié', 'Le lien a été copié dans le presse-papiers');
+                                }
+                            }}>
+                                <FontAwesomeIcon icon={faShare} className="me-2" />
+                                Partager
+                            </Button>
                         </div>
                     </Card.Body>
                 </Card>
@@ -394,19 +608,22 @@ const EventDetails = () => {
                 {/* Informations de prix */}
                 <Card className="border-0 shadow-sm mb-4">
                     <Card.Body>
-                        <h5 className="fw-bold mb-3">Tarification</h5>
+                        <h5 className="fw-bold mb-3">
+                            <FontAwesomeIcon icon={faMoneyBillWave} className="me-2" />
+                            Tarification
+                        </h5>
                         {event.is_free ? (
                             <div className="text-center py-3">
                                 <h3 className="text-success fw-bold">Gratuit</h3>
                                 <p className="text-muted mb-0">Entrée libre</p>
                             </div>
                         ) : (
-                        <div className="text-center">
+                            <div className="text-center">
                                 <div className="fw-bold text-primary fs-4 mb-2">
-                                    {formatCurrency(event.ticket_price)}
+                                    {event.price_range || (event.ticket_price ? formatCurrency(event.ticket_price) : 'Prix à définir')}
                                 </div>
                                 <small className="text-muted">
-                                    Billet Standard
+                                    {event.price_min && event.price_max ? 'Gamme de prix' : 'Billet Standard'}
                                 </small>
                             </div>
                         )}
@@ -415,8 +632,8 @@ const EventDetails = () => {
 
                 {/* Informations de contact */}
                 {(event.contact_email || event.contact_phone) && (
-                <Card className="border-0 shadow-sm mb-4">
-                    <Card.Body>
+                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
                             <h5 className="fw-bold mb-3">Contact</h5>
                             {event.contact_email && (
                                 <div className="d-flex align-items-center mb-2">
@@ -424,7 +641,7 @@ const EventDetails = () => {
                                     <a href={`mailto:${event.contact_email}`} className="text-decoration-none">
                                         {event.contact_email}
                                     </a>
-                                        </div>
+                                </div>
                             )}
                             {event.contact_phone && (
                                 <div className="d-flex align-items-center">
@@ -432,16 +649,19 @@ const EventDetails = () => {
                                     <a href={`tel:${event.contact_phone}`} className="text-decoration-none">
                                         {event.contact_phone}
                                     </a>
-                                        </div>
+                                </div>
                             )}
-                    </Card.Body>
-                </Card>
+                        </Card.Body>
+                    </Card>
                 )}
 
                 {/* Statistiques */}
                 <Card className="border-0 shadow-sm">
                     <Card.Body>
-                        <h5 className="fw-bold mb-3">Statistiques</h5>
+                        <h5 className="fw-bold mb-3">
+                            <FontAwesomeIcon icon={faChartLine} className="me-2" />
+                            Statistiques
+                        </h5>
                         <div className="d-flex justify-content-between align-items-center mb-2">
                             <span className="text-muted">Vues</span>
                             <span className="fw-bold">{event.views_count || 0}</span>
@@ -464,10 +684,16 @@ const EventDetails = () => {
                                 <span className="fw-bold text-success">{Math.max(0, event.remaining_spots)}</span>
                             </div>
                         )}
-                        <div className="d-flex justify-content-between align-items-center">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
                             <span className="text-muted">Catégorie</span>
-                            <Badge bg="secondary">{event.category}</Badge>
+                            {getCategoryBadge(event.category)}
                         </div>
+                        {event.revenue !== undefined && event.revenue > 0 && (
+                            <div className="d-flex justify-content-between align-items-center">
+                                <span className="text-muted">Revenus</span>
+                                <span className="fw-bold text-success">{formatCurrency(event.revenue)}</span>
+                            </div>
+                        )}
                     </Card.Body>
                 </Card>
             </Col>
@@ -493,7 +719,7 @@ const EventDetails = () => {
                                     <div>
                                         <h1 className="h4 fw-bold mb-1">{event.title}</h1>
                                         <p className="text-muted mb-0">
-                                            {formatDate(event.event_date)} • {event.venue || event.location}
+                                            {event.formatted_date || formatDate(event.event_date)} • {event.venue || event.location}
                                         </p>
                                     </div>
                                 </div>
@@ -528,7 +754,7 @@ const EventDetails = () => {
                                 <div className="d-flex gap-3 small text-muted">
                                     <span>
                                         <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
-                                        {formatDate(event.event_date)}
+                                        {event.formatted_date || formatDate(event.event_date)}
                                     </span>
                                     <span>
                                         <FontAwesomeIcon icon={faClock} className="me-1" />
@@ -541,33 +767,70 @@ const EventDetails = () => {
                                 </div>
                             </div>
 
-                            <h6 className="fw-bold mb-3">Billet disponible</h6>
-                            {!event.is_free && event.ticket_price ? (
-                                <div className="border rounded p-3 mb-3">
-                                    <Row className="align-items-center">
-                                        <Col md={6}>
-                                            <h6 className="fw-bold mb-1">Billet Standard</h6>
-                                            <div className="text-primary fw-bold fs-5">
-                                                {formatCurrency(event.ticket_price)}
-                                            </div>
-                                            <small className="text-muted">
-                                                {event.remaining_spots > 0 ?
-                                                    `${event.remaining_spots} places disponibles` :
-                                                    'Places limitées'
-                                                }
-                                            </small>
-                                        </Col>
-                                        <Col md={6} className="text-end">
-                                            <Button
-                                                variant="primary"
-                                                onClick={handleAddToCart}
-                                                disabled={event.remaining_spots <= 0}
-                                            >
-                                                <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
-                                                Ajouter au panier
-                                            </Button>
-                                        </Col>
-                                    </Row>
+                            {event.tickets_array && event.tickets_array.length > 0 ? (
+                                <div>
+                                    <h6 className="fw-bold mb-3">Billets disponibles</h6>
+                                    {event.tickets_array.map((ticket, index) => (
+                                        <div key={index} className="border rounded p-3 mb-3">
+                                            <Row className="align-items-center">
+                                                <Col md={6}>
+                                                    <h6 className="fw-bold mb-1">{ticket.type}</h6>
+                                                    <div className="text-primary fw-bold fs-5">
+                                                        {formatCurrency(ticket.price)}
+                                                    </div>
+                                                    <small className="text-muted">{ticket.description}</small>
+                                                    <div className="mt-1">
+                                                        <small className="text-muted">
+                                                            {ticket.available > 0 ?
+                                                                `${ticket.available} places disponibles` :
+                                                                'Places limitées'
+                                                            }
+                                                        </small>
+                                                    </div>
+                                                </Col>
+                                                <Col md={6} className="text-end">
+                                                    <Button
+                                                        variant="primary"
+                                                        onClick={handleAddToCart}
+                                                        disabled={ticket.available <= 0}
+                                                    >
+                                                        <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
+                                                        Ajouter au panier
+                                                    </Button>
+                                                </Col>
+                                            </Row>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : !event.is_free && (event.ticket_price || event.price_min) ? (
+                                <div>
+                                    <h6 className="fw-bold mb-3">Billet disponible</h6>
+                                    <div className="border rounded p-3 mb-3">
+                                        <Row className="align-items-center">
+                                            <Col md={6}>
+                                                <h6 className="fw-bold mb-1">Billet Standard</h6>
+                                                <div className="text-primary fw-bold fs-5">
+                                                    {event.price_range || formatCurrency(event.ticket_price || event.price_min)}
+                                                </div>
+                                                <small className="text-muted">
+                                                    {event.remaining_spots > 0 ?
+                                                        `${event.remaining_spots} places disponibles` :
+                                                        'Places limitées'
+                                                    }
+                                                </small>
+                                            </Col>
+                                            <Col md={6} className="text-end">
+                                                <Button
+                                                    variant="primary"
+                                                    onClick={handleAddToCart}
+                                                    disabled={event.remaining_spots <= 0}
+                                                >
+                                                    <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
+                                                    Ajouter au panier
+                                                </Button>
+                                            </Col>
+                                        </Row>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="text-center py-3">

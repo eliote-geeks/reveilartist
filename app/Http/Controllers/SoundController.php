@@ -410,10 +410,10 @@ class SoundController extends Controller
                                 ->orderBy('name', 'asc')
                                 ->get(['id', 'name', 'description']);
 
-            return response()->json([
-                'success' => true,
-                'categories' => $categories
-            ]);
+        return response()->json([
+            'success' => true,
+            'categories' => $categories
+        ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

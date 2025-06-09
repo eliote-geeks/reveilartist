@@ -77,30 +77,60 @@ class EventController extends Controller
                 ], 401);
             }
 
-            // Validation des données selon les champs envoyés par AddEvent.jsx
+            // Validation complète des données selon tous les champs de la base
             $validator = Validator::make($request->all(), [
+                // Informations principales
                 'title' => 'required|string|max:255',
-                'description' => 'required|string',
+                'description' => 'required|string|max:3000',
                 'category' => 'required|string|in:concert,festival,showcase,workshop,conference,party,soiree',
-                'event_date' => 'required|date|after_or_equal:today',
-                'start_time' => 'required|string',
-                'end_time' => 'nullable|string',
+                'status' => 'nullable|string|in:draft,pending,published,cancelled,completed,active',
+
+                // Lieu et date
                 'venue' => 'required|string|max:255',
-                'location' => 'required|string|max:255', // AJOUT DU CHAMP OBLIGATOIRE
+                'location' => 'required|string|max:255',
                 'address' => 'required|string|max:500',
                 'city' => 'required|string|max:100',
                 'country' => 'nullable|string|max:100',
+                'event_date' => 'required|date|after_or_equal:today',
+                'start_time' => 'required|date_format:H:i',
+                'end_time' => 'nullable|date_format:H:i|after:start_time',
+
+                // Tarification
                 'is_free' => 'nullable|boolean',
                 'ticket_price' => 'nullable|numeric|min:0',
+                'price_min' => 'nullable|numeric|min:0',
+                'price_max' => 'nullable|numeric|min:0',
+                'tickets' => 'nullable|string',
+
+                // Capacité
+                'capacity' => 'nullable|integer|min:1',
                 'max_attendees' => 'nullable|integer|min:1',
-                'poster_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                'gallery_images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                'artists.*' => 'nullable|string|max:255', // Tableau d'artistes
-                'sponsors.*' => 'nullable|string|max:255', // Tableau de sponsors
-                'requirements' => 'nullable|string',
-                'contact_email' => 'required|email',
+
+                // Artistes et sponsors
+                'artist' => 'nullable|string|max:255',
+                'artists' => 'nullable|string',
+                'sponsors' => 'nullable|string',
+
+                // Contact
                 'contact_phone' => 'required|string|max:20',
-                'website_url' => 'nullable|url'
+                'contact_email' => 'required|email|max:255',
+                'website_url' => 'nullable|url|max:255',
+
+                // Réseaux sociaux
+                'facebook_url' => 'nullable|url|max:255',
+                'instagram_url' => 'nullable|url|max:255',
+                'twitter_url' => 'nullable|url|max:255',
+                'social_links' => 'nullable|string',
+
+                // Médias
+                'poster_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+                'featured_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+                'gallery_images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+
+                // Options avancées
+                'requirements' => 'nullable|string|max:1000',
+                'is_featured' => 'nullable|boolean',
+                'featured' => 'nullable|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -111,42 +141,98 @@ class EventController extends Controller
                 ], 422);
             }
 
-            // Créer l'événement avec les champs existants
-            $eventData = $request->except(['poster_image', 'gallery_images', 'artists', 'sponsors']);
-            $eventData['slug'] = Str::slug($request->title);
-            $eventData['status'] = 'pending'; // En attente de validation (valeur maintenant valide)
-            $eventData['user_id'] = auth('sanctum')->user()->id;
+            $user = auth('sanctum')->user();
 
-            // Assurer les valeurs par défaut pour les champs obligatoires
-            $eventData['country'] = $eventData['country'] ?? 'Cameroun';
-            $eventData['is_featured'] = false;
-            $eventData['featured'] = false;
-            $eventData['is_free'] = $request->boolean('is_free', true);
-            $eventData['current_attendees'] = 0;
-            $eventData['views_count'] = 0;
-            $eventData['revenue'] = 0.00; // Champ obligatoire manquant
+            // Préparer les données de l'événement
+            $eventData = [
+                // Informations principales
+                'title' => $request->title,
+                'slug' => Str::slug($request->title),
+                'description' => $request->description,
+                'category' => $request->category,
+                'status' => $user->role === 'admin' ? ($request->status ?? 'pending') : 'pending',
+                'user_id' => $user->id,
 
-            // Traiter les artistes si fourni (convertir en JSON pour la BDD)
-            if ($request->has('artists') && is_array($request->artists) && !empty($request->artists)) {
-                $eventData['artists'] = json_encode(array_filter($request->artists));
+                // Lieu et date
+                'venue' => $request->venue,
+                'location' => $request->location,
+                'address' => $request->address,
+                'city' => $request->city,
+                'country' => $request->country ?? 'Cameroun',
+                'event_date' => $request->event_date,
+                'start_time' => $request->start_time,
+                'end_time' => $request->end_time,
+
+                // Tarification
+                'is_free' => $request->boolean('is_free', false),
+                'ticket_price' => $request->boolean('is_free') ? null : $request->ticket_price,
+                'price_min' => $request->price_min,
+                'price_max' => $request->price_max,
+                'tickets' => $request->tickets,
+
+                // Capacité
+                'capacity' => $request->capacity,
+                'max_attendees' => $request->max_attendees,
+                'current_attendees' => 0,
+                'views_count' => 0,
+                'revenue' => 0.00,
+
+                // Artistes et sponsors
+                'artist' => $request->artist,
+
+                // Contact
+                'contact_phone' => $request->contact_phone,
+                'contact_email' => $request->contact_email,
+                'website_url' => $request->website_url,
+
+                // Réseaux sociaux
+                'facebook_url' => $request->facebook_url,
+                'instagram_url' => $request->instagram_url,
+                'twitter_url' => $request->twitter_url,
+                'social_links' => $request->social_links,
+
+                // Options avancées
+                'requirements' => $request->requirements,
+                'is_featured' => $user->role === 'admin' ? $request->boolean('is_featured', false) : false,
+                'featured' => $user->role === 'admin' ? $request->boolean('featured', false) : false
+            ];
+
+            // Traitement des artistes (convertir string en JSON)
+            if ($request->artists) {
+                $artists = explode(',', $request->artists);
+                $artists = array_map('trim', $artists);
+                $artists = array_filter($artists);
+                $eventData['artists'] = json_encode($artists);
             }
 
-            // Traiter les sponsors si fourni (convertir en JSON pour la BDD)
-            if ($request->has('sponsors') && is_array($request->sponsors) && !empty($request->sponsors)) {
-                $eventData['sponsors'] = json_encode(array_filter($request->sponsors));
+            // Traitement des sponsors (convertir string en JSON)
+            if ($request->sponsors) {
+                $sponsors = explode(',', $request->sponsors);
+                $sponsors = array_map('trim', $sponsors);
+                $sponsors = array_filter($sponsors);
+                $eventData['sponsors'] = json_encode($sponsors);
             }
 
-            // Gérer l'image poster
+            // Créer l'événement
+            $event = Event::create($eventData);
+
+            // Gérer l'upload de l'image poster
             if ($request->hasFile('poster_image')) {
                 $image = $request->file('poster_image');
                 $imageName = time() . '_poster_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
                 $imagePath = $image->storeAs('events/posters', $imageName, 'public');
-                $eventData['poster_image'] = $imagePath;
+                $event->update(['poster_image' => $imagePath]);
             }
 
-            $event = Event::create($eventData);
+            // Gérer l'upload de l'image principale
+            if ($request->hasFile('featured_image')) {
+                $image = $request->file('featured_image');
+                $imageName = time() . '_featured_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
+                $imagePath = $image->storeAs('events/featured', $imageName, 'public');
+                $event->update(['featured_image' => $imagePath]);
+            }
 
-            // Gérer les images de galerie
+            // Gérer l'upload de la galerie d'images
             if ($request->hasFile('gallery_images')) {
                 $galleryImages = [];
                 foreach ($request->file('gallery_images') as $index => $image) {
@@ -160,7 +246,7 @@ class EventController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Événement créé avec succès ! Il sera disponible après validation.',
-                'event' => $event
+                'event' => $event->fresh()
             ], 201);
 
         } catch (\Exception $e) {
@@ -219,19 +305,60 @@ class EventController extends Controller
                 ], 403);
             }
 
-            // Validation des données
+            // Validation complète des données
             $validator = Validator::make($request->all(), [
+                // Informations principales
                 'title' => 'sometimes|required|string|max:255',
-                'description' => 'sometimes|required|string',
-                'category' => 'sometimes|required|string|in:festival,concert,soiree,showcase,workshop,conference,party',
-                'event_date' => 'sometimes|required|date',
-                'start_time' => 'sometimes|required|string',
-                'end_time' => 'nullable|string',
-                'venue' => 'nullable|string|max:255',
+                'description' => 'sometimes|required|string|max:3000',
+                'category' => 'sometimes|required|string|in:concert,festival,showcase,workshop,conference,party,soiree',
+                'status' => 'nullable|string|in:draft,pending,published,cancelled,completed,active',
+
+                // Lieu et date
+                'venue' => 'sometimes|required|string|max:255',
                 'location' => 'sometimes|required|string|max:255',
+                'address' => 'sometimes|required|string|max:500',
                 'city' => 'sometimes|required|string|max:100',
-                'featured_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-                'poster_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'country' => 'nullable|string|max:100',
+                'event_date' => 'sometimes|required|date',
+                'start_time' => 'sometimes|required|date_format:H:i',
+                'end_time' => 'nullable|date_format:H:i',
+
+                // Tarification
+                'is_free' => 'nullable|boolean',
+                'ticket_price' => 'nullable|numeric|min:0',
+                'price_min' => 'nullable|numeric|min:0',
+                'price_max' => 'nullable|numeric|min:0',
+                'tickets' => 'nullable|string',
+
+                // Capacité
+                'capacity' => 'nullable|integer|min:1',
+                'max_attendees' => 'nullable|integer|min:1',
+
+                // Artistes et sponsors
+                'artist' => 'nullable|string|max:255',
+                'artists' => 'nullable|string',
+                'sponsors' => 'nullable|string',
+
+                // Contact
+                'contact_phone' => 'sometimes|required|string|max:20',
+                'contact_email' => 'sometimes|required|email|max:255',
+                'website_url' => 'nullable|url|max:255',
+
+                // Réseaux sociaux
+                'facebook_url' => 'nullable|url|max:255',
+                'instagram_url' => 'nullable|url|max:255',
+                'twitter_url' => 'nullable|url|max:255',
+                'social_links' => 'nullable|string',
+
+                // Médias
+                'poster_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+                'featured_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+                'gallery_images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+
+                // Options avancées
+                'requirements' => 'nullable|string|max:1000',
+                'is_featured' => 'nullable|boolean',
+                'featured' => 'nullable|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -242,22 +369,142 @@ class EventController extends Controller
                 ], 422);
             }
 
-            $eventData = $request->except(['featured_image', 'poster_image']);
+            // Préparer les données de mise à jour
+            $updateData = [];
 
-            // Gérer l'image principale si fournie
-            if ($request->hasFile('featured_image')) {
-                // Supprimer l'ancienne image
-                if ($event->featured_image) {
-                    Storage::disk('public')->delete($event->featured_image);
-                }
-
-                $image = $request->file('featured_image');
-                $imageName = time() . '_featured_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
-                $imagePath = $image->storeAs('events/featured', $imageName, 'public');
-                $eventData['featured_image'] = $imagePath;
+            // Informations principales
+            if ($request->has('title')) {
+                $updateData['title'] = $request->title;
+                $updateData['slug'] = Str::slug($request->title);
+            }
+            if ($request->has('description')) {
+                $updateData['description'] = $request->description;
+            }
+            if ($request->has('category')) {
+                $updateData['category'] = $request->category;
             }
 
-            // Gérer l'image poster si fournie
+            // Statut (seulement pour les admins)
+            if ($request->has('status') && $user->role === 'admin') {
+                $updateData['status'] = $request->status;
+            }
+
+            // Lieu et date
+            if ($request->has('venue')) {
+                $updateData['venue'] = $request->venue;
+            }
+            if ($request->has('location')) {
+                $updateData['location'] = $request->location;
+            }
+            if ($request->has('address')) {
+                $updateData['address'] = $request->address;
+            }
+            if ($request->has('city')) {
+                $updateData['city'] = $request->city;
+            }
+            if ($request->has('country')) {
+                $updateData['country'] = $request->country;
+            }
+            if ($request->has('event_date')) {
+                $updateData['event_date'] = $request->event_date;
+            }
+            if ($request->has('start_time')) {
+                $updateData['start_time'] = $request->start_time;
+            }
+            if ($request->has('end_time')) {
+                $updateData['end_time'] = $request->end_time;
+            }
+
+            // Tarification
+            if ($request->has('is_free')) {
+                $updateData['is_free'] = $request->boolean('is_free');
+                if ($request->boolean('is_free')) {
+                    $updateData['ticket_price'] = null;
+                }
+            }
+            if ($request->has('ticket_price') && !$request->boolean('is_free')) {
+                $updateData['ticket_price'] = $request->ticket_price;
+            }
+            if ($request->has('price_min')) {
+                $updateData['price_min'] = $request->price_min;
+            }
+            if ($request->has('price_max')) {
+                $updateData['price_max'] = $request->price_max;
+            }
+            if ($request->has('tickets')) {
+                $updateData['tickets'] = $request->tickets;
+            }
+
+            // Capacité
+            if ($request->has('capacity')) {
+                $updateData['capacity'] = $request->capacity;
+            }
+            if ($request->has('max_attendees')) {
+                $updateData['max_attendees'] = $request->max_attendees;
+            }
+
+            // Artistes et sponsors
+            if ($request->has('artist')) {
+                $updateData['artist'] = $request->artist;
+            }
+            if ($request->has('artists')) {
+                $artists = explode(',', $request->artists);
+                $artists = array_map('trim', $artists);
+                $artists = array_filter($artists);
+                $updateData['artists'] = !empty($artists) ? json_encode($artists) : null;
+            }
+            if ($request->has('sponsors')) {
+                $sponsors = explode(',', $request->sponsors);
+                $sponsors = array_map('trim', $sponsors);
+                $sponsors = array_filter($sponsors);
+                $updateData['sponsors'] = !empty($sponsors) ? json_encode($sponsors) : null;
+            }
+
+            // Contact
+            if ($request->has('contact_phone')) {
+                $updateData['contact_phone'] = $request->contact_phone;
+            }
+            if ($request->has('contact_email')) {
+                $updateData['contact_email'] = $request->contact_email;
+            }
+            if ($request->has('website_url')) {
+                $updateData['website_url'] = $request->website_url;
+            }
+
+            // Réseaux sociaux
+            if ($request->has('facebook_url')) {
+                $updateData['facebook_url'] = $request->facebook_url;
+            }
+            if ($request->has('instagram_url')) {
+                $updateData['instagram_url'] = $request->instagram_url;
+            }
+            if ($request->has('twitter_url')) {
+                $updateData['twitter_url'] = $request->twitter_url;
+            }
+            if ($request->has('social_links')) {
+                $updateData['social_links'] = $request->social_links;
+            }
+
+            // Options avancées
+            if ($request->has('requirements')) {
+                $updateData['requirements'] = $request->requirements;
+            }
+            if ($request->has('is_featured') && $user->role === 'admin') {
+                $updateData['is_featured'] = $request->boolean('is_featured');
+            }
+            if ($request->has('featured') && $user->role === 'admin') {
+                $updateData['featured'] = $request->boolean('featured');
+            }
+
+            // Gérer la suppression de l'image poster
+            if ($request->has('remove_poster_image') && $request->remove_poster_image) {
+                if ($event->poster_image) {
+                    Storage::disk('public')->delete($event->poster_image);
+                }
+                $updateData['poster_image'] = null;
+            }
+
+            // Gérer l'upload de l'image poster
             if ($request->hasFile('poster_image')) {
                 // Supprimer l'ancienne image
                 if ($event->poster_image) {
@@ -267,15 +514,71 @@ class EventController extends Controller
                 $image = $request->file('poster_image');
                 $imageName = time() . '_poster_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
                 $imagePath = $image->storeAs('events/posters', $imageName, 'public');
-                $eventData['poster_image'] = $imagePath;
+                $updateData['poster_image'] = $imagePath;
             }
 
-            $event->update($eventData);
+            // Gérer la suppression de l'image principale
+            if ($request->has('remove_featured_image') && $request->remove_featured_image) {
+                if ($event->featured_image) {
+                    Storage::disk('public')->delete($event->featured_image);
+                }
+                $updateData['featured_image'] = null;
+            }
+
+            // Gérer l'upload de l'image principale
+            if ($request->hasFile('featured_image')) {
+                // Supprimer l'ancienne image
+                if ($event->featured_image) {
+                    Storage::disk('public')->delete($event->featured_image);
+                }
+
+                $image = $request->file('featured_image');
+                $imageName = time() . '_featured_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
+                $imagePath = $image->storeAs('events/featured', $imageName, 'public');
+                $updateData['featured_image'] = $imagePath;
+            }
+
+            // Gérer la suppression de la galerie d'images
+            if ($request->has('remove_gallery_images') && $request->remove_gallery_images) {
+                if ($event->gallery_images) {
+                    $oldImages = is_string($event->gallery_images) ? json_decode($event->gallery_images, true) : $event->gallery_images;
+                    if (is_array($oldImages)) {
+                        foreach ($oldImages as $oldImage) {
+                            Storage::disk('public')->delete($oldImage);
+                        }
+                    }
+                }
+                $updateData['gallery_images'] = null;
+            }
+
+            // Gérer l'upload de la galerie d'images
+            if ($request->hasFile('gallery_images')) {
+                // Supprimer les anciennes images de galerie si on remplace
+                if ($event->gallery_images && !$request->has('remove_gallery_images')) {
+                    $oldImages = is_string($event->gallery_images) ? json_decode($event->gallery_images, true) : $event->gallery_images;
+                    if (is_array($oldImages)) {
+                        foreach ($oldImages as $oldImage) {
+                            Storage::disk('public')->delete($oldImage);
+                        }
+                    }
+                }
+
+                $galleryImages = [];
+                foreach ($request->file('gallery_images') as $index => $image) {
+                    $imageName = time() . '_gallery_' . $index . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
+                    $imagePath = $image->storeAs('events/gallery', $imageName, 'public');
+                    $galleryImages[] = $imagePath;
+                }
+                $updateData['gallery_images'] = json_encode($galleryImages);
+            }
+
+            // Mettre à jour l'événement
+            $event->update($updateData);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Événement mis à jour avec succès',
-                'event' => $event
+                'event' => $event->fresh()
             ]);
 
         } catch (\Exception $e) {

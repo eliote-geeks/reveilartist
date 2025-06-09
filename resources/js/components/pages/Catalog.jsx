@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, InputGroup, Badge, Dropdown, Spinner, Alert, ProgressBar } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort, faRefresh, faPlay, faDownload, faEye, faUser, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faFilter, faMusic, faHeart, faShoppingCart, faSort, faRefresh, faPlay, faDownload, faEye, faUser, faCheck, faClock, faStar } from '@fortawesome/free-solid-svg-icons';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -618,13 +618,23 @@ const Catalog = () => {
                                             {/* Titre avec lien vers détails */}
                                             <Card.Title className="mb-2">
                                                 <Link
-                                                    to={`/sound/${sound.id}`}
+                                                    to={`/sounds/${sound.id}`}
                                                     className="text-decoration-none text-dark fw-bold"
                                                     style={{ fontSize: '14px' }}
                                                 >
                                                     {sound.title}
                                                 </Link>
                                             </Card.Title>
+
+                                            {/* Artiste */}
+                                            <div className="mb-2">
+                                                <Link
+                                                    to={`/artist/${sound.artistId}`}
+                                                    className="text-decoration-none text-muted small"
+                                                >
+                                                    par {sound.artist || 'Artiste inconnu'}
+                                                </Link>
+                                            </div>
 
                                             {/* Catégorie et genre */}
                                             <div className="mb-2">
@@ -638,7 +648,49 @@ const Catalog = () => {
                                                         {sound.genre}
                                                     </Badge>
                                                 )}
+                                                {sound.bpm && (
+                                                    <Badge bg="info" className="small ms-1">
+                                                        {sound.bpm} BPM
+                                                    </Badge>
+                                                )}
+                                                {sound.key && (
+                                                    <Badge bg="success" className="small ms-1">
+                                                        {sound.key}
+                                                    </Badge>
+                                                )}
                                             </div>
+
+                                            {/* Durée et tags */}
+                                            <div className="mb-2 small text-muted">
+                                                <div className="d-flex justify-content-between align-items-center">
+                                                    <span>
+                                                        <FontAwesomeIcon icon={faClock} className="me-1" />
+                                                        {sound.duration || 'N/A'}
+                                                    </span>
+                                                    {sound.is_featured && (
+                                                        <Badge bg="warning" text="dark" className="small">
+                                                            <FontAwesomeIcon icon={faStar} className="me-1" />
+                                                            Featured
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Tags */}
+                                            {sound.tags && sound.tags.length > 0 && (
+                                                <div className="mb-2">
+                                                    {sound.tags.slice(0, 3).map((tag, index) => (
+                                                        <Badge key={index} bg="light" text="dark" className="me-1 small">
+                                                            #{tag}
+                                                        </Badge>
+                                                    ))}
+                                                    {sound.tags.length > 3 && (
+                                                        <Badge bg="light" text="dark" className="small">
+                                                            +{sound.tags.length - 3}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {/* Stats */}
                                             <div className="d-flex justify-content-between align-items-center mb-2 small text-muted">
@@ -681,6 +733,19 @@ const Catalog = () => {
                                                     title="Voir les détails"
                                                 >
                                                     <FontAwesomeIcon icon={faEye} />
+                                                </Button>
+
+                                                {/* Bouton Naviguer vers la page de détails */}
+                                                <Button
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    className="action-btn rounded-circle"
+                                                    style={{ width: '32px', height: '32px', padding: 0 }}
+                                                    as={Link}
+                                                    to={`/sounds/${sound.id}`}
+                                                    title="Page complète"
+                                                >
+                                                    <FontAwesomeIcon icon={faUser} />
                                                 </Button>
 
                                                 {/* Bouton principal selon le statut */}

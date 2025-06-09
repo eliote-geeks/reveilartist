@@ -786,7 +786,7 @@ const Cart = () => {
                                                     <th className="border-0 p-3 text-center" width="50">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                                                                        <tbody>
                                                 {eventItems.map(item => (
                                                     <tr key={`event-${item.id}`} className="border-bottom">
                                                         <td className="p-3">
@@ -799,9 +799,18 @@ const Cart = () => {
                                                                 />
                                                                 <div>
                                                                     <h6 className="fw-bold mb-1">{item.title}</h6>
+                                                                    <div className="d-flex align-items-center gap-2 mb-1">
+                                                                        <Badge bg="primary" className="small">{item.ticket_type}</Badge>
+                                                                        {item.ticket_description && (
+                                                                            <small className="text-muted">{item.ticket_description}</small>
+                                                                        )}
+                                                                    </div>
                                                                     <p className="text-muted mb-1 small">
                                                                         <FontAwesomeIcon icon={faCalendarAlt} className="me-1" />
                                                                         {new Date(item.event_date).toLocaleDateString('fr-FR')}
+                                                                        {item.start_time && (
+                                                                            <> à {item.start_time}</>
+                                                                        )}
                                                                     </p>
                                                                     <p className="text-muted mb-0 small">
                                                                         <FontAwesomeIcon icon={faMapMarkerAlt} className="me-1" />
@@ -812,6 +821,7 @@ const Cart = () => {
                                                         </td>
                                                         <td className="p-3 text-center">
                                                             <span className="fw-bold">{formatCurrency(item.ticket_price)}</span>
+                                                            <div className="small text-muted">{item.ticket_type}</div>
                                                         </td>
                                                         <td className="p-3 text-center">
                                                             <div className="d-flex align-items-center justify-content-center">
@@ -832,13 +842,18 @@ const Cart = () => {
                                                                     variant="outline-primary"
                                                                     size="sm"
                                                                     onClick={() => handleUpdateQuantity(item.id, item.type, item.quantity + 1)}
-                                                                    disabled={item.max_attendees && item.quantity >= item.max_attendees}
+                                                                    disabled={item.available_tickets && item.quantity >= item.available_tickets}
                                                                     className="rounded-circle p-1"
                                                                     style={{ width: '32px', height: '32px' }}
                                                                 >
                                                                     <FontAwesomeIcon icon={faPlus} style={{ fontSize: '10px' }} />
                                                                 </Button>
                                                             </div>
+                                                            {item.available_tickets && (
+                                                                <div className="small text-muted mt-1">
+                                                                    {item.available_tickets} restantes
+                                                                </div>
+                                                            )}
                                                         </td>
                                                         <td className="p-3 text-center">
                                                             <span className="fw-bold text-success">

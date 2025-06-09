@@ -48,8 +48,10 @@ import AuthTest from './pages/AuthTest';
 
 // Import des pages d'ajout/gestion
 import AddSound from './pages/AddSound';
-import AddEvent from './pages/AddEvent';
-import EditSound from './pages/EditSound';
+import AddEvent from './pages/AddEventComplete';
+// import AddEventComplete from './pages/';
+import EditSound from './pages/EditSoundSimple';
+// import EditSoundSimple from './pages/EditSoundSimple';
 import EditEvent from './pages/EditEvent';
 import Cart from './pages/Cart';
 import TicketPurchase from './pages/TicketPurchase';

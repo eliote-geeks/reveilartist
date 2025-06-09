@@ -166,9 +166,9 @@ const AddSound = () => {
             }));
         } else {
             setFormData((prev) => ({
-                ...prev,
+            ...prev,
                 [name]: type === "checkbox" ? checked : value,
-            }));
+        }));
         }
 
         if (errors[name]) {
@@ -379,10 +379,10 @@ const AddSound = () => {
                     if (prev >= 90) {
                         clearInterval(progressInterval);
                         return 90;
-                    }
-                    return prev + 10;
-                });
-            }, 200);
+                }
+                return prev + 10;
+            });
+        }, 200);
 
             const response = await fetch("/api/sounds", {
                 method: "POST",
@@ -478,8 +478,8 @@ const AddSound = () => {
                                     </h5>
                                 </Card.Header>
                                 <Card.Body>
-                                    {!formData.audio_file ? (
-                                        <div
+                {!formData.audio_file ? (
+                    <div
                                             className="upload-zone border-2 border-dashed rounded p-4 text-center"
                                             style={{
                                                 borderColor: "#007bff",
@@ -487,76 +487,76 @@ const AddSound = () => {
                                                 backgroundColor: "#f8f9fa",
                                             }}
                                             onClick={() => document.getElementById("audioFile").click()}
-                                        >
-                                            <FontAwesomeIcon icon={faMusic} size="3x" className="text-primary mb-3" />
+                    >
+                        <FontAwesomeIcon icon={faMusic} size="3x" className="text-primary mb-3" />
                                             <h5 className="mb-2">Cliquez ici pour sélectionner votre fichier audio</h5>
-                                            <p className="text-muted mb-0">
+                        <p className="text-muted mb-0">
                                                 Formats supportés : MP3, WAV, M4A, AAC, FLAC (max 20MB)
-                                            </p>
-                                            <Form.Control
-                                                id="audioFile"
-                                                type="file"
-                                                accept="audio/*"
+                        </p>
+                        <Form.Control
+                            id="audioFile"
+                            type="file"
+                            accept="audio/*"
                                                 onChange={(e) => handleFileUpload(e, "audio")}
                                                 style={{ display: "none" }}
-                                            />
-                                        </div>
-                                    ) : (
+                        />
+                    </div>
+                ) : (
                                         <div className="bg-light rounded p-3">
-                                            <div className="d-flex align-items-center justify-content-between mb-3">
-                                                <div className="d-flex align-items-center">
-                                                    <FontAwesomeIcon icon={faMusic} className="text-success me-3" size="2x" />
+                        <div className="d-flex align-items-center justify-content-between mb-3">
+                            <div className="d-flex align-items-center">
+                                <FontAwesomeIcon icon={faMusic} className="text-success me-3" size="2x" />
                                                     <div>
                                                         <h6 className="mb-1">{formData.audio_file.name}</h6>
-                                                        <small className="text-muted">
-                                                            {(formData.audio_file.size / 1024 / 1024).toFixed(2)} MB
-                                                            {previews.audioDuration > 0 && ` • ${formatDuration(previews.audioDuration)}`}
-                                                        </small>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    variant="outline-danger"
+                                    <small className="text-muted">
+                                        {(formData.audio_file.size / 1024 / 1024).toFixed(2)} MB
+                                        {previews.audioDuration > 0 && ` • ${formatDuration(previews.audioDuration)}`}
+                                    </small>
+                                </div>
+                            </div>
+                        <Button
+                                variant="outline-danger"
                                                     size="sm"
                                                     onClick={() => removeFile("audio")}
-                                                >
-                                                    <FontAwesomeIcon icon={faTimes} />
-                                                </Button>
-                                            </div>
-                                            {previews.audio && (
+                            >
+                                <FontAwesomeIcon icon={faTimes} />
+                        </Button>
+                        </div>
+                        {previews.audio && (
                                                 <div>
-                                                    <audio ref={audioRef} src={previews.audio} className="d-none" />
-                                                    <Button
-                                                        variant="outline-primary"
-                                                        onClick={toggleAudioPreview}
+                                <audio ref={audioRef} src={previews.audio} className="d-none" />
+                                <Button
+                                    variant="outline-primary"
+                                    onClick={toggleAudioPreview}
                                                         size="sm"
-                                                    >
-                                                        <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} className="me-2" />
+                                >
+                                    <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} className="me-2" />
                                                         {isPlaying ? "Pause" : "Écouter"}
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    {errors.audio_file && (
+                                </Button>
+                    </div>
+                        )}
+            </div>
+                )}
+                {errors.audio_file && (
                                         <div className="text-danger small mt-2">
                                             <FontAwesomeIcon icon={faTimes} className="me-1" />
-                                            {errors.audio_file}
+                        {errors.audio_file}
                                         </div>
-                                    )}
-                                </Card.Body>
-                            </Card>
+                )}
+            </Card.Body>
+        </Card>
 
                             {/* Informations de base */}
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white">
                                     <h5 className="fw-bold mb-0">
                                         <FontAwesomeIcon icon={faInfoCircle} className="me-2 text-primary" />
-                                        Informations de base
+                    Informations de base
                                     </h5>
                                 </Card.Header>
                                 <Card.Body>
                                     <Row className="g-3">
-                                        <Col md={8}>
+                    <Col md={8}>
                                             <Form.Group>
                                                 <Form.Label>Titre du son *</Form.Label>
                                                 <Form.Control
@@ -566,14 +566,14 @@ const AddSound = () => {
                                                     onChange={handleInputChange}
                                                     placeholder="Ex: Beat Afro Moderne 2024"
                                                     isInvalid={!!errors.title}
-                                                    size="lg"
+                                size="lg"
                                                 />
                                                 <Form.Control.Feedback type="invalid">
                                                     {errors.title}
                                                 </Form.Control.Feedback>
                                             </Form.Group>
                                         </Col>
-                                        <Col md={4}>
+                    <Col md={4}>
                                             <Form.Group>
                                                 <Form.Label>Catégorie *</Form.Label>
                                                 {categoriesLoading ? (
@@ -587,9 +587,9 @@ const AddSound = () => {
                                                         value={formData.category_id}
                                                         onChange={handleInputChange}
                                                         isInvalid={!!errors.category_id}
-                                                        size="lg"
+                                    size="lg"
                                                     >
-                                                        <option value="">Sélectionner</option>
+                                    <option value="">Sélectionner</option>
                                                         {categories.map((cat) => (
                                                             <option key={cat.id} value={cat.id}>
                                                                 {cat.name}
@@ -653,28 +653,28 @@ const AddSound = () => {
                                                 />
                                             </Form.Group>
                                         </Col>
-                                        <Col>
-                                            <Form.Group>
+                    <Col>
+                        <Form.Group>
                                                 <Form.Label>Tags</Form.Label>
-                                                <Form.Control
-                                                    type="text"
-                                                    value={tagsInput}
+                            <Form.Control
+                                type="text"
+                                value={tagsInput}
                                                     onChange={(e) =>
                                                         handleInputChange({
                                                             target: { name: "tags", value: e.target.value },
                                                         })
                                                     }
                                                     placeholder="beat, instrumental, afro, commercial (séparés par des virgules)"
-                                                />
-                                                {formData.tags.length > 0 && (
-                                                    <div className="mt-2">
-                                                        {formData.tags.map((tag, index) => (
-                                                            <Badge key={index} bg="secondary" className="me-1 mb-1">
-                                                                {tag}
-                                                            </Badge>
-                                                        ))}
-                                                    </div>
-                                                )}
+                            />
+                            {formData.tags.length > 0 && (
+                                <div className="mt-2">
+                                    {formData.tags.map((tag, index) => (
+                                        <Badge key={index} bg="secondary" className="me-1 mb-1">
+                                            {tag}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            )}
                                             </Form.Group>
                                         </Col>
                                         <Col>
@@ -698,45 +698,45 @@ const AddSound = () => {
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white">
                                     <h5 className="fw-bold mb-0">
-                                        <FontAwesomeIcon icon={faEuroSign} className="me-2 text-success" />
+                        <FontAwesomeIcon icon={faEuroSign} className="me-2 text-success" />
                                         Prix et licence
                                     </h5>
                                 </Card.Header>
                                 <Card.Body>
                                     <Row className="g-3">
-                                        <Col md={6}>
-                                            <Form.Group>
-                                                <Form.Check
-                                                    type="checkbox"
-                                                    name="is_free"
-                                                    checked={formData.is_free}
-                                                    onChange={handleInputChange}
-                                                    label="💝 Son gratuit (recommandé pour débuter)"
-                                                    className="mb-3"
-                                                />
-                                                {!formData.is_free && (
+                        <Col md={6}>
+                            <Form.Group>
+                                <Form.Check
+                                    type="checkbox"
+                                    name="is_free"
+                                    checked={formData.is_free}
+                                    onChange={handleInputChange}
+                                    label="💝 Son gratuit (recommandé pour débuter)"
+                                    className="mb-3"
+                                />
+                        {!formData.is_free && (
                                                     <>
                                                         <Form.Label>Prix (FCFA) *</Form.Label>
                                                         <div className="input-group">
-                                                            <Form.Control
-                                                                type="number"
-                                                                name="price"
-                                                                value={formData.price}
-                                                                onChange={handleInputChange}
+                                        <Form.Control
+                                            type="number"
+                                            name="price"
+                                            value={formData.price}
+                                            onChange={handleInputChange}
                                                                 placeholder="2500"
-                                                                min="0"
-                                                                step="500"
-                                                                isInvalid={!!errors.price}
-                                                            />
-                                                            <span className="input-group-text">FCFA</span>
-                                                            <Form.Control.Feedback type="invalid">
-                                                                {errors.price}
-                                                            </Form.Control.Feedback>
-                                                        </div>
+                                            min="0"
+                                            step="500"
+                                            isInvalid={!!errors.price}
+                                        />
+                                        <span className="input-group-text">FCFA</span>
+                                        <Form.Control.Feedback type="invalid">
+                                            {errors.price}
+                                        </Form.Control.Feedback>
+                                                </div>
                                                     </>
                                                 )}
-                                            </Form.Group>
-                                        </Col>
+                                </Form.Group>
+                            </Col>
                                         <Col md={6}>
                                             <Form.Group>
                                                 <Form.Label>Type de licence</Form.Label>
@@ -753,68 +753,68 @@ const AddSound = () => {
                                                 </Form.Select>
                                             </Form.Group>
                                         </Col>
-                                    </Row>
+                    </Row>
 
                                     <hr className="my-3" />
 
                                     <h6 className="fw-bold mb-3">Droits d'utilisation</h6>
                                     <Row className="g-2">
-                                        {usageRightsOptions.map((option) => (
+                                                    {usageRightsOptions.map((option) => (
                                             <Col md={6} key={option.value}>
-                                                <Form.Check
-                                                    type="checkbox"
-                                                    id={`usage_${option.value}`}
-                                                    checked={formData.usage_rights.includes(option.value)}
+                                                                <Form.Check
+                                                                    type="checkbox"
+                                                                    id={`usage_${option.value}`}
+                                                                    checked={formData.usage_rights.includes(option.value)}
                                                     onChange={(e) =>
                                                         handleUsageRightsChange(option.value, e.target.checked)
                                                     }
                                                     label={option.label}
                                                 />
-                                            </Col>
-                                        ))}
+                                                        </Col>
+                                                    ))}
                                     </Row>
 
                                     <hr className="my-3" />
 
-                                    <h6 className="fw-bold mb-3">Conditions spécifiques</h6>
+                        <h6 className="fw-bold mb-3">Conditions spécifiques</h6>
                                     <Row className="g-2">
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="commercial_use"
-                                                checked={formData.commercial_use}
-                                                onChange={handleInputChange}
+                                            <Col md={6}>
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        name="commercial_use"
+                                                        checked={formData.commercial_use}
+                                                        onChange={handleInputChange}
                                                 label="💼 Utilisation commerciale"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="attribution_required"
-                                                checked={formData.attribution_required}
-                                                onChange={handleInputChange}
-                                                label="📝 Attribution requise"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="modifications_allowed"
-                                                checked={formData.modifications_allowed}
-                                                onChange={handleInputChange}
-                                                label="✂️ Modifications autorisées"
-                                            />
-                                        </Col>
-                                        <Col md={6}>
-                                            <Form.Check
-                                                type="checkbox"
-                                                name="distribution_allowed"
-                                                checked={formData.distribution_allowed}
-                                                onChange={handleInputChange}
-                                                label="🔄 Redistribution autorisée"
-                                            />
-                                        </Col>
-                                    </Row>
+                                />
+                            </Col>
+                            <Col md={6}>
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        name="attribution_required"
+                                                        checked={formData.attribution_required}
+                                                        onChange={handleInputChange}
+                                    label="📝 Attribution requise"
+                                />
+                                            </Col>
+                                            <Col md={6}>
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        name="modifications_allowed"
+                                                        checked={formData.modifications_allowed}
+                                                        onChange={handleInputChange}
+                                    label="✂️ Modifications autorisées"
+                                />
+                            </Col>
+                            <Col md={6}>
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        name="distribution_allowed"
+                                                        checked={formData.distribution_allowed}
+                                                        onChange={handleInputChange}
+                                    label="🔄 Redistribution autorisée"
+                                />
+                                            </Col>
+                                        </Row>
 
                                     <Row className="g-3 mt-2">
                                         <Col md={6}>
@@ -860,13 +860,13 @@ const AddSound = () => {
                             <Card className="border-0 shadow-sm mb-4">
                                 <Card.Header className="bg-white">
                                     <h5 className="fw-bold mb-0">
-                                        <FontAwesomeIcon icon={faImage} className="me-2 text-primary" />
+                        <FontAwesomeIcon icon={faImage} className="me-2 text-primary" />
                                         Image de couverture
                                     </h5>
                                 </Card.Header>
                                 <Card.Body>
-                                    {!formData.cover_image ? (
-                                        <div
+                                                {!formData.cover_image ? (
+                                                    <div
                                             className="upload-zone border-2 border-dashed rounded p-3 text-center"
                                             style={{
                                                 borderColor: "#6c757d",
@@ -878,49 +878,49 @@ const AddSound = () => {
                                             <FontAwesomeIcon icon={faImage} size="2x" className="text-muted mb-2" />
                                             <p className="mb-0 small">Cliquez pour ajouter une image</p>
                                             <small className="text-muted">JPG, PNG (max 2MB)</small>
-                                            <Form.Control
-                                                id="coverImage"
-                                                type="file"
-                                                accept="image/*"
+                                                        <Form.Control
+                                                            id="coverImage"
+                                                            type="file"
+                                                            accept="image/*"
                                                 onChange={(e) => handleFileUpload(e, "cover")}
                                                 style={{ display: "none" }}
-                                            />
-                                        </div>
-                                    ) : (
+                                                        />
+                                                    </div>
+                                                ) : (
                                         <div className="position-relative">
-                                            <img
-                                                src={previews.cover}
+                                                        <img
+                                                            src={previews.cover}
                                                 alt="Couverture"
-                                                className="img-fluid rounded"
+                                                            className="img-fluid rounded"
                                                 style={{ width: "100%", height: "200px", objectFit: "cover" }}
-                                            />
-                                            <Button
-                                                variant="danger"
-                                                size="sm"
-                                                className="position-absolute top-0 end-0 m-2"
+                                                        />
+                                                        <Button
+                                                            variant="danger"
+                                                            size="sm"
+                                                            className="position-absolute top-0 end-0 m-2"
                                                 onClick={() => removeFile("cover")}
-                                            >
-                                                <FontAwesomeIcon icon={faTimes} />
-                                            </Button>
-                                        </div>
-                                    )}
-                                    {errors.cover_image && (
-                                        <div className="text-danger small mt-2">
-                                            {errors.cover_image}
-                                        </div>
-                                    )}
-                                </Card.Body>
-                            </Card>
+                                                        >
+                                                            <FontAwesomeIcon icon={faTimes} />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                                {errors.cover_image && (
+                                                    <div className="text-danger small mt-2">
+                                                        {errors.cover_image}
+                                                    </div>
+                                                )}
+                </Card.Body>
+            </Card>
 
                             {/* Droits d'auteur */}
-                            <Card className="border-0 shadow-sm">
+            <Card className="border-0 shadow-sm">
                                 <Card.Header className="bg-white">
                                     <h5 className="fw-bold mb-0">
                                         <FontAwesomeIcon icon={faCopyright} className="me-2 text-warning" />
                                         Droits d'auteur
                                     </h5>
-                                </Card.Header>
-                                <Card.Body>
+                </Card.Header>
+                <Card.Body>
                                     <Form.Group className="mb-3">
                                         <Form.Label>Propriétaire des droits</Form.Label>
                                         <Form.Control
@@ -1015,19 +1015,19 @@ const AddSound = () => {
                     </Row>
 
                     {/* Barre de progression */}
-                    {loading && (
+                                    {loading && (
                         <div className="my-4">
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <small className="text-muted">Publication en cours...</small>
-                                <small className="text-muted">{uploadProgress}%</small>
-                            </div>
-                            <ProgressBar now={uploadProgress} animated />
-                        </div>
-                    )}
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                            <small className="text-muted">Publication en cours...</small>
+                                                <small className="text-muted">{uploadProgress}%</small>
+                                            </div>
+                                            <ProgressBar now={uploadProgress} animated />
+                                        </div>
+                                    )}
 
                     {/* Actions */}
                     <div className="d-flex justify-content-between mt-4 pt-3 border-top">
-                        <Button
+                                        <Button
                             as={Link}
                             to="/dashboard"
                             variant="outline-secondary"
@@ -1037,12 +1037,12 @@ const AddSound = () => {
                             Annuler
                         </Button>
 
-                        <Button
+                            <Button
                             type="submit"
-                            variant="primary"
+                                            variant="primary"
                             disabled={loading}
-                            size="lg"
-                        >
+                                            size="lg"
+                                        >
                             {loading ? (
                                 <>
                                     <FontAwesomeIcon icon={faSpinner} spin className="me-2" />
@@ -1055,7 +1055,7 @@ const AddSound = () => {
                                 </>
                             )}
                         </Button>
-                    </div>
+                                    </div>
                 </Form>
             </Container>
         </div>

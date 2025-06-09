@@ -29,6 +29,12 @@ const EditSound = () => {
     const [errors, setErrors] = useState({});
     const [categories, setCategories] = useState([]);
 
+    // État pour les fichiers
+    const [audioFile, setAudioFile] = useState(null);
+    const [coverImage, setCoverImage] = useState(null);
+    const [audioPreview, setAudioPreview] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -42,13 +48,25 @@ const EditSound = () => {
         bpm: '',
         key: '',
         credits: '',
+
+        // Informations de licence
         license_type: 'standard',
         copyright_owner: '',
         composer: '',
         performer: '',
         producer: '',
         release_date: '',
-        rights_statement: ''
+        isrc_code: '',
+        publishing_rights: '',
+        rights_statement: '',
+
+        // Droits d'utilisation
+        commercial_use: false,
+        attribution_required: false,
+        modifications_allowed: false,
+        distribution_allowed: false,
+        license_duration: '',
+        territory: ''
     });
 
     useEffect(() => {
@@ -102,13 +120,25 @@ const EditSound = () => {
                     bpm: soundData.bpm?.toString() || '',
                     key: soundData.key || '',
                     credits: soundData.credits || '',
+
+                    // Informations de licence
                     license_type: soundData.license_type || 'standard',
                     copyright_owner: soundData.copyright_owner || '',
                     composer: soundData.composer || '',
                     performer: soundData.performer || '',
                     producer: soundData.producer || '',
                     release_date: soundData.release_date ? soundData.release_date.split('T')[0] : '',
-                    rights_statement: soundData.rights_statement || ''
+                    isrc_code: soundData.isrc_code || '',
+                    publishing_rights: soundData.publishing_rights || '',
+                    rights_statement: soundData.rights_statement || '',
+
+                    // Droits d'utilisation
+                    commercial_use: Boolean(soundData.commercial_use),
+                    attribution_required: Boolean(soundData.attribution_required),
+                    modifications_allowed: Boolean(soundData.modifications_allowed),
+                    distribution_allowed: Boolean(soundData.distribution_allowed),
+                    license_duration: soundData.license_duration || '',
+                    territory: soundData.territory || ''
                 });
             } else {
                 throw new Error(data.message || 'Son non trouvé');
@@ -170,6 +200,85 @@ const EditSound = () => {
         }
     };
 
+    const handleAudioFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Vérifier le type de fichier
+            const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/flac'];
+            if (!allowedTypes.includes(file.type)) {
+                setErrors(prev => ({
+                    ...prev,
+                    audio_file: 'Format de fichier audio non supporté. Utilisez MP3, WAV, M4A, AAC ou FLAC.'
+                }));
+                return;
+            }
+
+            // Vérifier la taille (max 50MB pour l'exemple)
+            if (file.size > 50 * 1024 * 1024) {
+                setErrors(prev => ({
+                    ...prev,
+                    audio_file: 'Le fichier audio est trop volumineux (max 50MB).'
+                }));
+                return;
+            }
+
+            setAudioFile(file);
+            setAudioPreview(URL.createObjectURL(file));
+            setErrors(prev => ({
+                ...prev,
+                audio_file: ''
+            }));
+        }
+    };
+
+    const handleCoverImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Vérifier le type de fichier
+            if (!file.type.startsWith('image/')) {
+                setErrors(prev => ({
+                    ...prev,
+                    cover_image: 'Veuillez sélectionner un fichier image valide.'
+                }));
+                return;
+            }
+
+            // Vérifier la taille (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setErrors(prev => ({
+                    ...prev,
+                    cover_image: 'L\'image est trop volumineuse (max 5MB).'
+                }));
+                return;
+            }
+
+            setCoverImage(file);
+            setImagePreview(URL.createObjectURL(file));
+            setErrors(prev => ({
+                ...prev,
+                cover_image: ''
+            }));
+        }
+    };
+
+    const removeAudioFile = () => {
+        setAudioFile(null);
+        if (audioPreview) {
+            URL.revokeObjectURL(audioPreview);
+            setAudioPreview(null);
+        }
+        document.getElementById('audio_file').value = '';
+    };
+
+    const removeCoverImage = () => {
+        setCoverImage(null);
+        if (imagePreview) {
+            URL.revokeObjectURL(imagePreview);
+            setImagePreview(null);
+        }
+        document.getElementById('cover_image').value = '';
+    };
+
     const validateForm = () => {
         const newErrors = {};
 
@@ -212,27 +321,60 @@ const EditSound = () => {
         setSaving(true);
 
         try {
-            const submitData = {
-                ...formData,
-                tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : [],
-                price: formData.is_free ? 0 : parseFloat(formData.price) || 0,
-                bpm: formData.bpm ? parseInt(formData.bpm) : null,
-                category_id: parseInt(formData.category_id)
-            };
+            // Utiliser FormData pour envoyer les fichiers
+            const formDataToSend = new FormData();
+
+            // Ajouter tous les champs du formulaire
+            Object.keys(formData).forEach(key => {
+                if (formData[key] !== null && formData[key] !== undefined) {
+                    if (key === 'tags') {
+                        const tags = formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : [];
+                        formDataToSend.append('tags', JSON.stringify(tags));
+                    } else if (key === 'price') {
+                        formDataToSend.append(key, formData.is_free ? 0 : parseFloat(formData.price) || 0);
+                    } else if (key === 'bpm') {
+                        const bpm = formData.bpm ? parseInt(formData.bpm) : null;
+                        if (bpm !== null) {
+                            formDataToSend.append(key, bpm);
+                        }
+                    } else if (key === 'category_id') {
+                        formDataToSend.append(key, parseInt(formData.category_id));
+                    } else if (typeof formData[key] === 'boolean') {
+                        formDataToSend.append(key, formData[key] ? '1' : '0');
+                    } else {
+                        formDataToSend.append(key, formData[key]);
+                    }
+                }
+            });
+
+            // Ajouter les fichiers s'ils sont sélectionnés
+            if (audioFile) {
+                formDataToSend.append('audio_file', audioFile);
+            }
+            if (coverImage) {
+                formDataToSend.append('cover_image', coverImage);
+            }
+
+            // Ajouter la méthode PUT pour Laravel
+            formDataToSend.append('_method', 'PUT');
 
             const response = await fetch(`/api/sounds/${id}`, {
-                method: 'PUT',
+                method: 'POST', // Utiliser POST avec _method=PUT pour les fichiers
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Accept': 'application/json'
+                    // Ne pas définir Content-Type, le navigateur le fera automatiquement avec boundary
                 },
-                body: JSON.stringify(submitData)
+                body: formDataToSend
             });
 
             const data = await response.json();
 
             if (response.ok && data.success) {
                 toast.success('Succès', 'Son mis à jour avec succès');
+                // Nettoyer les URLs d'objet
+                if (audioPreview) URL.revokeObjectURL(audioPreview);
+                if (imagePreview) URL.revokeObjectURL(imagePreview);
                 navigate('/dashboard?tab=sounds');
             } else {
                 if (data.errors) {
@@ -549,6 +691,141 @@ const EditSound = () => {
                                 </Card.Body>
                             </Card>
 
+                            {/* Upload de fichiers */}
+                            <Card className="border-0 shadow-sm mb-4">
+                                <Card.Header className="bg-white border-bottom">
+                                    <h5 className="fw-bold mb-0">
+                                        <FontAwesomeIcon icon={faMusic} className="me-2 text-primary" />
+                                        Fichiers multimédias
+                                    </h5>
+                                </Card.Header>
+                                <Card.Body>
+                                    <Row className="g-4">
+                                        {/* Upload audio */}
+                                        <Col md={6}>
+                                            <Form.Group>
+                                                <Form.Label>
+                                                    <FontAwesomeIcon icon={faMusic} className="me-2" />
+                                                    Nouveau fichier audio
+                                                </Form.Label>
+                                                <Form.Control
+                                                    type="file"
+                                                    id="audio_file"
+                                                    accept="audio/mp3,audio/wav,audio/m4a,audio/aac,audio/flac"
+                                                    onChange={handleAudioFileChange}
+                                                    isInvalid={!!errors.audio_file}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.audio_file}
+                                                </Form.Control.Feedback>
+                                                <Form.Text className="text-muted">
+                                                    Formats supportés: MP3, WAV, M4A, AAC, FLAC (max 50MB)
+                                                </Form.Text>
+
+                                                {/* Aperçu du fichier audio actuel */}
+                                                {sound.file_url && !audioFile && (
+                                                    <div className="mt-2 p-2 border rounded bg-light">
+                                                        <small className="text-muted">Fichier actuel:</small>
+                                                        <audio controls className="w-100 mt-1">
+                                                            <source src={sound.file_url} type="audio/mpeg" />
+                                                            Votre navigateur ne supporte pas l'élément audio.
+                                                        </audio>
+                                                    </div>
+                                                )}
+
+                                                {/* Aperçu du nouveau fichier */}
+                                                {audioFile && (
+                                                    <div className="mt-2 p-2 border rounded bg-success bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                            <small className="text-success fw-bold">Nouveau fichier:</small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={removeAudioFile}
+                                                            >
+                                                                ×
+                                                            </Button>
+                                                        </div>
+                                                        <div className="small text-muted mb-1">
+                                                            {audioFile.name} ({(audioFile.size / 1024 / 1024).toFixed(2)} MB)
+                                                        </div>
+                                                        {audioPreview && (
+                                                            <audio controls className="w-100">
+                                                                <source src={audioPreview} type={audioFile.type} />
+                                                                Votre navigateur ne supporte pas l'élément audio.
+                                                            </audio>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </Form.Group>
+                                        </Col>
+
+                                        {/* Upload image */}
+                                        <Col md={6}>
+                                            <Form.Group>
+                                                <Form.Label>
+                                                    <FontAwesomeIcon icon={faImage} className="me-2" />
+                                                    Nouvelle image de couverture
+                                                </Form.Label>
+                                                <Form.Control
+                                                    type="file"
+                                                    id="cover_image"
+                                                    accept="image/*"
+                                                    onChange={handleCoverImageChange}
+                                                    isInvalid={!!errors.cover_image}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.cover_image}
+                                                </Form.Control.Feedback>
+                                                <Form.Text className="text-muted">
+                                                    Formats supportés: JPG, PNG, WEBP (max 5MB)
+                                                </Form.Text>
+
+                                                {/* Aperçu de l'image actuelle */}
+                                                {(sound.cover_image_url || sound.cover) && !coverImage && (
+                                                    <div className="mt-2 p-2 border rounded bg-light">
+                                                        <small className="text-muted d-block mb-1">Image actuelle:</small>
+                                                        <img
+                                                            src={sound.cover_image_url || sound.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&h=200&fit=crop`}
+                                                            alt="Couverture actuelle"
+                                                            className="img-fluid rounded"
+                                                            style={{ maxHeight: '120px', objectFit: 'cover' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* Aperçu de la nouvelle image */}
+                                                {coverImage && (
+                                                    <div className="mt-2 p-2 border rounded bg-success bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                            <small className="text-success fw-bold">Nouvelle image:</small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={removeCoverImage}
+                                                            >
+                                                                ×
+                                                            </Button>
+                                                        </div>
+                                                        <div className="small text-muted mb-1">
+                                                            {coverImage.name} ({(coverImage.size / 1024 / 1024).toFixed(2)} MB)
+                                                        </div>
+                                                        {imagePreview && (
+                                                            <img
+                                                                src={imagePreview}
+                                                                alt="Aperçu nouvelle couverture"
+                                                                className="img-fluid rounded"
+                                                                style={{ maxHeight: '120px', objectFit: 'cover' }}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </Form.Group>
+                                        </Col>
+                                    </Row>
+                                </Card.Body>
+                            </Card>
+
                             {/* Tarification */}
                             <Card className="border-0 shadow-sm">
                                 <Card.Header className="bg-white border-bottom">
@@ -664,7 +941,7 @@ const EditSound = () => {
                                         />
                                     </Form.Group>
 
-                                    <Form.Group>
+                                    <Form.Group className="mb-3">
                                         <Form.Label>Date de sortie</Form.Label>
                                         <Form.Control
                                             type="date"
@@ -672,6 +949,20 @@ const EditSound = () => {
                                             value={formData.release_date}
                                             onChange={handleChange}
                                         />
+                                    </Form.Group>
+
+                                    <Form.Group>
+                                        <Form.Label>Code ISRC</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            name="isrc_code"
+                                            value={formData.isrc_code}
+                                            onChange={handleChange}
+                                            placeholder="Ex: USUM71703692"
+                                        />
+                                        <Form.Text className="text-muted">
+                                            Code international d'enregistrement sonore
+                                        </Form.Text>
                                     </Form.Group>
                                 </Card.Body>
                             </Card>
@@ -691,6 +982,82 @@ const EditSound = () => {
                                             onChange={handleChange}
                                             placeholder="Nom du propriétaire"
                                         />
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Droits d'édition</Form.Label>
+                                        <Form.Control
+                                            as="textarea"
+                                            rows={2}
+                                            name="publishing_rights"
+                                            value={formData.publishing_rights}
+                                            onChange={handleChange}
+                                            placeholder="Ex: Universal Music, Sony Music, indépendant..."
+                                        />
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Durée de licence</Form.Label>
+                                        <Form.Select
+                                            name="license_duration"
+                                            value={formData.license_duration}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="">Sélectionner une durée</option>
+                                            <option value="perpetual">Perpétuelle</option>
+                                            <option value="1_year">1 an</option>
+                                            <option value="5_years">5 ans</option>
+                                            <option value="10_years">10 ans</option>
+                                        </Form.Select>
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Territoire</Form.Label>
+                                        <Form.Select
+                                            name="territory"
+                                            value={formData.territory}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="">Sélectionner un territoire</option>
+                                            <option value="worldwide">Mondial</option>
+                                            <option value="africa">Afrique</option>
+                                            <option value="cameroon">Cameroun</option>
+                                            <option value="francophone">Pays francophones</option>
+                                        </Form.Select>
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Droits d'utilisation</Form.Label>
+                                        <div className="d-flex flex-column gap-2">
+                                            <Form.Check
+                                                type="checkbox"
+                                                name="commercial_use"
+                                                checked={formData.commercial_use}
+                                                onChange={handleChange}
+                                                label="💼 Utilisation commerciale autorisée"
+                                            />
+                                            <Form.Check
+                                                type="checkbox"
+                                                name="attribution_required"
+                                                checked={formData.attribution_required}
+                                                onChange={handleChange}
+                                                label="📝 Attribution requise"
+                                            />
+                                            <Form.Check
+                                                type="checkbox"
+                                                name="modifications_allowed"
+                                                checked={formData.modifications_allowed}
+                                                onChange={handleChange}
+                                                label="✂️ Modifications autorisées"
+                                            />
+                                            <Form.Check
+                                                type="checkbox"
+                                                name="distribution_allowed"
+                                                checked={formData.distribution_allowed}
+                                                onChange={handleChange}
+                                                label="🔄 Redistribution autorisée"
+                                            />
+                                        </div>
                                     </Form.Group>
 
                                     <Form.Group>

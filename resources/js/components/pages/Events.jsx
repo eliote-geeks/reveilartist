@@ -189,17 +189,60 @@ const Events = () => {
 
     const getLowestPrice = (event) => {
         if (event.is_free) return 0;
+
+        // Vérifier d'abord les billets structurés
+        if (event.tickets_array && event.tickets_array.length > 0) {
+            const prices = event.tickets_array.map(ticket => ticket.price).filter(price => price > 0);
+            if (prices.length > 0) {
+                return Math.min(...prices);
+            }
+        }
+
+        // Fallback sur les prix standards
         if (event.ticket_price) return event.ticket_price;
         if (event.price_min) return event.price_min;
-        if (event.tickets && event.tickets.length > 0) {
-            return Math.min(...event.tickets.map(ticket => ticket.price));
-        }
+
         return 0;
+    };
+
+    const getHighestPrice = (event) => {
+        if (event.is_free) return 0;
+
+        // Vérifier d'abord les billets structurés
+        if (event.tickets_array && event.tickets_array.length > 0) {
+            const prices = event.tickets_array.map(ticket => ticket.price).filter(price => price > 0);
+            if (prices.length > 0) {
+                return Math.max(...prices);
+            }
+        }
+
+        // Fallback sur les prix standards
+        if (event.ticket_price) return event.ticket_price;
+        if (event.price_max) return event.price_max;
+        if (event.price_min) return event.price_min;
+
+        return 0;
+    };
+
+    const getPriceDisplay = (event) => {
+        if (event.is_free) return 'Gratuit';
+
+        const lowestPrice = getLowestPrice(event);
+        const highestPrice = getHighestPrice(event);
+
+        if (lowestPrice === 0) return 'Prix non défini';
+
+        if (event.tickets_array && event.tickets_array.length > 1 && lowestPrice !== highestPrice) {
+            return `${formatCurrency(lowestPrice)} - ${formatCurrency(highestPrice)}`;
+        }
+
+        return `À partir de ${formatCurrency(lowestPrice)}`;
     };
 
     const openTicketModal = (event) => {
         setSelectedEvent(event);
         setShowTicketModal(true);
+        setTicketQuantities({});
     };
 
     const closeTicketModal = () => {
@@ -208,7 +251,17 @@ const Events = () => {
         setTicketQuantities({});
     };
 
-    const handleAddToCart = () => {
+    const handleTicketQuantityChange = (ticketType, change) => {
+        const currentQuantity = ticketQuantities[ticketType] || 0;
+        const newQuantity = Math.max(0, currentQuantity + change);
+
+        setTicketQuantities(prev => ({
+            ...prev,
+            [ticketType]: newQuantity
+        }));
+    };
+
+    const handleAddToCart = (specificTicket = null) => {
         if (!token) {
             toast.warning('Connexion requise', 'Vous devez être connecté pour acheter des billets');
             return;
@@ -216,14 +269,89 @@ const Events = () => {
 
         if (!selectedEvent) return;
 
-        // Pour les événements payants, ajouter un billet standard
-        if (!selectedEvent.is_free && selectedEvent.ticket_price) {
+        // Si un billet spécifique est fourni
+        if (specificTicket) {
             const cartItem = {
-                id: selectedEvent.id,
+                id: `${selectedEvent.id}-${specificTicket.type}-${Date.now()}`,
+                event_id: selectedEvent.id,
                 type: 'event',
                 title: selectedEvent.title,
-                artist: selectedEvent.artists_array?.[0] || 'Event',
+                artist: selectedEvent.artists_array?.[0] || 'Événement',
                 event_date: selectedEvent.event_date,
+                start_time: selectedEvent.start_time,
+                venue: selectedEvent.venue,
+                city: selectedEvent.city,
+                ticket_type: specificTicket.type,
+                ticket_price: specificTicket.price,
+                price: specificTicket.price,
+                quantity: 1,
+                poster: selectedEvent.poster_image_url,
+                max_attendees: selectedEvent.max_attendees,
+                ticket_description: specificTicket.description,
+                available_tickets: specificTicket.available
+            };
+
+            addToCart(cartItem);
+            toast.success(
+                'Billet ajouté au panier',
+                `Billet "${specificTicket.type}" pour "${selectedEvent.title}" ajouté au panier`
+            );
+            return;
+        }
+
+        // Gestion des billets multiples depuis le modal
+        if (selectedEvent.tickets_array && selectedEvent.tickets_array.length > 0) {
+            let addedTickets = 0;
+
+            selectedEvent.tickets_array.forEach(ticket => {
+                const quantity = ticketQuantities[ticket.type] || 0;
+                if (quantity > 0) {
+                    for (let i = 0; i < quantity; i++) {
+                        const cartItem = {
+                            id: `${selectedEvent.id}-${ticket.type}-${Date.now()}-${i}`,
+                            event_id: selectedEvent.id,
+                            type: 'event',
+                            title: selectedEvent.title,
+                            artist: selectedEvent.artists_array?.[0] || 'Événement',
+                            event_date: selectedEvent.event_date,
+                            start_time: selectedEvent.start_time,
+                            venue: selectedEvent.venue,
+                            city: selectedEvent.city,
+                            ticket_type: ticket.type,
+                            ticket_price: ticket.price,
+                            price: ticket.price,
+                            quantity: 1,
+                            poster: selectedEvent.poster_image_url,
+                            max_attendees: selectedEvent.max_attendees,
+                            ticket_description: ticket.description,
+                            available_tickets: ticket.available
+                        };
+
+                        addToCart(cartItem);
+                        addedTickets++;
+                    }
+                }
+            });
+
+            if (addedTickets > 0) {
+                toast.success(
+                    'Billets ajoutés au panier',
+                    `${addedTickets} billet${addedTickets > 1 ? 's' : ''} pour "${selectedEvent.title}" ajouté${addedTickets > 1 ? 's' : ''} au panier`
+                );
+                closeTicketModal();
+            } else {
+                toast.warning('Aucun billet sélectionné', 'Veuillez sélectionner au moins un billet');
+            }
+        } else if (!selectedEvent.is_free && selectedEvent.ticket_price) {
+            // Pour les événements avec un prix standard
+            const cartItem = {
+                id: `${selectedEvent.id}-standard-${Date.now()}`,
+                event_id: selectedEvent.id,
+                type: 'event',
+                title: selectedEvent.title,
+                artist: selectedEvent.artists_array?.[0] || 'Événement',
+                event_date: selectedEvent.event_date,
+                start_time: selectedEvent.start_time,
                 venue: selectedEvent.venue,
                 city: selectedEvent.city,
                 ticket_type: 'Standard',
@@ -235,14 +363,12 @@ const Events = () => {
             };
 
             addToCart(cartItem);
-
             toast.success(
                 'Billet ajouté au panier',
                 `Billet pour "${selectedEvent.title}" ajouté au panier`
             );
+            closeTicketModal();
         }
-
-        closeTicketModal();
     };
 
     if (loading) {
@@ -350,7 +476,7 @@ const Events = () => {
                                 <span className="fw-bold text-success">Gratuit</span>
                             ) : (
                                 <span className="fw-bold text-primary">
-                                    À partir de {formatCurrency(getLowestPrice(event))}
+                                    {getPriceDisplay(event)}
                                 </span>
                             )}
                         </div>
@@ -443,7 +569,7 @@ const Events = () => {
                                             <div className="fw-bold text-success fs-5">Gratuit</div>
                                         ) : (
                                             <div className="fw-bold text-primary fs-5">
-                                                À partir de {formatCurrency(getLowestPrice(event))}
+                                                {getPriceDisplay(event)}
                                             </div>
                                         )}
                                     </div>
@@ -619,7 +745,7 @@ const Events = () => {
                 )}
             </Container>
 
-            {/* Modal de billets */}
+            {/* Modal de billets amélioré */}
             <Modal show={showTicketModal} onHide={closeTicketModal} size="lg" centered>
                 <Modal.Header closeButton>
                     <Modal.Title>Acheter des billets - {selectedEvent?.title}</Modal.Title>
@@ -645,36 +771,103 @@ const Events = () => {
                                 </div>
                             </div>
 
-                            <h6 className="fw-bold mb-3">Billet disponible</h6>
-                            {!selectedEvent.is_free && selectedEvent.ticket_price ? (
-                                <div className="border rounded p-3 mb-3">
-                                    <Row className="align-items-center">
-                                        <Col md={6}>
-                                            <h6 className="fw-bold mb-1">Billet Standard</h6>
-                                            <div className="text-primary fw-bold fs-5">
-                                                {formatCurrency(selectedEvent.ticket_price)}
-                                            </div>
-                                            <small className="text-muted d-block">
-                                                {selectedEvent.remaining_spots > 0 ?
-                                                    `${selectedEvent.remaining_spots} places disponibles` :
-                                                    'Places limitées'
-                                                }
-                                            </small>
-                                            <small className="text-info d-block mt-1">
-                                                Accès général à l'événement
-                                            </small>
-                                        </Col>
-                                        <Col md={6} className="text-end">
-                                            <Button
-                                                variant="primary"
-                                                onClick={handleAddToCart}
-                                                disabled={selectedEvent.remaining_spots <= 0}
-                                            >
-                                                <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
-                                                Ajouter au panier
-                                            </Button>
-                                        </Col>
-                                    </Row>
+                            {selectedEvent.tickets_array && selectedEvent.tickets_array.length > 0 ? (
+                                <div>
+                                    <h6 className="fw-bold mb-3">Billets disponibles</h6>
+                                    {selectedEvent.tickets_array.map((ticket, index) => (
+                                        <div key={index} className="border rounded p-3 mb-3">
+                                            <Row className="align-items-center">
+                                                <Col md={8}>
+                                                    <h6 className="fw-bold mb-1">{ticket.type}</h6>
+                                                    <div className="text-primary fw-bold fs-5 mb-2">
+                                                        {formatCurrency(ticket.price)}
+                                                    </div>
+                                                    <p className="text-muted small mb-2">{ticket.description}</p>
+                                                    <small className="text-muted">
+                                                        {ticket.available > 0 ?
+                                                            `${ticket.available} places disponibles` :
+                                                            'Places limitées'
+                                                        }
+                                                    </small>
+                                                </Col>
+                                                <Col md={4} className="text-center">
+                                                    <div className="d-flex align-items-center justify-content-center mb-3">
+                                                        <Button
+                                                            variant="outline-secondary"
+                                                            size="sm"
+                                                            onClick={() => handleTicketQuantityChange(ticket.type, -1)}
+                                                            disabled={(ticketQuantities[ticket.type] || 0) <= 0}
+                                                            className="rounded-circle"
+                                                            style={{ width: '32px', height: '32px' }}
+                                                        >
+                                                            <FontAwesomeIcon icon={faMinus} style={{ fontSize: '10px' }} />
+                                                        </Button>
+                                                        <span className="mx-3 fw-bold" style={{ minWidth: '20px' }}>
+                                                            {ticketQuantities[ticket.type] || 0}
+                                                        </span>
+                                                        <Button
+                                                            variant="outline-primary"
+                                                            size="sm"
+                                                            onClick={() => handleTicketQuantityChange(ticket.type, 1)}
+                                                            disabled={ticket.available <= 0 || (ticketQuantities[ticket.type] || 0) >= ticket.available}
+                                                            className="rounded-circle"
+                                                            style={{ width: '32px', height: '32px' }}
+                                                        >
+                                                            <FontAwesomeIcon icon={faPlus} style={{ fontSize: '10px' }} />
+                                                        </Button>
+                                                    </div>
+                                                    <div className="small text-muted">
+                                                        Total: {formatCurrency(ticket.price * (ticketQuantities[ticket.type] || 0))}
+                                                    </div>
+                                                </Col>
+                                            </Row>
+                                        </div>
+                                    ))}
+
+                                    <hr />
+                                    <div className="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 className="fw-bold mb-0">Total à payer</h6>
+                                        <h5 className="fw-bold text-primary mb-0">
+                                            {formatCurrency(
+                                                selectedEvent.tickets_array.reduce((total, ticket) =>
+                                                    total + (ticket.price * (ticketQuantities[ticket.type] || 0)), 0
+                                                )
+                                            )}
+                                        </h5>
+                                    </div>
+                                </div>
+                            ) : !selectedEvent.is_free && selectedEvent.ticket_price ? (
+                                <div>
+                                    <h6 className="fw-bold mb-3">Billet disponible</h6>
+                                    <div className="border rounded p-3 mb-3">
+                                        <Row className="align-items-center">
+                                            <Col md={6}>
+                                                <h6 className="fw-bold mb-1">Billet Standard</h6>
+                                                <div className="text-primary fw-bold fs-5">
+                                                    {formatCurrency(selectedEvent.ticket_price)}
+                                                </div>
+                                                <small className="text-muted d-block">
+                                                    {selectedEvent.remaining_spots > 0 ?
+                                                        `${selectedEvent.remaining_spots} places disponibles` :
+                                                        'Places limitées'
+                                                    }
+                                                </small>
+                                                <small className="text-info d-block mt-1">
+                                                    Accès général à l'événement
+                                                </small>
+                                            </Col>
+                                            <Col md={6} className="text-end">
+                                                <Button
+                                                    variant="primary"
+                                                    onClick={() => handleAddToCart()}
+                                                    disabled={selectedEvent.remaining_spots <= 0}
+                                                >
+                                                    <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
+                                                    Ajouter au panier
+                                                </Button>
+                                            </Col>
+                                        </Row>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="text-center py-3">
@@ -693,6 +886,18 @@ const Events = () => {
                     <Button variant="secondary" onClick={closeTicketModal}>
                         Fermer
                     </Button>
+                    {selectedEvent && selectedEvent.tickets_array && selectedEvent.tickets_array.length > 0 && (
+                        <Button
+                            variant="primary"
+                            onClick={() => handleAddToCart()}
+                            disabled={
+                                !Object.values(ticketQuantities).some(qty => qty > 0)
+                            }
+                        >
+                            <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
+                            Ajouter au panier
+                        </Button>
+                    )}
                 </Modal.Footer>
             </Modal>
 

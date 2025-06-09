@@ -27,29 +27,70 @@ const EditEvent = () => {
     const [event, setEvent] = useState(null);
     const [errors, setErrors] = useState({});
 
+    // États pour les fichiers
+    const [posterImage, setPosterImage] = useState(null);
+    const [featuredImage, setFeaturedImage] = useState(null);
+    const [galleryImages, setGalleryImages] = useState([]);
+    const [posterPreview, setPosterPreview] = useState(null);
+    const [featuredPreview, setFeaturedPreview] = useState(null);
+    const [galleryPreviews, setGalleryPreviews] = useState([]);
+
+    // États pour les images existantes
+    const [currentPosterImage, setCurrentPosterImage] = useState('');
+    const [currentFeaturedImage, setCurrentFeaturedImage] = useState('');
+    const [currentGalleryImages, setCurrentGalleryImages] = useState([]);
+    const [removePosterImage, setRemovePosterImage] = useState(false);
+    const [removeFeaturedImage, setRemoveFeaturedImage] = useState(false);
+    const [removeGalleryImages, setRemoveGalleryImages] = useState(false);
+
     const [formData, setFormData] = useState({
+        // Informations principales
         title: '',
         description: '',
+        category: '',
+        status: 'pending',
+
+        // Lieu et date
+        venue: '',
+        location: '',
+        address: '',
+        city: '',
+        country: 'Cameroun',
         event_date: '',
         start_time: '',
         end_time: '',
-        venue: '',
-        address: '',
-        city: '',
-        country: '',
-        category: '',
-        status: 'pending',
-        is_featured: false,
+
+        // Tarification
         is_free: false,
         ticket_price: '',
+        price_min: '',
+        price_max: '',
+        tickets: '',
+
+        // Capacité
+        capacity: '',
         max_attendees: '',
+
+        // Artistes et sponsors
+        artist: '',
         artists: '',
         sponsors: '',
-        requirements: '',
-        contact_email: '',
+
+        // Contact
         contact_phone: '',
+        contact_email: '',
         website_url: '',
-        social_links: ''
+
+        // Réseaux sociaux
+        facebook_url: '',
+        instagram_url: '',
+        twitter_url: '',
+        social_links: '',
+
+        // Options avancées
+        requirements: '',
+        is_featured: false,
+        featured: false
     });
 
     useEffect(() => {
@@ -78,33 +119,64 @@ const EditEvent = () => {
                     return;
                 }
 
-                // Remplir le formulaire
+                // Remplir le formulaire avec tous les champs
                 setFormData({
+                    // Informations principales
                     title: eventData.title || '',
                     description: eventData.description || '',
-                    event_date: eventData.event_date || '',
-                    start_time: eventData.start_time || '',
-                    end_time: eventData.end_time || '',
-                    venue: eventData.venue || '',
-                    address: eventData.address || '',
-                    city: eventData.city || '',
-                    country: eventData.country || '',
                     category: eventData.category || '',
                     status: eventData.status || 'pending',
-                    is_featured: eventData.is_featured || false,
-                    is_free: eventData.is_free || false,
+
+                    // Lieu et date
+                    venue: eventData.venue || '',
+                    location: eventData.location || '',
+                    address: eventData.address || '',
+                    city: eventData.city || '',
+                    country: eventData.country || 'Cameroun',
+                    event_date: eventData.event_date ? eventData.event_date.split('T')[0] : '',
+                    start_time: eventData.start_time ? eventData.start_time.substring(0, 5) : '',
+                    end_time: eventData.end_time ? eventData.end_time.substring(0, 5) : '',
+
+                    // Tarification
+                    is_free: Boolean(eventData.is_free),
                     ticket_price: eventData.ticket_price || '',
+                    price_min: eventData.price_min || '',
+                    price_max: eventData.price_max || '',
+                    tickets: eventData.tickets || '',
+
+                    // Capacité
+                    capacity: eventData.capacity || '',
                     max_attendees: eventData.max_attendees || '',
+
+                    // Artistes et sponsors
+                    artist: eventData.artist || '',
                     artists: Array.isArray(eventData.artists) ? eventData.artists.join(', ') :
                             (typeof eventData.artists === 'string' ? eventData.artists : ''),
                     sponsors: Array.isArray(eventData.sponsors) ? eventData.sponsors.join(', ') :
                              (typeof eventData.sponsors === 'string' ? eventData.sponsors : ''),
-                    requirements: eventData.requirements || '',
-                    contact_email: eventData.contact_email || '',
+
+                    // Contact
                     contact_phone: eventData.contact_phone || '',
+                    contact_email: eventData.contact_email || '',
                     website_url: eventData.website_url || '',
-                    social_links: eventData.social_links || ''
+
+                    // Réseaux sociaux
+                    facebook_url: eventData.facebook_url || '',
+                    instagram_url: eventData.instagram_url || '',
+                    twitter_url: eventData.twitter_url || '',
+                    social_links: eventData.social_links || '',
+
+                    // Options avancées
+                    requirements: eventData.requirements || '',
+                    is_featured: Boolean(eventData.is_featured),
+                    featured: Boolean(eventData.featured)
                 });
+
+                // Charger les images existantes
+                setCurrentPosterImage(eventData.poster_image || '');
+                setCurrentFeaturedImage(eventData.featured_image || '');
+                setCurrentGalleryImages(Array.isArray(eventData.gallery_images) ? eventData.gallery_images :
+                                      (eventData.gallery_images ? JSON.parse(eventData.gallery_images) : []));
             } else {
                 toast.error('Erreur', 'Impossible de charger l\'événement');
                 navigate('/dashboard');
@@ -139,6 +211,136 @@ const EditEvent = () => {
         }
     };
 
+    const handlePosterImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                setErrors(prev => ({
+                    ...prev,
+                    poster_image: 'Veuillez sélectionner un fichier image valide.'
+                }));
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                setErrors(prev => ({
+                    ...prev,
+                    poster_image: 'L\'image est trop volumineuse (max 5MB).'
+                }));
+                return;
+            }
+
+            setPosterImage(file);
+            setPosterPreview(URL.createObjectURL(file));
+            setRemovePosterImage(false);
+            setErrors(prev => ({
+                ...prev,
+                poster_image: ''
+            }));
+        }
+    };
+
+    const handleFeaturedImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                setErrors(prev => ({
+                    ...prev,
+                    featured_image: 'Veuillez sélectionner un fichier image valide.'
+                }));
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                setErrors(prev => ({
+                    ...prev,
+                    featured_image: 'L\'image est trop volumineuse (max 5MB).'
+                }));
+                return;
+            }
+
+            setFeaturedImage(file);
+            setFeaturedPreview(URL.createObjectURL(file));
+            setRemoveFeaturedImage(false);
+            setErrors(prev => ({
+                ...prev,
+                featured_image: ''
+            }));
+        }
+    };
+
+    const handleGalleryImagesChange = (e) => {
+        const files = Array.from(e.target.files);
+
+        if (files.length > 10) {
+            setErrors(prev => ({
+                ...prev,
+                gallery_images: 'Maximum 10 images pour la galerie.'
+            }));
+            return;
+        }
+
+        const validFiles = [];
+        const newPreviews = [];
+
+        for (const file of files) {
+            if (!file.type.startsWith('image/')) {
+                setErrors(prev => ({
+                    ...prev,
+                    gallery_images: 'Tous les fichiers doivent être des images.'
+                }));
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                setErrors(prev => ({
+                    ...prev,
+                    gallery_images: 'Chaque image doit faire moins de 5MB.'
+                }));
+                return;
+            }
+
+            validFiles.push(file);
+            newPreviews.push(URL.createObjectURL(file));
+        }
+
+        setGalleryImages(validFiles);
+        setGalleryPreviews(newPreviews);
+        setRemoveGalleryImages(false);
+        setErrors(prev => ({
+            ...prev,
+            gallery_images: ''
+        }));
+    };
+
+    const clearPosterImage = () => {
+        setPosterImage(null);
+        if (posterPreview) {
+            URL.revokeObjectURL(posterPreview);
+            setPosterPreview(null);
+        }
+        setRemovePosterImage(true);
+        document.getElementById('poster_image').value = '';
+    };
+
+    const clearFeaturedImage = () => {
+        setFeaturedImage(null);
+        if (featuredPreview) {
+            URL.revokeObjectURL(featuredPreview);
+            setFeaturedPreview(null);
+        }
+        setRemoveFeaturedImage(true);
+        document.getElementById('featured_image').value = '';
+    };
+
+    const clearGalleryImages = () => {
+        setGalleryImages([]);
+        galleryPreviews.forEach(url => URL.revokeObjectURL(url));
+        setGalleryPreviews([]);
+        setRemoveGalleryImages(true);
+        document.getElementById('gallery_images').value = '';
+    };
+
     const validateForm = () => {
         const newErrors = {};
 
@@ -160,6 +362,14 @@ const EditEvent = () => {
 
         if (!formData.venue.trim()) {
             newErrors.venue = 'Le lieu est requis';
+        }
+
+        if (!formData.location.trim()) {
+            newErrors.location = 'Le nom du lieu est requis';
+        }
+
+        if (!formData.address.trim()) {
+            newErrors.address = 'L\'adresse est requise';
         }
 
         if (!formData.city.trim()) {
@@ -202,19 +412,64 @@ const EditEvent = () => {
         setSaving(true);
 
         try {
-            const submitData = {
-                ...formData,
-                artists: formData.artists ? formData.artists.split(',').map(a => a.trim()).filter(a => a) : [],
-                sponsors: formData.sponsors ? formData.sponsors.split(',').map(s => s.trim()).filter(s => s) : []
-            };
+            // Utiliser FormData pour envoyer les fichiers
+            const formDataToSend = new FormData();
+
+            // Ajouter _method pour Laravel
+            formDataToSend.append('_method', 'PUT');
+
+            // Ajouter tous les champs du formulaire
+            Object.keys(formData).forEach(key => {
+                if (formData[key] !== null && formData[key] !== undefined && formData[key] !== '') {
+                    if (typeof formData[key] === 'boolean') {
+                        formDataToSend.append(key, formData[key] ? '1' : '0');
+                    } else {
+                        formDataToSend.append(key, formData[key]);
+                    }
+                }
+            });
+
+            // Traiter les artistes et sponsors
+            if (formData.artists) {
+                const artists = formData.artists.split(',').map(a => a.trim()).filter(a => a).join(',');
+                formDataToSend.append('artists', artists);
+            }
+            if (formData.sponsors) {
+                const sponsors = formData.sponsors.split(',').map(s => s.trim()).filter(s => s).join(',');
+                formDataToSend.append('sponsors', sponsors);
+            }
+
+            // Ajouter les indicateurs de suppression
+            if (removePosterImage) {
+                formDataToSend.append('remove_poster_image', '1');
+            }
+            if (removeFeaturedImage) {
+                formDataToSend.append('remove_featured_image', '1');
+            }
+            if (removeGalleryImages) {
+                formDataToSend.append('remove_gallery_images', '1');
+            }
+
+            // Ajouter les nouveaux fichiers images
+            if (posterImage) {
+                formDataToSend.append('poster_image', posterImage);
+            }
+            if (featuredImage) {
+                formDataToSend.append('featured_image', featuredImage);
+            }
+            if (galleryImages.length > 0) {
+                galleryImages.forEach((file, index) => {
+                    formDataToSend.append(`gallery_images[${index}]`, file);
+                });
+            }
 
             const response = await fetch(`/api/events/${id}`, {
-                method: 'PUT',
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Accept': 'application/json'
                 },
-                body: JSON.stringify(submitData)
+                body: formDataToSend
             });
 
             const data = await response.json();
@@ -545,6 +800,248 @@ const EditEvent = () => {
                                                         </Form.Control.Feedback>
                                                     </>
                                                 )}
+                                            </Form.Group>
+                                        </Col>
+                                    </Row>
+                                </Card.Body>
+                            </Card>
+
+                            {/* Section Médias */}
+                            <Card className="border-0 shadow-sm">
+                                <Card.Header className="bg-white border-bottom">
+                                    <h5 className="fw-bold mb-0">
+                                        <FontAwesomeIcon icon={faImage} className="me-2 text-primary" />
+                                        Images et médias
+                                    </h5>
+                                </Card.Header>
+                                <Card.Body>
+                                    <Row className="g-3">
+                                        {/* Image poster */}
+                                        <Col md={12}>
+                                            <Form.Group>
+                                                <Form.Label>Image poster</Form.Label>
+
+                                                {/* Image actuelle */}
+                                                {currentPosterImage && !removePosterImage && !posterPreview && (
+                                                    <div className="mb-2 p-2 border rounded bg-info bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                            <small className="text-info fw-bold">Image actuelle:</small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={clearPosterImage}
+                                                            >
+                                                                Supprimer
+                                                            </Button>
+                                                        </div>
+                                                        <img
+                                                            src={`/storage/${currentPosterImage}`}
+                                                            alt="Poster actuel"
+                                                            className="img-fluid rounded"
+                                                            style={{ maxHeight: '120px', objectFit: 'cover' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                <Form.Control
+                                                    type="file"
+                                                    id="poster_image"
+                                                    accept="image/*"
+                                                    onChange={handlePosterImageChange}
+                                                    isInvalid={!!errors.poster_image}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.poster_image}
+                                                </Form.Control.Feedback>
+
+                                                {/* Nouvelle image sélectionnée */}
+                                                {posterPreview && (
+                                                    <div className="mt-2 p-2 border rounded bg-success bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                            <small className="text-success fw-bold">Nouvelle image:</small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={clearPosterImage}
+                                                            >
+                                                                ×
+                                                            </Button>
+                                                        </div>
+                                                        <img
+                                                            src={posterPreview}
+                                                            alt="Aperçu poster"
+                                                            className="img-fluid rounded"
+                                                            style={{ maxHeight: '120px', objectFit: 'cover' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {removePosterImage && (
+                                                    <div className="mt-2 p-2 border rounded bg-warning bg-opacity-10">
+                                                        <small className="text-warning fw-bold">
+                                                            ⚠️ L'image poster actuelle sera supprimée
+                                                        </small>
+                                                    </div>
+                                                )}
+                                            </Form.Group>
+                                        </Col>
+
+                                        {/* Image principale */}
+                                        <Col md={12}>
+                                            <Form.Group>
+                                                <Form.Label>Image principale</Form.Label>
+
+                                                {/* Image actuelle */}
+                                                {currentFeaturedImage && !removeFeaturedImage && !featuredPreview && (
+                                                    <div className="mb-2 p-2 border rounded bg-info bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                            <small className="text-info fw-bold">Image actuelle:</small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={clearFeaturedImage}
+                                                            >
+                                                                Supprimer
+                                                            </Button>
+                                                        </div>
+                                                        <img
+                                                            src={`/storage/${currentFeaturedImage}`}
+                                                            alt="Image principale actuelle"
+                                                            className="img-fluid rounded"
+                                                            style={{ maxHeight: '120px', objectFit: 'cover' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                <Form.Control
+                                                    type="file"
+                                                    id="featured_image"
+                                                    accept="image/*"
+                                                    onChange={handleFeaturedImageChange}
+                                                    isInvalid={!!errors.featured_image}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.featured_image}
+                                                </Form.Control.Feedback>
+
+                                                {/* Nouvelle image sélectionnée */}
+                                                {featuredPreview && (
+                                                    <div className="mt-2 p-2 border rounded bg-success bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                            <small className="text-success fw-bold">Nouvelle image:</small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={clearFeaturedImage}
+                                                            >
+                                                                ×
+                                                            </Button>
+                                                        </div>
+                                                        <img
+                                                            src={featuredPreview}
+                                                            alt="Aperçu image principale"
+                                                            className="img-fluid rounded"
+                                                            style={{ maxHeight: '120px', objectFit: 'cover' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {removeFeaturedImage && (
+                                                    <div className="mt-2 p-2 border rounded bg-warning bg-opacity-10">
+                                                        <small className="text-warning fw-bold">
+                                                            ⚠️ L'image principale actuelle sera supprimée
+                                                        </small>
+                                                    </div>
+                                                )}
+                                            </Form.Group>
+                                        </Col>
+
+                                        {/* Galerie */}
+                                        <Col md={12}>
+                                            <Form.Group>
+                                                <Form.Label>Galerie d'images (max 10)</Form.Label>
+
+                                                {/* Images actuelles */}
+                                                {currentGalleryImages.length > 0 && !removeGalleryImages && galleryPreviews.length === 0 && (
+                                                    <div className="mb-2 p-2 border rounded bg-info bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                                            <small className="text-info fw-bold">
+                                                                Galerie actuelle ({currentGalleryImages.length} image(s)):
+                                                            </small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={clearGalleryImages}
+                                                            >
+                                                                Supprimer toutes
+                                                            </Button>
+                                                        </div>
+                                                        <div className="d-flex flex-wrap gap-1">
+                                                            {currentGalleryImages.map((image, index) => (
+                                                                <img
+                                                                    key={index}
+                                                                    src={`/storage/${image}`}
+                                                                    alt={`Galerie ${index + 1}`}
+                                                                    className="rounded"
+                                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <Form.Control
+                                                    type="file"
+                                                    id="gallery_images"
+                                                    accept="image/*"
+                                                    multiple
+                                                    onChange={handleGalleryImagesChange}
+                                                    isInvalid={!!errors.gallery_images}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {errors.gallery_images}
+                                                </Form.Control.Feedback>
+
+                                                {/* Nouvelles images sélectionnées */}
+                                                {galleryPreviews.length > 0 && (
+                                                    <div className="mt-2 p-2 border rounded bg-success bg-opacity-10">
+                                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                                            <small className="text-success fw-bold">
+                                                                Nouvelles images ({galleryPreviews.length}):
+                                                            </small>
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={clearGalleryImages}
+                                                            >
+                                                                Annuler
+                                                            </Button>
+                                                        </div>
+                                                        <div className="d-flex flex-wrap gap-1">
+                                                            {galleryPreviews.map((preview, index) => (
+                                                                <img
+                                                                    key={index}
+                                                                    src={preview}
+                                                                    alt={`Nouvelle ${index + 1}`}
+                                                                    className="rounded"
+                                                                    style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {removeGalleryImages && (
+                                                    <div className="mt-2 p-2 border rounded bg-warning bg-opacity-10">
+                                                        <small className="text-warning fw-bold">
+                                                            ⚠️ Toutes les images de la galerie actuelle seront supprimées
+                                                        </small>
+                                                    </div>
+                                                )}
+
+                                                <Form.Text className="text-muted">
+                                                    Formats acceptés: JPG, PNG, WEBP (max 5MB par image)
+                                                </Form.Text>
                                             </Form.Group>
                                         </Col>
                                     </Row>
