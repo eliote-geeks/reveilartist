@@ -25,16 +25,16 @@ const Footer = () => {
                             Une plateforme dédiée à la promotion de la musique locale.
                         </p>
                         <div className="footer-social">
-                            <a href="#" className="social-link" title="Facebook">
+                            <a href="https://www.facebook.com/profile.php?id=100065203500641" target="_blank" rel="noopener noreferrer" className="social-link" title="Facebook">
                                 <FontAwesomeIcon icon={faFacebook} />
                             </a>
                             <a href="#" className="social-link" title="Twitter">
                                 <FontAwesomeIcon icon={faTwitter} />
                             </a>
-                            <a href="#" className="social-link" title="Instagram">
+                            <a href="https://www.instagram.com/blueenergy237?igsh=ODlqdnkxb255YnA4&utm_source=qr" target="_blank" rel="noopener noreferrer" className="social-link" title="Instagram">
                                 <FontAwesomeIcon icon={faInstagram} />
                             </a>
-                            <a href="#" className="social-link" title="YouTube">
+                            <a href="https://youtube.com/@reveilart?si=N5KLU82bN7DRd_2B" target="_blank" rel="noopener noreferrer" className="social-link" title="YouTube">
                                 <FontAwesomeIcon icon={faYoutube} />
                             </a>
                         </div>
@@ -45,7 +45,6 @@ const Footer = () => {
                         <h5 className="footer-title">Navigation</h5>
                         <ul className="footer-links">
                             <li><a href="/" className="footer-link">Accueil</a></li>
-                            <li><a href="/dashboard" className="footer-link">Dashboard</a></li>
                             <li><a href="/contact" className="footer-link">Contact</a></li>
                         </ul>
                     </Col>
@@ -81,15 +80,15 @@ const Footer = () => {
                         <ul className="footer-contact">
                             <li>
                                 <FontAwesomeIcon icon={faEnvelope} className="me-2" />
-                                contact@reveilart.cm
+                                reveilart4artist@gmail.com
                             </li>
                             <li>
                                 <FontAwesomeIcon icon={faPhone} className="me-2" />
-                                +237 6XX XXX XXX
+                                +237 658 98 00 51
                             </li>
                             <li>
                                 <FontAwesomeIcon icon={faMapMarkerAlt} className="me-2" />
-                                Douala, Cameroun
+                                Yaoundé, Quartier Messassi, Cameroun
                             </li>
                         </ul>
                     </Col>
@@ -98,16 +97,21 @@ const Footer = () => {
                 <hr className="footer-divider" />
 
                 <Row className="align-items-center">
-                    <Col md={6}>
+                    <Col md={4}>
                         <p className="footer-copyright mb-0">
                             © 2024 Reveilart4artist. Tous droits réservés.
                         </p>
                     </Col>
-                    <Col md={6} className="text-md-end">
+                    <Col md={4} className="text-center">
+                        <p className="footer-credit mb-0">
+                            Développé par <span className="fw-bold text-primary">Father Paul</span>
+                        </p>
+                    </Col>
+                    <Col md={4} className="text-md-end">
                         <div className="footer-legal">
-                            <a href="#" className="legal-link">Politique de confidentialité</a>
-                            <a href="#" className="legal-link">Conditions d'utilisation</a>
-                            <a href="#" className="legal-link">Mentions légales</a>
+                            <a href="/privacy-policy" className="legal-link">Politique de confidentialité</a>
+                            <a href="/terms-of-service" className="legal-link">Conditions d'utilisation</a>
+                            <a href="/legal-notice" className="legal-link">Mentions légales</a>
                         </div>
                     </Col>
                 </Row>
@@ -232,6 +236,18 @@ const Footer = () => {
                     font-size: 0.9rem;
                 }
 
+                .footer-credit {
+                    color: rgba(255,255,255,0.7);
+                    font-size: 0.9rem;
+                }
+
+                .footer-credit .text-primary {
+                    background: linear-gradient(45deg, #667eea, #764ba2);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+
                 .footer-legal {
                     display: flex;
                     gap: 1.5rem;
@@ -261,6 +277,11 @@ const Footer = () => {
 
                     .footer-copyright {
                         text-align: center;
+                    }
+
+                    .footer-credit {
+                        text-align: center;
+                        margin-top: 0.5rem;
                     }
                 }
             `}</style>

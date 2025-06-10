@@ -787,10 +787,6 @@ const MyCreations = () => {
                             <>
                                 <div className="d-flex justify-content-between align-items-center mb-4">
                                     <h4>Mes Sons</h4>
-                                    <Button as={Link} to="/add-sound" variant="primary">
-                                        <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                        Nouveau son
-                                    </Button>
                                 </div>
 
                                 {mySounds.length === 0 ? (
@@ -802,11 +798,8 @@ const MyCreations = () => {
                                         />
                                         <h4 className="text-muted mb-3">Aucun son créé</h4>
                                         <p className="text-muted mb-4">
-                                            Commencez par ajouter votre premier son
+                                            Vous n'avez pas encore créé de son.
                                         </p>
-                                        <Button as={Link} to="/add-sound" variant="primary">
-                                            Créer mon premier son
-                                        </Button>
                                     </div>
                                 ) : (
                                     <>
@@ -1121,10 +1114,6 @@ const MyCreations = () => {
                             <>
                                 <div className="d-flex justify-content-between align-items-center mb-4">
                                     <h4>Mes Événements</h4>
-                                    <Button as={Link} to="/add-event" variant="primary">
-                                        <FontAwesomeIcon icon={faPlus} className="me-2" />
-                                        Nouvel événement
-                                    </Button>
                                 </div>
 
                                 {myEvents.length === 0 ? (
@@ -1136,11 +1125,8 @@ const MyCreations = () => {
                                         />
                                         <h4 className="text-muted mb-3">Aucun événement créé</h4>
                                         <p className="text-muted mb-4">
-                                            Commencez par organiser votre premier événement
+                                            Vous n'avez pas encore créé d'événement.
                                         </p>
-                                        <Button as={Link} to="/add-event" variant="primary">
-                                            Créer mon premier événement
-                                        </Button>
                                     </div>
                                 ) : (
                                     <Row className="g-4">

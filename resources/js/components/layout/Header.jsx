@@ -142,44 +142,6 @@ const Header = () => {
                     <div className="d-none d-lg-flex align-items-center">
                         {isAuthenticated ? (
                             <div className="user-actions-modern">
-                                {/* Bouton Créer moderne */}
-                                {canCreateContent() && (
-                                    <div className="create-button-modern">
-                                        <NavDropdown
-                                            title={
-                                                <div className="create-trigger">
-                                                    <FontAwesomeIcon icon={faPlus} />
-                                                    <span>Créer</span>
-                                                    <FontAwesomeIcon icon={faChevronDown} className="chevron" />
-                                                </div>
-                                            }
-                                            id="create-dropdown-modern"
-                                            className="create-dropdown-modern"
-                                        >
-                                            <div className="dropdown-modern">
-                                                <NavDropdown.Item as={Link} to="/add-sound" className="dropdown-item-modern">
-                                                    <div className="item-icon sound">
-                                                        <FontAwesomeIcon icon={faMusic} />
-                                                    </div>
-                                                    <div className="item-content">
-                                                        <div className="item-title">Nouveau Son</div>
-                                                        <div className="item-subtitle">Partagez votre musique</div>
-                                                    </div>
-                                                </NavDropdown.Item>
-                                                <NavDropdown.Item as={Link} to="/add-event" className="dropdown-item-modern">
-                                                    <div className="item-icon event">
-                                                        <FontAwesomeIcon icon={faCalendarAlt} />
-                                                    </div>
-                                                    <div className="item-content">
-                                                        <div className="item-title">Nouvel Événement</div>
-                                                        <div className="item-subtitle">Organisez un concert</div>
-                                                    </div>
-                                                </NavDropdown.Item>
-                                            </div>
-                                        </NavDropdown>
-                                    </div>
-                                )}
-
                                 {/* Actions rapides */}
                                 <div className="quick-actions">
                                     <Nav.Link
@@ -378,22 +340,6 @@ const Header = () => {
                                     <FontAwesomeIcon icon={faUserCog} />
                                     <span>Modifier Profil</span>
                                 </Nav.Link>
-
-                                {canCreateContent() && (
-                                    <>
-                                        <div className="mobile-create-section-ultra">
-                                            <h6>Créer du contenu</h6>
-                                            <Nav.Link as={Link} to="/add-sound" className="mobile-create-item" onClick={closeMobileMenu}>
-                                                <FontAwesomeIcon icon={faMusic} />
-                                                <span>Nouveau Son</span>
-                                            </Nav.Link>
-                                            <Nav.Link as={Link} to="/add-event" className="mobile-create-item" onClick={closeMobileMenu}>
-                                                <FontAwesomeIcon icon={faCalendarAlt} />
-                                                <span>Nouvel Événement</span>
-                                            </Nav.Link>
-                                        </div>
-                                    </>
-                                )}
                             </>
                         )}
                     </div>

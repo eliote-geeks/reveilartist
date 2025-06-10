@@ -10,7 +10,6 @@ import {
     faHeadphones, faTag, faStar, faGlobe, faShield, faCopyright,
     faInfo, faHistory, faChartLine, faAward, faQuoteLeft
 } from '@fortawesome/free-solid-svg-icons';
-import AudioPlayer from '../common/AudioPlayer';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
@@ -601,7 +600,7 @@ const SoundDetails = () => {
                         </Card>
                     )}
 
-                    {/* Player - Déplacé plus bas */}
+                    {/* Lecteur Audio Intégré */}
                     <Card className="border-0 shadow-sm mb-4">
                         <Card.Body>
                             <div className="d-flex align-items-center justify-content-between mb-3">
@@ -626,7 +625,7 @@ const SoundDetails = () => {
                             {/* Informations d'écoute */}
                             <div className="mb-3 p-3 bg-light rounded">
                                 <div className="row align-items-center">
-                                                                        <div className="col-md-8">
+                                    <div className="col-md-8">
                                         {soundData.is_free || soundData.price === 0 ? (
                                             <div className="d-flex align-items-center text-success">
                                                 <FontAwesomeIcon icon={faHeadphones} className="me-2" />
@@ -657,19 +656,69 @@ const SoundDetails = () => {
                                 </div>
                             </div>
 
-                                                        <AudioPlayer
-                                sound={soundData}
-                                isCompact={false}
-                                showDetails={false}
-                                onLike={handleLike}
-                                previewDuration={
-                                    (soundData.is_free || soundData.price === 0)
-                                        ? null // Pas de limitation pour les sons gratuits
-                                        : 20   // 20 secondes pour les sons payants
-                                }
-                                showPreviewBadge={!soundData.is_free && soundData.price > 0}
-                                allowFullPlayback={soundData.is_free || soundData.price === 0}
-                            />
+                            {/* Lecteur Audio Simple */}
+                            <div className="audio-player-container p-3 bg-dark rounded">
+                                <div className="d-flex align-items-center justify-content-between mb-3">
+                                    <div className="d-flex align-items-center text-white">
+                                        <img
+                                            src={soundData.cover || `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop`}
+                                            alt={soundData.title}
+                                            className="rounded me-3"
+                                            style={{ width: '50px', height: '50px', objectFit: 'cover' }}
+                                        />
+                                        <div>
+                                            <div className="fw-bold">{soundData.title}</div>
+                                            <div className="small text-light opacity-75">{soundData.artist}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        <Button
+                                            variant={isPlaying ? "danger" : "success"}
+                                            className="rounded-circle play-btn"
+                                            onClick={() => {
+                                                const audio = document.getElementById('mainAudio');
+                                                if (isPlaying) {
+                                                    audio.pause();
+                                                    setIsPlaying(false);
+                                                } else {
+                                                    audio.play();
+                                                    setIsPlaying(true);
+                                                }
+                                            }}
+                                            style={{ width: '50px', height: '50px' }}
+                                        >
+                                            <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <audio
+                                    id="mainAudio"
+                                    controls
+                                    className="w-100"
+                                    style={{ height: '40px' }}
+                                    onPlay={() => setIsPlaying(true)}
+                                    onPause={() => setIsPlaying(false)}
+                                    onTimeUpdate={(e) => {
+                                        // Limiter la prévisualisation pour les sons payants
+                                        if (!soundData.is_free && soundData.price > 0 && e.target.currentTime >= 20) {
+                                            e.target.pause();
+                                            e.target.currentTime = 0;
+                                            setIsPlaying(false);
+                                            toast.info('Prévisualisation terminée', 'Achetez le son pour l\'écouter en entier');
+                                        }
+                                    }}
+                                >
+                                    <source
+                                        src={soundData.is_free || soundData.price === 0
+                                            ? (soundData.file_url || soundData.preview_url)
+                                            : (soundData.preview_url || soundData.file_url)
+                                        }
+                                        type="audio/mpeg"
+                                    />
+                                    Votre navigateur ne supporte pas l'élément audio.
+                                </audio>
+                            </div>
                         </Card.Body>
                     </Card>
 
@@ -867,42 +916,6 @@ const SoundDetails = () => {
 
                 {/* Sidebar */}
                 <Col lg={4}>
-                    {/* Artiste */}
-                    <Card className="border-0 shadow-sm mb-4">
-                        <Card.Body>
-                            <h6 className="fw-bold mb-3">
-                                <FontAwesomeIcon icon={faUser} className="me-2" />
-                                Artiste
-                            </h6>
-                            <div className="d-flex align-items-center">
-                                <div className="me-3">
-                                    <div
-                                        className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold"
-                                        style={{ width: '50px', height: '50px' }}
-                                    >
-                                        {soundData.artist ? soundData.artist.charAt(0).toUpperCase() : 'A'}
-                                    </div>
-                                </div>
-                                <div className="flex-grow-1">
-                                    <Link
-                                        to={`/artist/${soundData.artistId}`}
-                                        className="text-decoration-none"
-                                    >
-                                        <h6 className="fw-bold mb-0">{soundData.artist}</h6>
-                                    </Link>
-                                    <small className="text-muted">Artiste</small>
-                                </div>
-                                <Button
-                                    as={Link}
-                                    to={`/artist/${soundData.artistId}`}
-                                    variant="outline-primary"
-                                    size="sm"
-                                >
-                                    Voir profil
-                                </Button>
-                            </div>
-                        </Card.Body>
-                    </Card>
 
                     {/* Statistiques détaillées */}
                     <Card className="border-0 shadow-sm mb-4">
@@ -1015,6 +1028,48 @@ const SoundDetails = () => {
                 .hover-shadow:hover {
                     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
                     transition: box-shadow 0.2s ease;
+                }
+
+                .audio-player-container {
+                    background: linear-gradient(135deg, #2D3748 0%, #1A202C 100%);
+                    border-radius: 12px;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                }
+
+                .play-btn {
+                    transition: all 0.3s ease;
+                    border: 2px solid rgba(255, 255, 255, 0.2);
+                }
+
+                .play-btn:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+                }
+
+                #mainAudio {
+                    border-radius: 8px;
+                    outline: none;
+                    background: rgba(255, 255, 255, 0.1);
+                }
+
+                #mainAudio::-webkit-media-controls-panel {
+                    background-color: rgba(255, 255, 255, 0.1);
+                }
+
+                #mainAudio::-webkit-media-controls-play-button,
+                #mainAudio::-webkit-media-controls-pause-button {
+                    background-color: #8B5CF6;
+                    border-radius: 50%;
+                }
+
+                #mainAudio::-webkit-media-controls-timeline {
+                    background-color: rgba(255, 255, 255, 0.3);
+                    border-radius: 25px;
+                }
+
+                #mainAudio::-webkit-media-controls-volume-slider {
+                    background-color: rgba(255, 255, 255, 0.3);
+                    border-radius: 25px;
                 }
             `}</style>
         </Container>

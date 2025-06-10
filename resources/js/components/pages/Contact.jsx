@@ -347,8 +347,8 @@ const Contact = () => {
                                         </div>
                                         <div>
                                             <div className="fw-medium">Email principal</div>
-                                            <a href="mailto:support@reveil4artist.com" className="text-decoration-none small">
-                                                support@reveil4artist.com
+                                            <a href="mailto:reveilart4artist@gmail.com" className="text-decoration-none small">
+                                                reveilart4artist@gmail.com
                                             </a>
                                         </div>
                                     </div>
@@ -361,7 +361,7 @@ const Contact = () => {
                                         </div>
                                         <div>
                                             <div className="fw-medium">Téléphone</div>
-                                            <div className="text-muted small">+237 6XX XX XX XX</div>
+                                            <a href="tel:+237658980051" className="text-decoration-none small">+237 658 98 00 51</a>
                                         </div>
                                     </div>
                                 </div>
@@ -373,7 +373,7 @@ const Contact = () => {
                                         </div>
                                         <div>
                                             <div className="fw-medium">Siège social</div>
-                                            <div className="text-muted small">Douala, Cameroun</div>
+                                            <div className="text-muted small">Yaoundé, Quartier Messassi, Cameroun</div>
                                         </div>
                                     </div>
                                 </div>
@@ -416,16 +416,16 @@ const Contact = () => {
                             <Card.Body className="text-center">
                                 <h6 className="fw-bold mb-3">Suivez-nous</h6>
                                 <div className="d-flex gap-3 justify-content-center">
-                                    <a href="#" className="social-link facebook" title="Facebook">
+                                    <a href="https://www.facebook.com/profile.php?id=100065203500641" target="_blank" rel="noopener noreferrer" className="social-link facebook" title="Facebook">
                                         <FontAwesomeIcon icon={faFacebook} />
                                     </a>
                                     <a href="#" className="social-link twitter" title="Twitter">
                                         <FontAwesomeIcon icon={faTwitter} />
                                     </a>
-                                    <a href="#" className="social-link instagram" title="Instagram">
+                                    <a href="https://www.instagram.com/blueenergy237?igsh=ODlqdnkxb255YnA4&utm_source=qr" target="_blank" rel="noopener noreferrer" className="social-link instagram" title="Instagram">
                                         <FontAwesomeIcon icon={faInstagram} />
                                     </a>
-                                    <a href="#" className="social-link youtube" title="YouTube">
+                                    <a href="https://youtube.com/@reveilart?si=N5KLU82bN7DRd_2B" target="_blank" rel="noopener noreferrer" className="social-link youtube" title="YouTube">
                                         <FontAwesomeIcon icon={faYoutube} />
                                     </a>
                                 </div>
@@ -445,20 +445,12 @@ const Contact = () => {
                             </Card.Header>
                             <Card.Body>
                                 <p className="text-muted mb-3 small">
-                                    Besoin d'une réponse immédiate ? Explorez nos ressources d'aide.
+                                    Besoin d'une réponse immédiate ? Consultez notre FAQ pour les questions les plus fréquentes.
                                 </p>
                                 <div className="d-grid gap-2">
-                                    <Button variant="outline-primary" size="sm">
+                                    <Button variant="outline-primary" size="sm" as="a" href="/faq">
                                         <FontAwesomeIcon icon={faQuestionCircle} className="me-2" />
                                         FAQ complète
-                                    </Button>
-                                    <Button variant="outline-success" size="sm">
-                                        <FontAwesomeIcon icon={faComments} className="me-2" />
-                                        Chat en direct
-                                    </Button>
-                                    <Button variant="outline-info" size="sm">
-                                        <FontAwesomeIcon icon={faMusic} className="me-2" />
-                                        Guide artiste
                                     </Button>
                                 </div>
                             </Card.Body>

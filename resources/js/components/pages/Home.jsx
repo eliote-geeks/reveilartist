@@ -906,45 +906,45 @@ const Home = () => {
                                                             size="sm"
                                                             className={`p-0 stat-button ${likedSounds.has(sound.id) ? 'text-danger' : 'text-muted'}`}
                                                             onClick={() => handleLike(sound.id)}
-                                                            style={{ fontSize: '0.8rem' }}
+                                                            style={{ fontSize: '0.75rem' }}
                                                         >
                                                             <FontAwesomeIcon icon={faHeart} className="me-1" />
                                                             {formatNumber(sound.likes || 0)}
                                                         </Button>
-                                                        <span className="small text-muted" style={{ fontSize: '0.8rem' }}>
+                                                        <span className="small text-muted" style={{ fontSize: '0.75rem' }}>
                                                             <FontAwesomeIcon icon={faPlay} className="me-1" />
                                                             {formatNumber(sound.plays || 0)}
                                                         </span>
-                                                        <span className="small text-muted" style={{ fontSize: '0.8rem' }}>
+                                                        <span className="small text-muted" style={{ fontSize: '0.75rem' }}>
                                                             <FontAwesomeIcon icon={faDownload} className="me-1" />
                                                             {formatNumber(sound.downloads || 0)}
                                                         </span>
                                                     </div>
 
-                                                    <div className="d-flex gap-2">
+                                                    <div className="d-flex gap-1">
                                                         <Button
                                                             as={Link}
                                                             to={`/sounds/${sound.id}`}
                                                             variant="primary"
                                                             size="sm"
-                                                            className="btn-details rounded-pill"
-                                                            style={{ fontSize: '0.8rem' }}
+                                                            className="btn-details-compact"
+                                                            style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
                                                         >
                                                             <FontAwesomeIcon icon={faEye} className="me-1" />
-                                                            Voir plus
+                                                            Voir
                                                         </Button>
 
                                                         {!sound.is_free && sound.price > 0 && (
                                                             <Button
                                                                 variant="outline-success"
                                                                 size="sm"
-                                                                className="rounded-pill"
-                                                                style={{ fontSize: '0.8rem' }}
+                                                                className="btn-cart-compact"
+                                                                style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
                                                                 onClick={() => handleAddToCart(sound)}
                                                                 id={`cart-button-${sound.id}`}
                                                             >
                                                                 <FontAwesomeIcon icon={faShoppingCart} className="me-1" />
-                                                                Acheter
+                                                                Panier
                                                             </Button>
                                                         )}
 
@@ -952,8 +952,8 @@ const Home = () => {
                                                             <Button
                                                                 variant="outline-success"
                                                                 size="sm"
-                                                                className="rounded-pill"
-                                                                style={{ fontSize: '0.8rem' }}
+                                                                className="btn-download-compact"
+                                                                style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
                                                                 onClick={() => handleDownload(sound)}
                                                                 disabled={downloadingTracks.has(sound.id)}
                                                             >
@@ -962,7 +962,7 @@ const Home = () => {
                                                                 ) : (
                                                                     <FontAwesomeIcon icon={faDownload} className="me-1" />
                                                                 )}
-                                                                {downloadingTracks.has(sound.id) ? 'Téléchargement...' : 'Télécharger'}
+                                                                {downloadingTracks.has(sound.id) ? '...' : 'DL'}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -1957,6 +1957,54 @@ const Home = () => {
                     background: #7C3AED;
                     transform: translateY(-2px);
                     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+                }
+
+                .btn-details-compact {
+                    background: #8B5CF6;
+                    border: none;
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                    font-weight: 500;
+                    color: white;
+                }
+
+                .btn-details-compact:hover {
+                    background: #7C3AED;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+                    color: white;
+                }
+
+                .btn-cart-compact {
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                    font-weight: 500;
+                    border: 1px solid #10B981;
+                    color: #10B981;
+                }
+
+                .btn-cart-compact:hover {
+                    background: #10B981;
+                    border-color: #10B981;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+                    color: white;
+                }
+
+                .btn-download-compact {
+                    border-radius: 8px;
+                    transition: all 0.2s ease;
+                    font-weight: 500;
+                    border: 1px solid #10B981;
+                    color: #10B981;
+                }
+
+                .btn-download-compact:hover {
+                    background: #10B981;
+                    border-color: #10B981;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+                    color: white;
                 }
             `}</style>
         </div>

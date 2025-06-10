@@ -29,6 +29,12 @@ import Categories from '@pages/Categories';
 import CategoryDetail from '@pages/CategoryDetail';
 import About from '@pages/About';
 
+// Import des pages légales
+import FAQ from './pages/FAQ';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import LegalNotice from './pages/LegalNotice';
+
 // Import des pages de compétitions
 import Competitions from './pages/Competitions';
 import CompetitionDetails from './pages/CompetitionDetails';
@@ -72,6 +78,12 @@ function App() {
                         <Route path="/contact" element={<Contact />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/auth-test" element={<AuthTest />} />
+
+                        {/* Pages légales */}
+                        <Route path="/faq" element={<FAQ />} />
+                        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                        <Route path="/terms-of-service" element={<TermsOfService />} />
+                        <Route path="/legal-notice" element={<LegalNotice />} />
 
                         {/* Pages de contenu publiques */}
                         <Route path="/catalog" element={<Catalog />} />

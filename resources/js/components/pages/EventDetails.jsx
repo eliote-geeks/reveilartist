@@ -13,7 +13,6 @@ import {
     faArrowLeft,
     faShoppingCart,
     faShare,
-    faHeart,
     faInfoCircle,
     faCheckCircle,
     faCrown,
@@ -21,7 +20,6 @@ import {
     faEye,
     faDownload,
     faChartLine,
-    faEdit,
     faTrash,
     faCopy,
     faQrcode,
@@ -55,7 +53,6 @@ const EventDetails = () => {
     const [showTicketModal, setShowTicketModal] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
     const [ticketQuantities, setTicketQuantities] = useState({});
-    const [isFavorite, setIsFavorite] = useState(false);
 
     const { addToCart } = useCart();
     const toast = useToast();
@@ -125,18 +122,11 @@ const EventDetails = () => {
                         day: 'numeric'
                     }) : null,
 
-                    // Formatage des prix
-                    price_range: eventData.price_min && eventData.price_max ?
-                        `${formatCurrency(eventData.price_min)} - ${formatCurrency(eventData.price_max)}` :
-                        (eventData.ticket_price ? formatCurrency(eventData.ticket_price) : 'Gratuit')
+                    // Prix unique - prendre le ticket_price ou price_min comme prix principal
+                    ticket_price: Number(eventData.ticket_price) || Number(eventData.price_min) || 0
                 };
 
                 setEvent(adaptedEvent);
-
-                // Vérifier si l'événement est en favoris
-                if (token) {
-                    checkFavoriteStatus(id);
-                }
             } else {
                 toast.error('Erreur', data.message || 'Événement non trouvé');
                 navigate('/events');
@@ -150,55 +140,6 @@ const EventDetails = () => {
         }
     };
 
-    const checkFavoriteStatus = async (eventId) => {
-        try {
-            const response = await fetch(`/api/events/${eventId}/favorite`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setIsFavorite(data.is_favorite);
-            }
-        } catch (error) {
-            console.error('Erreur lors de la vérification des favoris:', error);
-        }
-    };
-
-    const handleToggleFavorite = async () => {
-        if (!token) {
-            toast.warning('Connexion requise', 'Vous devez être connecté pour ajouter aux favoris');
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/events/${event.id}/favorite`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setIsFavorite(data.is_favorite);
-                toast.success(
-                    'Favoris',
-                    data.is_favorite ? 'Événement ajouté aux favoris' : 'Événement retiré des favoris'
-                );
-            } else {
-                toast.error('Erreur', 'Impossible de modifier les favoris');
-            }
-        } catch (error) {
-            console.error('Erreur lors de la modification des favoris:', error);
-            toast.error('Erreur', 'Erreur de connexion');
-        }
-    };
-
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('fr-FR', {
             weekday: 'long',
@@ -209,11 +150,17 @@ const EventDetails = () => {
     };
 
     const formatCurrency = (amount) => {
+        // S'assurer que amount est un nombre valide
+        const numericAmount = Number(amount);
+        if (isNaN(numericAmount)) {
+            return 'Prix non disponible';
+        }
+
         return new Intl.NumberFormat('fr-CM', {
             style: 'currency',
             currency: 'XAF',
             minimumFractionDigits: 0
-        }).format(amount);
+        }).format(numericAmount);
     };
 
     const handleTicketQuantityChange = (ticketType, change) => {
@@ -244,7 +191,15 @@ const EventDetails = () => {
         if (!event) return;
 
         // Pour les événements payants, ajouter un billet standard
-        if (!event.is_free && (event.ticket_price || event.price_min)) {
+        if (!event.is_free && event.ticket_price) {
+            // S'assurer que le prix est un nombre valide
+            const ticketPrice = Number(event.ticket_price) || 0;
+
+            if (ticketPrice <= 0) {
+                toast.error('Erreur', 'Prix du billet invalide');
+                return;
+            }
+
             const cartItem = {
                 id: event.id,
                 type: 'event',
@@ -254,8 +209,8 @@ const EventDetails = () => {
                 venue: event.venue || event.location,
                 city: event.city,
                 ticket_type: 'Standard',
-                ticket_price: event.ticket_price || event.price_min,
-                price: event.ticket_price || event.price_min,
+                ticket_price: ticketPrice,
+                price: ticketPrice,
                 quantity: 1,
                 poster: event.poster_image_url || event.featured_image_url,
                 max_attendees: event.max_attendees || event.capacity
@@ -263,7 +218,7 @@ const EventDetails = () => {
 
             addToCart(cartItem);
 
-            toast.cart(
+            toast.success(
                 'Billet ajouté au panier',
                 `Billet pour "${event.title}" ajouté au panier`
             );
@@ -295,7 +250,7 @@ const EventDetails = () => {
             'showcase': { color: 'info', icon: faEye },
             'workshop': { color: 'success', icon: faUsers },
             'conference': { color: 'dark', icon: faUserFriends },
-            'party': { color: 'danger', icon: faHeart },
+            'party': { color: 'danger', icon: faThumbsUp },
             'soiree': { color: 'secondary', icon: faClock }
         };
 
@@ -356,21 +311,6 @@ const EventDetails = () => {
                                         <h4 className="fw-bold">{event.title}</h4>
                                         <p className="text-muted">{event.description}</p>
                                     </div>
-                                    {user && user.id === event.user_id && (
-                                        <div className="d-flex gap-2">
-                                            <Button
-                                                variant="outline-primary"
-                                                size="sm"
-                                                as={Link}
-                                                to={`/events/${event.id}/edit`}
-                                            >
-                                                <FontAwesomeIcon icon={faEdit} />
-                                            </Button>
-                                            <Button variant="outline-secondary" size="sm">
-                                                <FontAwesomeIcon icon={faCopy} />
-                                            </Button>
-                                        </div>
-                                    )}
                                 </div>
 
                                 <div className="mb-3">
@@ -451,32 +391,6 @@ const EventDetails = () => {
                             <p className="text-muted" style={{ lineHeight: '1.6' }}>
                                 {event.description}
                             </p>
-                        </Card.Body>
-                    </Card>
-                )}
-
-                {/* Types de billets */}
-                {event.tickets_array && event.tickets_array.length > 0 && (
-                    <Card className="border-0 shadow-sm mb-4">
-                        <Card.Body>
-                            <h5 className="fw-bold mb-3">
-                                <FontAwesomeIcon icon={faTicketAlt} className="me-2 text-primary" />
-                                Types de billets
-                            </h5>
-                            {event.tickets_array.map((ticket, index) => (
-                                <div key={index} className="border rounded p-3 mb-2">
-                                    <div className="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <h6 className="fw-bold mb-1">{ticket.type}</h6>
-                                            <p className="text-muted small mb-0">{ticket.description}</p>
-                                        </div>
-                                        <div className="text-end">
-                                            <div className="fw-bold text-primary">{formatCurrency(ticket.price)}</div>
-                                            <small className="text-muted">{ticket.available} places</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
                         </Card.Body>
                     </Card>
                 )}
@@ -566,51 +480,44 @@ const EventDetails = () => {
 
             <Col lg={4}>
                 {/* Actions rapides */}
-                <Card className="border-0 shadow-sm mb-4">
-                    <Card.Body>
-                        <h5 className="fw-bold mb-3">Actions</h5>
-                        <div className="d-grid gap-2">
-                            <Button
-                                variant={isFavorite ? "danger" : "outline-danger"}
-                                onClick={handleToggleFavorite}
-                                disabled={!token}
-                            >
-                                <FontAwesomeIcon icon={faHeart} className="me-2" />
-                                {isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                            </Button>
+                                    <Card className="border-0 shadow-sm mb-4">
+                        <Card.Body>
+                            <h5 className="fw-bold mb-3">Actions</h5>
+                            <div className="d-grid gap-2">
+                                {!event.is_free && event.ticket_price && (
+                                    <Button variant="primary" onClick={openTicketModal}>
+                                        <FontAwesomeIcon icon={faTicketAlt} className="me-2" />
+                                        Acheter un billet
+                                    </Button>
+                                )}
 
-                            {!event.is_free && (event.ticket_price || event.price_min) && (
-                                <Button variant="primary" onClick={openTicketModal}>
-                                    <FontAwesomeIcon icon={faTicketAlt} className="me-2" />
-                                    Acheter des billets
+                                <Button
+                                    variant="outline-secondary"
+                                    onClick={() => {
+                                        if (navigator.share) {
+                                            navigator.share({
+                                                title: event.title,
+                                                text: `Découvrez l'événement "${event.title}"`,
+                                                url: window.location.href,
+                                            });
+                                        } else {
+                                            navigator.clipboard.writeText(window.location.href);
+                                            toast.success('Lien copié', 'Le lien a été copié dans le presse-papiers');
+                                        }
+                                    }}>
+                                    <FontAwesomeIcon icon={faShare} className="me-2" />
+                                    Partager
                                 </Button>
-                            )}
-
-                            <Button variant="outline-secondary" onClick={() => {
-                                if (navigator.share) {
-                                    navigator.share({
-                                        title: event.title,
-                                        text: `Découvrez l'événement "${event.title}"`,
-                                        url: window.location.href,
-                                    });
-                                } else {
-                                    navigator.clipboard.writeText(window.location.href);
-                                    toast.success('Lien copié', 'Le lien a été copié dans le presse-papiers');
-                                }
-                            }}>
-                                <FontAwesomeIcon icon={faShare} className="me-2" />
-                                Partager
-                            </Button>
-                        </div>
-                    </Card.Body>
-                </Card>
+                            </div>
+                        </Card.Body>
+                    </Card>
 
                 {/* Informations de prix */}
                 <Card className="border-0 shadow-sm mb-4">
                     <Card.Body>
                         <h5 className="fw-bold mb-3">
                             <FontAwesomeIcon icon={faMoneyBillWave} className="me-2" />
-                            Tarification
+                            Prix du billet
                         </h5>
                         {event.is_free ? (
                             <div className="text-center py-3">
@@ -620,11 +527,9 @@ const EventDetails = () => {
                         ) : (
                             <div className="text-center">
                                 <div className="fw-bold text-primary fs-4 mb-2">
-                                    {event.price_range || (event.ticket_price ? formatCurrency(event.ticket_price) : 'Prix à définir')}
+                                    {formatCurrency(event.ticket_price)}
                                 </div>
-                                <small className="text-muted">
-                                    {event.price_min && event.price_max ? 'Gamme de prix' : 'Billet Standard'}
-                                </small>
+                                <small className="text-muted">Billet Standard</small>
                             </div>
                         )}
                     </Card.Body>
@@ -744,7 +649,7 @@ const EventDetails = () => {
             {/* Modal de billets */}
             <Modal show={showTicketModal} onHide={closeTicketModal} size="lg" centered>
                 <Modal.Header closeButton>
-                    <Modal.Title>Acheter des billets - {event?.title}</Modal.Title>
+                    <Modal.Title>Acheter un billet - {event?.title}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     {event && (
@@ -767,42 +672,7 @@ const EventDetails = () => {
                                 </div>
                             </div>
 
-                            {event.tickets_array && event.tickets_array.length > 0 ? (
-                                <div>
-                                    <h6 className="fw-bold mb-3">Billets disponibles</h6>
-                                    {event.tickets_array.map((ticket, index) => (
-                                        <div key={index} className="border rounded p-3 mb-3">
-                                            <Row className="align-items-center">
-                                                <Col md={6}>
-                                                    <h6 className="fw-bold mb-1">{ticket.type}</h6>
-                                                    <div className="text-primary fw-bold fs-5">
-                                                        {formatCurrency(ticket.price)}
-                                                    </div>
-                                                    <small className="text-muted">{ticket.description}</small>
-                                                    <div className="mt-1">
-                                                        <small className="text-muted">
-                                                            {ticket.available > 0 ?
-                                                                `${ticket.available} places disponibles` :
-                                                                'Places limitées'
-                                                            }
-                                                        </small>
-                                                    </div>
-                                                </Col>
-                                                <Col md={6} className="text-end">
-                                                    <Button
-                                                        variant="primary"
-                                                        onClick={handleAddToCart}
-                                                        disabled={ticket.available <= 0}
-                                                    >
-                                                        <FontAwesomeIcon icon={faShoppingCart} className="me-2" />
-                                                        Ajouter au panier
-                                                    </Button>
-                                                </Col>
-                                            </Row>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : !event.is_free && (event.ticket_price || event.price_min) ? (
+                            {!event.is_free && event.ticket_price ? (
                                 <div>
                                     <h6 className="fw-bold mb-3">Billet disponible</h6>
                                     <div className="border rounded p-3 mb-3">
@@ -810,7 +680,7 @@ const EventDetails = () => {
                                             <Col md={6}>
                                                 <h6 className="fw-bold mb-1">Billet Standard</h6>
                                                 <div className="text-primary fw-bold fs-5">
-                                                    {event.price_range || formatCurrency(event.ticket_price || event.price_min)}
+                                                    {formatCurrency(event.ticket_price)}
                                                 </div>
                                                 <small className="text-muted">
                                                     {event.remaining_spots > 0 ?
@@ -837,7 +707,7 @@ const EventDetails = () => {
                                     <p className="text-muted">
                                         {event.is_free ?
                                             "Cet événement est gratuit" :
-                                            "Billets non disponibles pour le moment"
+                                            "Billet non disponible pour le moment"
                                         }
                                     </p>
                                 </div>
