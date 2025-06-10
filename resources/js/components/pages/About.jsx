@@ -14,7 +14,7 @@ const About = () => {
             name: "Alexandre Kouma",
             role: "Fondateur & CEO",
             image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-            description: "Passionné de musique et d'innovation, Alexandre a créé Reveil4artist pour démocratiser l'accès à la création musicale au Cameroun."
+            description: "Passionné de musique et d'innovation, Alexandre a créé Reveilart4artist pour démocratiser l'accès à la création musicale au Cameroun."
         },
         {
             name: "Marie Nkoa",
@@ -72,7 +72,7 @@ const About = () => {
     const milestones = [
         {
             year: "2023",
-            title: "Lancement de Reveil4artist",
+            title: "Lancement de Reveilart4artist",
             description: "Création de la plateforme avec les premières fonctionnalités de partage et vente de sons."
         },
         {
@@ -113,7 +113,7 @@ const About = () => {
                                 Réveillez votre talent musical
                             </h1>
                             <p className="lead mb-4 text-dark">
-                                Reveil4artist est la première plateforme musicale camerounaise dédiée aux artistes,
+                                Reveilart4artist est la première plateforme musicale camerounaise dédiée aux artistes,
                                 producteurs et mélomanes. Nous démocratisons l'accès à la création musicale et
                                 révolutionnons l'industrie musicale en Afrique.
                             </p>
@@ -250,7 +250,7 @@ const About = () => {
                             <h2 className="fw-bold mb-4">Notre Histoire</h2>
                             <p className="lead text-muted">
                                 De l'idée à la réalisation, découvrez les étapes clés qui ont marqué
-                                l'évolution de Reveil4artist.
+                                l'évolution de Reveilart4artist.
                             </p>
                         </Col>
                     </Row>
@@ -284,7 +284,7 @@ const About = () => {
                             <h2 className="fw-bold mb-4">Notre Équipe</h2>
                             <p className="lead text-muted">
                                 Rencontrez les personnes passionnées qui travaillent chaque jour pour
-                                faire de Reveil4artist la meilleure plateforme musicale d'Afrique.
+                                faire de Reveilart4artist la meilleure plateforme musicale d'Afrique.
                             </p>
                         </Col>
                     </Row>
@@ -320,7 +320,7 @@ const About = () => {
                         <Col lg={8}>
                             <h3 className="fw-bold mb-3">Prêt à révéler votre talent ?</h3>
                             <p className="lead mb-0">
-                                Rejoignez des milliers d'artistes qui font déjà confiance à Reveil4artist
+                                Rejoignez des milliers d'artistes qui font déjà confiance à Reveilart4artist
                                 pour développer leur carrière musicale.
                             </p>
                         </Col>

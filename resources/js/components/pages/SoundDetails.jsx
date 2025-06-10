@@ -143,7 +143,7 @@ const SoundDetails = () => {
     const handleShare = async () => {
         const url = window.location.href;
         const title = `${soundData.title} par ${soundData.artist}`;
-        const text = `Découvrez ce son sur Reveil4artist`;
+        const text = `Découvrez ce son sur Reveilart4artist`;
 
         if (navigator.share) {
             try {

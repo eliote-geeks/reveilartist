@@ -18,7 +18,7 @@ const TermsOfService = () => {
                                 Conditions d'Utilisation
                             </h1>
                             <p className="lead mb-0">
-                                Règles d'utilisation de la plateforme Reveil4artist
+                                Règles d'utilisation de la plateforme Reveilart4artist
                             </p>
                         </Col>
                     </Row>
@@ -41,7 +41,7 @@ const TermsOfService = () => {
                                     <section className="mb-5">
                                         <h3 className="h4 fw-bold text-primary mb-3">1. Acceptation des conditions</h3>
                                         <p>
-                                            En accédant et en utilisant la plateforme Reveil4artist, vous acceptez
+                                            En accédant et en utilisant la plateforme Reveilart4artist, vous acceptez
                                             d'être lié par ces conditions d'utilisation. Si vous n'acceptez pas
                                             ces conditions, veuillez ne pas utiliser notre service.
                                         </p>
@@ -50,7 +50,7 @@ const TermsOfService = () => {
                                     <section className="mb-5">
                                         <h3 className="h4 fw-bold text-primary mb-3">2. Description du service</h3>
                                         <p>
-                                            Reveil4artist est une plateforme musicale camerounaise qui permet :
+                                            Reveilart4artist est une plateforme musicale camerounaise qui permet :
                                         </p>
                                         <ul>
                                             <li>L'écoute et le téléchargement de musiques locales</li>
@@ -114,7 +114,7 @@ const TermsOfService = () => {
                                         <h5 className="fw-bold mb-2 mt-3">6.2 Contenu utilisateur</h5>
                                         <p>
                                             En soumettant du contenu, vous garantissez détenir tous les
-                                            droits nécessaires et accordez à Reveil4artist une licence
+                                            droits nécessaires et accordez à Reveilart4artist une licence
                                             d'utilisation dans le cadre du service.
                                         </p>
                                     </section>
@@ -148,7 +148,7 @@ const TermsOfService = () => {
                                     <section className="mb-5">
                                         <h3 className="h4 fw-bold text-primary mb-3">9. Limitation de responsabilité</h3>
                                         <p>
-                                            Reveil4artist ne saurait être tenu responsable de :
+                                            Reveilart4artist ne saurait être tenu responsable de :
                                         </p>
                                         <ul>
                                             <li>L'interruption temporaire du service</li>

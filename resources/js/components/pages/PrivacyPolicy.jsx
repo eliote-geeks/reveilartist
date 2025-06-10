@@ -41,7 +41,7 @@ const PrivacyPolicy = () => {
                                     <section className="mb-5">
                                         <h3 className="h4 fw-bold text-primary mb-3">1. Introduction</h3>
                                         <p>
-                                            Reveil4artist, société camerounaise située à Yaoundé, Quartier Messassi,
+                                            Reveilart4artist, société camerounaise située à Yaoundé, Quartier Messassi,
                                             s'engage à protéger et respecter votre vie privée. Cette politique explique
                                             comment nous collectons, utilisons et protégeons vos données personnelles
                                             lorsque vous utilisez notre plateforme musicale.

@@ -25,7 +25,7 @@ const FAQ = () => {
         {
             id: 1,
             category: 'account',
-            question: "Comment créer un compte sur Reveil4artist ?",
+            question: "Comment créer un compte sur Reveilart4artist ?",
             answer: "Pour créer un compte, cliquez sur 'S'inscrire' en haut à droite de la page d'accueil. Remplissez le formulaire avec vos informations personnelles et confirmez votre adresse email. Vous pouvez également vous inscrire via vos réseaux sociaux."
         },
         {
@@ -136,7 +136,7 @@ const FAQ = () => {
                                 Foire Aux Questions
                             </h1>
                             <p className="lead mb-4">
-                                Trouvez rapidement les réponses à vos questions sur Reveil4artist
+                                Trouvez rapidement les réponses à vos questions sur Reveilart4artist
                             </p>
                             <Badge bg="light" text="dark" className="px-3 py-2">
                                 <FontAwesomeIcon icon={faClock} className="me-2" />

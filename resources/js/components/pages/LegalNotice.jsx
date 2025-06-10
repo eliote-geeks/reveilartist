@@ -1,7 +1,7 @@
 import React from 'react';
 import { Container, Row, Col, Card } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBalanceScale, faEnvelope, faCalendarAlt, faBuilding, faPhone, faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
+import { faBalanceScale, faEnvelope, faCalendarAlt, faBuilding, faPhone, faMapMarkerAlt, faScroll } from '@fortawesome/free-solid-svg-icons';
 
 const LegalNotice = () => {
     return (
@@ -15,7 +15,7 @@ const LegalNotice = () => {
                         <Col lg={8}>
                             <h1 className="display-4 fw-bold mb-3">
                                 <FontAwesomeIcon icon={faBalanceScale} className="me-3" />
-                                Mentions Légales
+                                Mentions Légales - Reveilart4artist
                             </h1>
                             <p className="lead mb-0">
                                 Informations légales et réglementaires
@@ -46,7 +46,7 @@ const LegalNotice = () => {
                                                     <p className="mb-2">
                                                         <FontAwesomeIcon icon={faBuilding} className="me-2 text-primary" />
                                                         <strong>Dénomination sociale :</strong><br />
-                                                        Reveil4artist
+                                                        Reveilart4artist
                                                     </p>
                                                     <p className="mb-2">
                                                         <FontAwesomeIcon icon={faMapMarkerAlt} className="me-2 text-primary" />
@@ -74,7 +74,7 @@ const LegalNotice = () => {
                                     <section className="mb-5">
                                         <h3 className="h4 fw-bold text-primary mb-3">2. Directeur de la publication</h3>
                                         <p>
-                                            Le directeur de la publication est le représentant légal de Reveil4artist.
+                                            Le directeur de la publication est le représentant légal de Reveilart4artist.
                                         </p>
                                         <p>
                                             <strong>Contact :</strong> reveilart4artist@gmail.com
@@ -93,8 +93,8 @@ const LegalNotice = () => {
                                         <h3 className="h4 fw-bold text-primary mb-3">4. Propriété intellectuelle</h3>
                                         <h5 className="fw-bold mb-2">4.1 Marques et logos</h5>
                                         <p>
-                                            La marque "Reveil4artist", le logo et tous les éléments graphiques
-                                            du site sont la propriété exclusive de Reveil4artist et sont protégés
+                                            La marque "Reveilart4artist", le logo et tous les éléments graphiques
+                                            du site sont la propriété exclusive de Reveilart4artist et sont protégés
                                             par les lois sur la propriété intellectuelle.
                                         </p>
 
@@ -140,14 +140,14 @@ const LegalNotice = () => {
                                     </section>
 
                                     <section className="mb-5">
-                                        <h3 className="h4 fw-bold text-primary mb-3">7. Limitation de responsabilité</h3>
+                                        <h3 className="h4 fw-bold text-primary mb-3">7. Exactitude des informations</h3>
                                         <p>
-                                            Reveil4artist s'efforce de fournir des informations exactes et à jour,
-                                            mais ne peut garantir l'exactitude, la complétude ou l'actualité
-                                            de toutes les informations diffusées.
+                                            Reveilart4artist s'efforce de fournir des informations exactes et à jour,
+                                            mais ne peut garantir l'exactitude, l'exhaustivité ou l'actualité
+                                            de toutes les informations présentes sur le site.
                                         </p>
                                         <p>
-                                            Reveil4artist ne saurait être tenu responsable de :
+                                            Reveilart4artist ne saurait être tenu responsable de :
                                         </p>
                                         <ul>
                                             <li>L'interruption temporaire ou définitive du service</li>
@@ -161,7 +161,7 @@ const LegalNotice = () => {
                                         <h3 className="h4 fw-bold text-primary mb-3">8. Liens externes</h3>
                                         <p>
                                             Notre site peut contenir des liens vers des sites externes.
-                                            Reveil4artist n'a aucun contrôle sur ces sites et décline
+                                            Reveilart4artist n'a aucun contrôle sur ces sites et décline
                                             toute responsabilité quant à leur contenu ou leur politique
                                             de confidentialité.
                                         </p>
@@ -179,7 +179,7 @@ const LegalNotice = () => {
                                         <h3 className="h4 fw-bold text-primary mb-3">10. Déclaration CNIL</h3>
                                         <p>
                                             Conformément à la réglementation camerounaise sur la protection
-                                            des données personnelles, Reveil4artist respecte les obligations
+                                            des données personnelles, Reveilart4artist respecte les obligations
                                             de déclaration et de protection des données.
                                         </p>
                                     </section>
@@ -189,13 +189,19 @@ const LegalNotice = () => {
                                         <div className="credits bg-light p-4 rounded">
                                             <h6 className="fw-bold mb-3">Réalisation technique</h6>
                                             <p className="mb-2">
-                                                <strong>Développement :</strong> Équipe technique Reveil4artist
+                                                <strong>Développement :</strong> Équipe technique Reveilart4artist
                                             </p>
                                             <p className="mb-2">
-                                                <strong>Design :</strong> Équipe créative Reveil4artist
+                                                <strong>Design :</strong> Équipe créative Reveilart4artist
+                                            </p>
+                                            <p className="mb-2">
+                                                <strong>Hébergement :</strong> Hébergeur certifié Cameroun
+                                            </p>
+                                            <p className="mb-2">
+                                                <strong>Support technique :</strong> support@reveilart4artist.com
                                             </p>
                                             <p className="mb-0">
-                                                <strong>Maintenance :</strong> Service technique Reveil4artist
+                                                <strong>Maintenance :</strong> Service technique Reveilart4artist
                                             </p>
                                         </div>
                                     </section>

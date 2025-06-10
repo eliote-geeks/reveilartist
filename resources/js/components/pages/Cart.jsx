@@ -444,7 +444,7 @@ const Cart = () => {
             </head>
             <body>
                 <div class="header">
-                    <div class="logo">🎵 Reveil4artist</div>
+                    <div class="logo">🎵 Reveilart4artist</div>
                     <h2>Reçu de commande</h2>
                 </div>
 
@@ -497,7 +497,7 @@ const Cart = () => {
 
                 <div class="footer">
                     <p>Merci pour votre achat !</p>
-                    <p>Reveil4artist - Plateforme musicale camerounaise</p>
+                    <p>Reveilart4artist - Plateforme musicale camerounaise</p>
                     <p>Ce reçu est généré automatiquement et valide sans signature.</p>
                 </div>
             </body>
@@ -549,7 +549,7 @@ const Cart = () => {
 
                     <div style="text-align: center; margin-top: 15px; font-size: 12px;">
                         <p>Ticket valide - Présenter à l'entrée</p>
-                        <p>Reveil4artist</p>
+                        <p>Reveilart4artist</p>
                     </div>
                 </div>
             </body>

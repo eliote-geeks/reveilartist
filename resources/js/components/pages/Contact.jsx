@@ -142,7 +142,7 @@ const Contact = () => {
                                 Contactez-nous
                             </h1>
                             <p className="lead mb-4">
-                                Notre équipe est là pour vous aider à tirer le meilleur parti de Reveil4artist.
+                                Notre équipe est là pour vous aider à tirer le meilleur parti de Reveilart4artist.
                                 N'hésitez pas à nous contacter pour toute question ou suggestion.
                             </p>
                             <Badge bg="light" text="dark" className="px-3 py-2">
@@ -430,7 +430,7 @@ const Contact = () => {
                                     </a>
                                 </div>
                                 <p className="text-muted small mt-3 mb-0">
-                                    Restez connecté avec la communauté Reveil4artist
+                                    Restez connecté avec la communauté Reveilart4artist
                                 </p>
                             </Card.Body>
                         </Card>
@@ -461,7 +461,7 @@ const Contact = () => {
                 {/* Section statistiques */}
                 <Row className="mt-5 pt-4 border-top">
                     <Col className="text-center mb-4">
-                        <h3 className="fw-bold mb-4">Reveil4artist en chiffres</h3>
+                        <h3 className="fw-bold mb-4">Reveilart4artist en chiffres</h3>
                     </Col>
                     <Col md={3} className="text-center mb-4">
                         <div className="stat-item p-4">

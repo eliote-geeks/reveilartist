@@ -92,7 +92,7 @@ const Header = () => {
                         <div className="logo-container">
                             <img
                                 src="/images/reveilart-logo.svg"
-                                alt="Reveil4artist"
+                                alt="Reveilart4artist"
                                 height="36"
                                 className="brand-logo-modern"
                                 onError={(e) => {
@@ -105,7 +105,7 @@ const Header = () => {
                             </div>
                         </div>
                         <div className="brand-text-modern">
-                            <span className="brand-name">Reveil4artist</span>
+                            <span className="brand-name">Reveilart4artist</span>
                             <span className="brand-tagline">Music Platform</span>
                         </div>
                     </Navbar.Brand>
@@ -289,7 +289,7 @@ const Header = () => {
                     <div className="mobile-header">
                         <div className="mobile-brand">
                             <img src="/images/reveilart-logo.svg" alt="Logo" height="24" />
-                            <span>Reveil4artist</span>
+                            <span>Reveilart4artist</span>
                         </div>
                         <Button className="close-btn" onClick={closeMobileMenu}>
                             <FontAwesomeIcon icon={faTimes} />
