@@ -330,7 +330,7 @@ const Header = () => {
                                 </Nav.Link>
                                 
                                   {isAdmin() && (
-                                <Nav.Link as={Link} to="/mes-dashboard" className="mobile-nav-item-ultra" onClick={closeMobileMenu}>
+                                <Nav.Link as={Link} to="/dashboard" className="mobile-nav-item-ultra" onClick={closeMobileMenu}>
                                     <FontAwesomeIcon icon={faTachometerAlt} />
                                     <span>Dashboard</span>
                                 </Nav.Link>
