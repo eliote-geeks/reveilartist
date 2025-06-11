@@ -328,10 +328,14 @@ const Header = () => {
                                         <Badge pill className="mobile-badge">{cartItemsCount}</Badge>
                                     )}
                                 </Nav.Link>
-                                <Nav.Link as={Link} to="/mes-creations" className="mobile-nav-item-ultra" onClick={closeMobileMenu}>
-                                    <FontAwesomeIcon icon={faHeart} />
-                                    <span>Mes Créations</span>
+                                
+                                  {isAdmin() && (
+                                <Nav.Link as={Link} to="/mes-dashboard" className="mobile-nav-item-ultra" onClick={closeMobileMenu}>
+                                    <FontAwesomeIcon icon={faTachometerAlt} />
+                                    <span>Dashboard</span>
                                 </Nav.Link>
+                                  )}
+                                      
                                 <Nav.Link as={Link} to="/profile" className="mobile-nav-item-ultra" onClick={closeMobileMenu}>
                                     <FontAwesomeIcon icon={faUserCircle} />
                                     <span>Mon Profil</span>
