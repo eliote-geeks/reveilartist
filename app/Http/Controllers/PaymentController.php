@@ -512,104 +512,28 @@ class PaymentController extends Controller
      */
     public function processMonetbilCartPayment(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'items' => 'required|array|min:1',
-            'items.*.id' => 'required|integer',
-            'items.*.type' => 'required|in:sound,event',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.price' => 'required|numeric|min:0',
-            'subtotal' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0',
-            'total' => 'required|numeric|min:0',
-            'promo_code' => 'nullable|string',
-            'payment_method' => 'required|string',
-        ]);
-
         try {
-            $user = User::findOrFail($validated['user_id']);
-            
-            // Vérifier que l'utilisateur a un numéro de téléphone
-            if (empty($user->phone)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Un numéro de téléphone est requis pour utiliser Monetbil',
-                    'error' => 'phone_required'
-                ], 400);
-            }
-            
-            Log::info('Début du processus de paiement Monetbil pour le panier', [
-                'user_id' => $user->id,
-                'total' => $validated['total'],
-                'items_count' => count($validated['items'])
-            ]);
-            
-            // Vérifier si des sons ont déjà été achetés
-            $soundItems = array_filter($validated['items'], fn($item) => $item['type'] === 'sound');
-            foreach ($soundItems as $item) {
-                $existingPayment = Payment::where('user_id', $validated['user_id'])
-                    ->where('sound_id', $item['id'])
-                    ->where('status', 'completed')
-                    ->first();
-
-                if ($existingPayment) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Vous avez déjà acheté certains sons de votre panier',
-                        'error' => 'sounds_already_purchased',
-                        'sound_id' => $item['id']
-                    ], 400);
-                }
-            }
-
-            // Créer une description pour le paiement
-            $itemsCount = count($validated['items']);
-            $description = "Achat panier ReveilArtist - $itemsCount article(s)";
-
-            // Initier le paiement Monetbil pour le montant total
-            $result = $this->monetbilService->initiatePayment(
-                $validated['total'],
-                $description,
-                $user,
-                null,
-                'cart_payment'
-            );
-
-            if ($result['success']) {
-                // Stocker les données du panier dans les métadonnées
-                $payment = $result['payment'];
-                $payment->update([
-                    'metadata' => json_encode([
-                        'cart_items' => $validated['items'],
-                        'subtotal' => $validated['subtotal'],
-                        'discount' => $validated['discount'],
-                        'promo_code' => $validated['promo_code'],
-                        'payment_method' => $validated['payment_method'],
-                        'is_cart_payment' => true
-                    ])
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Paiement Monetbil initié avec succès',
-                    'payment' => $payment,
-                    'payment_url' => $result['payment_url'],
-                    'order_number' => 'RVL-' . time() . '-' . strtoupper(Str::random(5))
-                ], 201);
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Erreur lors de l\'initiation du paiement Monetbil',
-                    'error' => $result['error']
-                ], 500);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Erreur PaymentController::processMonetbilCartPayment: ' . $e->getMessage());
+            // Test basique d'abord
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du traitement du paiement',
-                'error' => $e->getMessage()
+                'message' => 'Endpoint test - Version de débogage',
+                'debug' => [
+                    'request_data' => $request->all(),
+                    'user_authenticated' => auth()->check(),
+                    'user_id' => auth()->id(),
+                    'monetbil_service_exists' => class_exists('App\Services\MonetbilService'),
+                    'php_version' => phpversion(),
+                    'laravel_version' => app()->version()
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur test PaymentController::processMonetbilCartPayment: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de test',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ], 500);
         }
     }
