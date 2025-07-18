@@ -529,6 +529,21 @@ class PaymentController extends Controller
         try {
             $user = User::findOrFail($validated['user_id']);
             
+            // Vérifier que l'utilisateur a un numéro de téléphone
+            if (empty($user->phone)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Un numéro de téléphone est requis pour utiliser Monetbil',
+                    'error' => 'phone_required'
+                ], 400);
+            }
+            
+            Log::info('Début du processus de paiement Monetbil pour le panier', [
+                'user_id' => $user->id,
+                'total' => $validated['total'],
+                'items_count' => count($validated['items'])
+            ]);
+            
             // Vérifier si des sons ont déjà été achetés
             $soundItems = array_filter($validated['items'], fn($item) => $item['type'] === 'sound');
             foreach ($soundItems as $item) {

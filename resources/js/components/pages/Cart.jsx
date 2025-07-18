@@ -269,6 +269,7 @@ const Cart = () => {
     };
 
     const processMonetbilPayment = async () => {
+        console.log('🚀 Début du processus de paiement Monetbil');
         setIsProcessing(true);
 
         try {
@@ -288,6 +289,11 @@ const Cart = () => {
                 payment_method: 'monetbil'
             };
 
+            console.log('📋 Données de paiement:', paymentData);
+
+            // Afficher un message pour indiquer qu'on utilise Monetbil
+            toast.info('Initiation du paiement', 'Connexion à Monetbil en cours...');
+
             // Initier le paiement Monetbil
             const response = await fetch('/api/payments/monetbil/cart', {
                 method: 'POST',
@@ -298,33 +304,50 @@ const Cart = () => {
                 body: JSON.stringify(paymentData)
             });
 
+            console.log('📡 Réponse de l\'API:', response.status, response.statusText);
+
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error('❌ Erreur API:', errorData);
                 throw new Error(errorData.message || 'Erreur lors de l\'initiation du paiement');
             }
 
             const result = await response.json();
+            console.log('✅ Résultat de l\'API:', result);
             
             if (result.success) {
+                // Vérifier si l'URL de paiement est présente
+                if (!result.payment_url) {
+                    throw new Error('URL de paiement Monetbil manquante');
+                }
+
+                console.log('🔗 URL de paiement Monetbil:', result.payment_url);
+                
                 // Rediriger vers la page de paiement Monetbil
-                toast.info('Redirection vers Monetbil', 'Vous allez être redirigé vers la page de paiement Monetbil');
+                toast.success('Redirection vers Monetbil', 'Ouverture de la page de paiement Monetbil...');
                 
                 // Ouvrir la page de paiement Monetbil dans un nouvel onglet
-                window.open(result.payment_url, '_blank');
+                const paymentWindow = window.open(result.payment_url, '_blank');
                 
-                // Optionnel : fermer le modal de checkout
-                setShowCheckoutModal(false);
-                
-                // Afficher un message d'information
-                toast.success('Paiement initié', 'Veuillez compléter votre paiement sur la page Monetbil');
+                if (!paymentWindow) {
+                    // Si le popup est bloqué, proposer un lien direct
+                    toast.warning('Popup bloqué', 'Cliquez sur ce lien pour payer : ' + result.payment_url);
+                } else {
+                    // Optionnel : fermer le modal de checkout
+                    setShowCheckoutModal(false);
+                    
+                    // Afficher un message d'information
+                    toast.success('Paiement initié', 'Veuillez compléter votre paiement sur la page Monetbil');
+                }
                 
             } else {
+                console.error('❌ Échec du paiement:', result);
                 throw new Error(result.message || 'Erreur lors de l\'initiation du paiement');
             }
 
         } catch (error) {
-            toast.error('Erreur de paiement', error.message || 'Une erreur est survenue lors du traitement de votre commande');
-            console.error('Erreur paiement Monetbil:', error);
+            console.error('💥 Erreur complète:', error);
+            toast.error('Erreur de paiement Monetbil', error.message || 'Une erreur est survenue lors du traitement de votre commande');
         } finally {
             setIsProcessing(false);
         }
@@ -1254,27 +1277,36 @@ const Cart = () => {
                                         <small className="text-muted">Validation de la transaction en cours. Veuillez ne pas fermer cette fenêtre.</small>
                                     </div>
                                 ) : (
-                                    <div className="d-grid gap-2">
-                                        {/* Bouton paiement Monetbil */}
+                                    <div className="d-grid gap-3">
+                                        {/* Bouton paiement Monetbil - PRINCIPAL */}
                                         <Button
                                             variant="primary"
                                             size="lg"
                                             onClick={processMonetbilPayment}
-                                            className="px-5 mb-2"
+                                            className="px-5 py-3 fw-bold"
+                                            style={{
+                                                background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                                                border: 'none',
+                                                fontSize: '1.1rem'
+                                            }}
                                         >
                                             <FontAwesomeIcon icon={faCreditCard} className="me-2" />
-                                            Payer avec Monetbil {formatCurrency(getTotal())}
+                                            💳 Payer avec Monetbil {formatCurrency(getTotal())}
                                         </Button>
                                         
-                                        {/* Bouton paiement test */}
+                                        <div className="text-center">
+                                            <small className="text-muted">Ou</small>
+                                        </div>
+                                        
+                                        {/* Bouton paiement test - SECONDAIRE */}
                                         <Button
-                                            variant="success"
-                                            size="lg"
+                                            variant="outline-secondary"
+                                            size="sm"
                                             onClick={processTestPayment}
-                                            className="px-5"
+                                            className="px-3"
                                         >
                                             <FontAwesomeIcon icon={faLock} className="me-2" />
-                                            Payer {formatCurrency(getTotal())} (Test)
+                                            Mode Test - {formatCurrency(getTotal())}
                                         </Button>
                                     </div>
                                 )}
