@@ -81,8 +81,8 @@ npm run dev
 
 ## Contact
 
-- **Email**: contact@reveilart.com
-- **Site web**: [reveilart.com](https://reveilart.com)
+- **Email**: pauleliote97@gmail.com
+- **Site web**: https://reveilart4arist.com/
 
 ## Licence
 
