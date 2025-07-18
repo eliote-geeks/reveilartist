@@ -302,8 +302,17 @@ Route::prefix('artists')->group(function () {
     });
 });
 
-// Paiements de test (accessible à tous les utilisateurs connectés)
-Route::post('/payments/test-payment', [PaymentController::class, 'processTestPayment'])->name('api.payments.test');
+// Paiements Monetbil (accessible à tous les utilisateurs connectés)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/payments/monetbil/initiate', [PaymentController::class, 'initiateMonetbilPayment'])->name('api.payments.monetbil.initiate');
+    Route::post('/payments/monetbil/cart', [PaymentController::class, 'processMonetbilCartPayment'])->name('api.payments.monetbil.cart');
+    Route::post('/payments/test-payment', [PaymentController::class, 'processTestPayment'])->name('api.payments.test');
+});
+
+// Routes callbacks Monetbil (publiques car appelées par Monetbil)
+Route::post('/monetbil/notify', [PaymentController::class, 'handleMonetbilNotification'])->name('api.monetbil.notify');
+Route::get('/monetbil/success', [PaymentController::class, 'handleMonetbilSuccess'])->name('api.monetbil.success');
+Route::get('/monetbil/failed', [PaymentController::class, 'handleMonetbilFailed'])->name('api.monetbil.failed');
 
 // Route de test pour l'authentification
 Route::middleware('auth:sanctum')->get('/test-auth', function (Request $request) {

@@ -9,6 +9,11 @@ Route::get('/', function () {
 });
 
 
+// Route de retour de paiement Monetbil (publique)
+Route::get('/payment/return/{payment}', function (App\Models\Payment $payment) {
+    return view('payment-return', compact('payment'));
+})->name('payment.return');
+
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),

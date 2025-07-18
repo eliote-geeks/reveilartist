@@ -12,15 +12,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Pour PostgreSQL, on doit d'abord supprimer la contrainte existante puis la recréer
-        DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check");
+        // SQLite ne supporte pas les contraintes CHECK nommées, on les ignore
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            // Pour PostgreSQL, on doit d'abord supprimer la contrainte existante puis la recréer
+            DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check");
 
-        // Ajouter la nouvelle contrainte avec toutes les valeurs nécessaires
-        DB::statement("ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('draft', 'published', 'cancelled', 'completed', 'pending', 'active'))");
+            // Ajouter la nouvelle contrainte avec toutes les valeurs nécessaires
+            DB::statement("ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('draft', 'published', 'cancelled', 'completed', 'pending', 'active'))");
 
-        // Faire de même pour category si nécessaire
-        DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_category_check");
-        DB::statement("ALTER TABLE events ADD CONSTRAINT events_category_check CHECK (category IN ('concert', 'festival', 'showcase', 'workshop', 'conference', 'party', 'soiree'))");
+            // Faire de même pour category si nécessaire
+            DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_category_check");
+            DB::statement("ALTER TABLE events ADD CONSTRAINT events_category_check CHECK (category IN ('concert', 'festival', 'showcase', 'workshop', 'conference', 'party', 'soiree'))");
+        }
     }
 
     /**
@@ -28,11 +31,14 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Remettre les contraintes originales
-        DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check");
-        DB::statement("ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('draft', 'published', 'cancelled', 'completed'))");
+        // SQLite ne supporte pas les contraintes CHECK nommées, on les ignore
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            // Remettre les contraintes originales
+            DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check");
+            DB::statement("ALTER TABLE events ADD CONSTRAINT events_status_check CHECK (status IN ('draft', 'published', 'cancelled', 'completed'))");
 
-        DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_category_check");
-        DB::statement("ALTER TABLE events ADD CONSTRAINT events_category_check CHECK (category IN ('concert', 'festival', 'showcase', 'workshop', 'conference', 'party'))");
+            DB::statement("ALTER TABLE events DROP CONSTRAINT IF EXISTS events_category_check");
+            DB::statement("ALTER TABLE events ADD CONSTRAINT events_category_check CHECK (category IN ('concert', 'festival', 'showcase', 'workshop', 'conference', 'party'))");
+        }
     }
 };

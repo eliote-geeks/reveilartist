@@ -28,7 +28,13 @@ class Payment extends Model
         'failure_reason',
         'metadata',
         'paid_at',
-        'refunded_at'
+        'refunded_at',
+        'description',
+        'payment_reference',
+        'monetbil_service_key',
+        'monetbil_payment_url',
+        'phone',
+        'premium_duration'
     ];
 
     protected $casts = [
@@ -197,5 +203,37 @@ class Payment extends Model
             'cancelled' => 'Annulé',
             default => $this->status,
         };
+    }
+
+    /**
+     * Obtenir le montant formaté
+     */
+    public function getFormattedAmountAttribute(): string
+    {
+        return number_format($this->amount, 0, ',', ' ') . ' XAF';
+    }
+
+    /**
+     * Vérifier si le paiement est complété
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed';
+    }
+
+    /**
+     * Vérifier si le paiement est en attente
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    /**
+     * Vérifier si le paiement a échoué
+     */
+    public function hasFailed(): bool
+    {
+        return $this->status === 'failed';
     }
 }
