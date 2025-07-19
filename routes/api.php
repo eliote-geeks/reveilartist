@@ -309,6 +309,160 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/payments/test-payment', [PaymentController::class, 'processTestPayment'])->name('api.payments.test');
 });
 
+// Versions de debug progressives (temporaires)
+
+// Debug Level 1: Test basique sans dépendances
+Route::post('/payments/debug/level1', function (Illuminate\Http\Request $request) {
+    return response()->json([
+        'success' => true,
+        'message' => 'Debug Level 1 OK',
+        'data' => $request->all(),
+        'user_authenticated' => auth()->check()
+    ]);
+})->middleware('auth:sanctum');
+
+// Debug Level 2: Test avec modèles de base
+Route::post('/payments/debug/level2', function (Illuminate\Http\Request $request) {
+    try {
+        $userCount = \App\Models\User::count();
+        $paymentCount = \App\Models\Payment::count();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Debug Level 2 OK',
+            'data' => [
+                'users_count' => $userCount,
+                'payments_count' => $paymentCount,
+                'request_data' => $request->all()
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => basename($e->getFile())
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
+// Debug Level 3: Test avec service Monetbil
+Route::post('/payments/debug/level3', function (Illuminate\Http\Request $request) {
+    try {
+        // Test du service sans injection de dépendance
+        $monetbilService = app(\App\Services\MonetbilService::class);
+        $testRef = $monetbilService->generatePaymentReference();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Debug Level 3 OK',
+            'data' => [
+                'service_instantiated' => true,
+                'test_reference' => $testRef,
+                'config_key_exists' => !empty(config('services.monetbil.service_key'))
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => basename($e->getFile()),
+            'trace' => explode("\n", $e->getTraceAsString())
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
+// Debug Level 4: Test création Payment simple
+Route::post('/payments/debug/level4', function (Illuminate\Http\Request $request) {
+    try {
+        $request->validate([
+            'user_id' => 'required|exists:users,id'
+        ]);
+        
+        $user = \App\Models\User::findOrFail($request->user_id);
+        
+        // Test de création d'un Payment simple
+        $payment = new \App\Models\Payment([
+            'user_id' => $user->id,
+            'amount' => 1000,
+            'type' => 'test',
+            'description' => 'Test debug',
+            'status' => 'pending',
+            'payment_reference' => 'TEST_' . time(),
+            'phone' => '237699123456'
+        ]);
+        
+        // Ne pas sauvegarder, juste tester la création
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Debug Level 4 OK',
+            'data' => [
+                'user_found' => true,
+                'payment_created' => true,
+                'payment_data' => [
+                    'amount' => $payment->amount,
+                    'type' => $payment->type,
+                    'reference' => $payment->payment_reference
+                ]
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => basename($e->getFile())
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
+// Debug Level 5: Version simplifiée du vrai endpoint
+Route::post('/payments/debug/level5', function (Illuminate\Http\Request $request) {
+    try {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'items' => 'required|array|min:1',
+            'total' => 'required|numeric|min:0'
+        ]);
+        
+        $user = \App\Models\User::findOrFail($validated['user_id']);
+        $monetbilService = app(\App\Services\MonetbilService::class);
+        
+        // Créer un paiement de test simple
+        $payment = \App\Models\Payment::create([
+            'user_id' => $user->id,
+            'amount' => $validated['total'],
+            'type' => 'cart_payment',
+            'description' => 'Test panier debug',
+            'status' => 'pending',
+            'payment_reference' => $monetbilService->generatePaymentReference(),
+            'phone' => $monetbilService->cleanPhoneNumber($user->phone ?? '699123456'),
+            'metadata' => json_encode(['debug' => true, 'items' => $validated['items']])
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Debug Level 5 OK - Paiement créé',
+            'payment' => [
+                'id' => $payment->id,
+                'reference' => $payment->payment_reference,
+                'amount' => $payment->amount,
+                'status' => $payment->status
+            ]
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => basename($e->getFile())
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
 // Routes callbacks Monetbil (publiques car appelées par Monetbil)
 Route::post('/payments/monetbil/notify', [PaymentController::class, 'handleMonetbilNotification'])->name('api.monetbil.notify');
 Route::get('/payments/monetbil/success', [PaymentController::class, 'handleMonetbilSuccess'])->name('api.monetbil.success');
@@ -334,6 +488,60 @@ Route::get('/test-simple', function () {
         'timestamp' => now(),
         'users_count' => App\Models\User::count()
     ]);
+});
+
+// Route de test pour les paiements Monetbil (sans auth pour debug)
+Route::post('/test-monetbil-payment', function (Illuminate\Http\Request $request) {
+    try {
+        // Test des composants de base
+        $tests = [
+            'monetbil_service_exists' => class_exists('App\\Services\\MonetbilService'),
+            'payment_model_exists' => class_exists('App\\Models\\Payment'),
+            'user_model_exists' => class_exists('App\\Models\\User'),
+            'storage_writable' => is_writable(storage_path('logs')),
+            'config_exists' => config('services.monetbil.service_key') !== null,
+        ];
+        
+        $allTestsPassed = array_reduce($tests, function($carry, $test) {
+            return $carry && $test;
+        }, true);
+        
+        if (!$allTestsPassed) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tests préliminaires échoués',
+                'tests' => $tests
+            ], 500);
+        }
+        
+        // Test de création d'un service Monetbil
+        $monetbilService = new App\Services\MonetbilService();
+        $testRef = $monetbilService->generatePaymentReference();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Service Monetbil fonctionnel',
+            'test_reference' => $testRef,
+            'config' => [
+                'service_key_configured' => !empty(config('services.monetbil.service_key')),
+                'currency' => config('services.monetbil.currency', 'N/A'),
+                'country' => config('services.monetbil.country', 'N/A')
+            ],
+            'tests' => $tests
+        ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('Test Monetbil Payment Error: ' . $e->getMessage());
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors du test',
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => explode("\n", $e->getTraceAsString())
+        ], 500);
+    }
 });
 
 // Profil utilisateur complet avec achats, favoris, etc. (route ancienne pour compatibilité)

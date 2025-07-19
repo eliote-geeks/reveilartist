@@ -512,23 +512,32 @@ class PaymentController extends Controller
      */
     public function processMonetbilCartPayment(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'items' => 'required|array|min:1',
-            'items.*.id' => 'required|integer',
-            'items.*.type' => 'required|in:sound,event',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.price' => 'required|numeric|min:0',
-            'subtotal' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0',
-            'total' => 'required|numeric|min:0',
-            'promo_code' => 'nullable|string',
-            'payment_method' => 'required|string',
-            'phone' => 'nullable|string',
-        ]);
-
         try {
+            // Log de début pour debugging
+            Log::info('Début processMonetbilCartPayment', [
+                'request_data' => $request->all(),
+                'user_id' => auth()->id()
+            ]);
+
+            $validated = $request->validate([
+                'user_id' => 'required|exists:users,id',
+                'items' => 'required|array|min:1',
+                'items.*.id' => 'required|integer',
+                'items.*.type' => 'required|in:sound,event',
+                'items.*.quantity' => 'required|integer|min:1',
+                'items.*.price' => 'required|numeric|min:0',
+                'subtotal' => 'required|numeric|min:0',
+                'discount' => 'nullable|numeric|min:0',
+                'total' => 'required|numeric|min:0',
+                'promo_code' => 'nullable|string',
+                'payment_method' => 'required|string',
+                'phone' => 'nullable|string',
+            ]);
+
+            Log::info('Validation réussie', ['validated_data' => $validated]);
+
             $user = User::findOrFail($validated['user_id']);
+            Log::info('Utilisateur trouvé', ['user_id' => $user->id, 'user_name' => $user->name]);
 
             // Vérifier les sons déjà achetés
             $soundItems = array_filter($validated['items'], fn($item) => $item['type'] === 'sound');
@@ -539,6 +548,7 @@ class PaymentController extends Controller
                     ->first();
 
                 if ($existingPayment) {
+                    Log::warning('Son déjà acheté', ['sound_id' => $item['id']]);
                     return response()->json([
                         'success' => false,
                         'message' => 'Vous avez déjà acheté certains sons de votre panier',
@@ -548,15 +558,21 @@ class PaymentController extends Controller
                 }
             }
 
+            // Utiliser app() au lieu de $this->monetbilService pour éviter les problèmes d'injection
+            $monetbilService = app(MonetbilService::class);
+            Log::info('Service Monetbil instancié');
+
             // Nettoyer le numéro de téléphone
-            $phone = $validated['phone'] ?? $user->phone;
-            $cleanPhone = $this->monetbilService->cleanPhoneNumber($phone);
+            $phone = $validated['phone'] ?? $user->phone ?? '699123456';
+            $cleanPhone = $monetbilService->cleanPhoneNumber($phone);
+            Log::info('Téléphone nettoyé', ['original' => $phone, 'clean' => $cleanPhone]);
             
             // Générer une référence unique pour le panier
-            $paymentReference = $this->monetbilService->generatePaymentReference();
+            $paymentReference = $monetbilService->generatePaymentReference();
+            Log::info('Référence générée', ['reference' => $paymentReference]);
             
             // Créer l'enregistrement de paiement du panier
-            $payment = Payment::create([
+            $paymentData = [
                 'user_id' => $user->id,
                 'amount' => $validated['total'],
                 'type' => 'cart_payment',
@@ -574,29 +590,57 @@ class PaymentController extends Controller
                     'payment_method' => $validated['payment_method'],
                     'is_cart_payment' => true
                 ])
-            ]);
+            ];
+
+            Log::info('Création du paiement', ['payment_data' => $paymentData]);
+            $payment = Payment::create($paymentData);
+            Log::info('Paiement créé', ['payment_id' => $payment->id]);
+
+            // Simuler la relation user pour generateWorkingPaymentUrl
+            $payment->setRelation('user', $user);
 
             // Générer l'URL de paiement Monetbil
-            $paymentUrl = $this->monetbilService->generateWorkingPaymentUrl($payment);
+            $paymentUrl = $monetbilService->generateWorkingPaymentUrl($payment);
+            Log::info('URL de paiement générée', ['url' => substr($paymentUrl, 0, 100) . '...']);
             
             // Mettre à jour le paiement avec l'URL
             $payment->update([
                 'monetbil_payment_url' => $paymentUrl
             ]);
 
+            Log::info('Paiement Monetbil réussi', ['payment_id' => $payment->id, 'reference' => $paymentReference]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Paiement Monetbil initié avec succès',
-                'payment' => $payment,
+                'payment' => $payment->fresh(),
                 'payment_url' => $paymentUrl
             ], 201);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Erreur de validation', ['errors' => $e->errors()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+
         } catch (\Exception $e) {
-            Log::error('Erreur PaymentController::processMonetbilCartPayment: ' . $e->getMessage());
+            Log::error('Erreur PaymentController::processMonetbilCartPayment', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'initiation du paiement Monetbil',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'debug' => [
+                    'file' => basename($e->getFile()),
+                    'line' => $e->getLine()
+                ]
             ], 500);
         }
     }
