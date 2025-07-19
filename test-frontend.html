@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Reveil4Artist</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .test-section { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #b6d4ea; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .token-input { width: 100%; padding: 10px; margin: 10px 0; }
+        .loading { color: #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test API Reveil4Artist</h1>
+    <p><strong>URL Base:</strong> http://reveilart4arist.com</p>
+
+    <div class="test-section info">
+        <h3>🔑 Configuration</h3>
+        <label>Token d'authentification:</label>
+        <input type="text" id="authToken" class="token-input" placeholder="Collez votre token ici...">
+        <button onclick="getTokenFromStorage()">Récupérer le token du localStorage</button>
+        <button onclick="getUserInfo()">Vérifier l'utilisateur</button>
+        <div id="userInfo"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 1: API de base (sans authentification)</h3>
+        <button onclick="testApiBase()">Tester</button>
+        <div id="test1Result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Endpoint ultra-simple</h3>
+        <button onclick="testSimpleEndpoint()">Tester</button>
+        <div id="test2Result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Diagnostic complet</h3>
+        <button onclick="testDiagnostic()">Tester</button>
+        <div id="test3Result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 4: Endpoint problématique (original)</h3>
+        <button onclick="testOriginalEndpoint()">Tester</button>
+        <div id="test4Result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 5: Tous les endpoints de debug</h3>
+        <button onclick="testAllDebugEndpoints()">Tester tout</button>
+        <div id="test5Result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://reveilart4arist.com';
+        
+        function getAuthHeaders() {
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Veuillez saisir votre token d\'authentification');
+                return null;
+            }
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        function getTokenFromStorage() {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                document.getElementById('authToken').value = token;
+                alert('Token récupéré du localStorage');
+            } else {
+                alert('Aucun token trouvé dans le localStorage');
+            }
+        }
+
+        async function getUserInfo() {
+            const headers = getAuthHeaders();
+            if (!headers) return;
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/user`, { headers });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('userInfo').innerHTML = `
+                        <div class="success">
+                            <strong>Utilisateur connecté:</strong><br>
+                            ID: ${data.id}<br>
+                            Nom: ${data.name}<br>
+                            Email: ${data.email}
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('userInfo').innerHTML = `
+                        <div class="error">Erreur: ${JSON.stringify(data)}</div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('userInfo').innerHTML = `
+                    <div class="error">Erreur réseau: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testApiBase() {
+            document.getElementById('test1Result').innerHTML = '<div class="loading">Test en cours...</div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/test-simple`);
+                const data = await response.json();
+                
+                document.getElementById('test1Result').innerHTML = `
+                    <div class="${response.ok ? 'success' : 'error'}">
+                        <strong>Status:</strong> ${response.status}<br>
+                        <strong>Réponse:</strong><br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('test1Result').innerHTML = `
+                    <div class="error">
+                        <strong>Erreur:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testSimpleEndpoint() {
+            const headers = getAuthHeaders();
+            if (!headers) return;
+
+            document.getElementById('test2Result').innerHTML = '<div class="loading">Test en cours...</div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/payments/monetbil/cart-simple-test`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ test: 'data' })
+                });
+                
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    document.getElementById('test2Result').innerHTML = `
+                        <div class="${response.ok ? 'success' : 'error'}">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Content-Type:</strong> ${contentType}<br>
+                            <strong>Réponse JSON:</strong><br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    const text = await response.text();
+                    document.getElementById('test2Result').innerHTML = `
+                        <div class="error">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Content-Type:</strong> ${contentType}<br>
+                            <strong>Réponse non-JSON (premiers 500 chars):</strong><br>
+                            <pre>${text.substring(0, 500)}...</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('test2Result').innerHTML = `
+                    <div class="error">
+                        <strong>Erreur:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testDiagnostic() {
+            const headers = getAuthHeaders();
+            if (!headers) return;
+
+            document.getElementById('test3Result').innerHTML = '<div class="loading">Test en cours...</div>';
+            
+            // Récupérer l'ID utilisateur depuis les infos utilisateur
+            const userInfoDiv = document.getElementById('userInfo');
+            const userIdMatch = userInfoDiv.innerHTML.match(/ID: (\d+)/);
+            const userId = userIdMatch ? userIdMatch[1] : '1';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/payments/monetbil/cart-diagnostic`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        items: [{ id: 1, type: 'sound', quantity: 1, price: 1000 }],
+                        total: 1000
+                    })
+                });
+                
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    document.getElementById('test3Result').innerHTML = `
+                        <div class="${response.ok ? 'success' : 'error'}">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Diagnostic:</strong><br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    const text = await response.text();
+                    document.getElementById('test3Result').innerHTML = `
+                        <div class="error">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Réponse non-JSON (premiers 500 chars):</strong><br>
+                            <pre>${text.substring(0, 500)}...</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('test3Result').innerHTML = `
+                    <div class="error">
+                        <strong>Erreur:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testOriginalEndpoint() {
+            const headers = getAuthHeaders();
+            if (!headers) return;
+
+            document.getElementById('test4Result').innerHTML = '<div class="loading">Test en cours...</div>';
+            
+            const userInfoDiv = document.getElementById('userInfo');
+            const userIdMatch = userInfoDiv.innerHTML.match(/ID: (\d+)/);
+            const userId = userIdMatch ? userIdMatch[1] : '1';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/payments/monetbil/cart`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        items: [{ id: 1, type: 'sound', quantity: 1, price: 1000 }],
+                        subtotal: 1000,
+                        total: 1000,
+                        payment_method: 'monetbil'
+                    })
+                });
+                
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    document.getElementById('test4Result').innerHTML = `
+                        <div class="${response.ok ? 'success' : 'error'}">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Réponse:</strong><br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    const text = await response.text();
+                    document.getElementById('test4Result').innerHTML = `
+                        <div class="error">
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Réponse non-JSON (premiers 1000 chars):</strong><br>
+                            <pre>${text.substring(0, 1000)}...</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('test4Result').innerHTML = `
+                    <div class="error">
+                        <strong>Erreur:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testAllDebugEndpoints() {
+            const headers = getAuthHeaders();
+            if (!headers) return;
+
+            document.getElementById('test5Result').innerHTML = '<div class="loading">Tests en cours...</div>';
+            
+            const endpoints = [
+                'payments/debug/level1',
+                'payments/debug/level2', 
+                'payments/debug/level3',
+                'payments/debug/level4',
+                'payments/debug/level5'
+            ];
+            
+            let results = '<h4>Résultats des tests debug:</h4>';
+            
+            for (let i = 0; i < endpoints.length; i++) {
+                const endpoint = endpoints[i];
+                try {
+                    const response = await fetch(`${BASE_URL}/api/${endpoint}`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ user_id: 1, test: `level${i+1}` })
+                    });
+                    
+                    const status = response.status;
+                    const statusClass = status === 200 ? 'success' : 'error';
+                    
+                    if (response.headers.get('content-type')?.includes('application/json')) {
+                        const data = await response.json();
+                        results += `
+                            <div class="${statusClass}">
+                                <strong>${endpoint}:</strong> ${status} - ${data.message || 'OK'}
+                            </div>
+                        `;
+                    } else {
+                        const text = await response.text();
+                        results += `
+                            <div class="error">
+                                <strong>${endpoint}:</strong> ${status} - Non-JSON Response
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    results += `
+                        <div class="error">
+                            <strong>${endpoint}:</strong> Erreur - ${error.message}
+                        </div>
+                    `;
+                }
+            }
+            
+            document.getElementById('test5Result').innerHTML = results;
+        }
+
+        // Auto-récupération du token au chargement
+        window.onload = function() {
+            getTokenFromStorage();
+        };
+    </script>
+</body>
+</html>

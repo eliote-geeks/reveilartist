@@ -475,6 +475,52 @@ Route::post('/payments/monetbil/cart-simple-test', function (Illuminate\Http\Req
     ], 200);
 })->middleware('auth:sanctum');
 
+// Test pattern campusVente complet
+Route::post('/payments/monetbil/cart-campusvente-test', function (Illuminate\Http\Request $request) {
+    try {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'items' => 'required|array|min:1',
+            'total' => 'required|numeric|min:0'
+        ]);
+        
+        $user = \App\Models\User::findOrFail($validated['user_id']);
+        
+        // Test de la classe Monetbil
+        \App\Libraries\Monetbil::reset();
+        \App\Libraries\Monetbil::setServiceKey(config('services.monetbil.service_key'));
+        \App\Libraries\Monetbil::setAmount($validated['total']);
+        \App\Libraries\Monetbil::setPhone('699123456');
+        \App\Libraries\Monetbil::setFirstName($user->name);
+        \App\Libraries\Monetbil::setEmail($user->email);
+        \App\Libraries\Monetbil::setItemRef('TEST_' . time());
+        \App\Libraries\Monetbil::setReturnUrl('http://test.com/success');
+        \App\Libraries\Monetbil::setNotifyUrl('http://test.com/notify');
+        
+        $paymentUrl = \App\Libraries\Monetbil::generatePaymentUrl();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Test pattern campusVente réussi',
+            'data' => [
+                'user' => ['id' => $user->id, 'name' => $user->name],
+                'monetbil_url' => $paymentUrl,
+                'url_preview' => substr($paymentUrl, 0, 100) . '...',
+                'config_ok' => !empty(config('services.monetbil.service_key')),
+                'class_exists' => class_exists('\App\Libraries\Monetbil')
+            ]
+        ], 200);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'file' => basename($e->getFile()),
+            'line' => $e->getLine()
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
 // Diagnostic COMPLET avec capture d'erreur
 Route::post('/payments/monetbil/cart-diagnostic', function (Illuminate\Http\Request $request) {
     $diagnostics = [];
