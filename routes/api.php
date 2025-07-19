@@ -463,6 +463,123 @@ Route::post('/payments/debug/level5', function (Illuminate\Http\Request $request
     }
 })->middleware('auth:sanctum');
 
+// Test ULTRA SIMPLE pour bypasser le controller complètement
+Route::post('/payments/monetbil/cart-simple-test', function (Illuminate\Http\Request $request) {
+    return response()->json([
+        'success' => true,
+        'message' => 'Test ultra simple réussi - bypass controller',
+        'data' => $request->all(),
+        'timestamp' => now(),
+        'user_authenticated' => auth()->check(),
+        'user_id' => auth()->id()
+    ], 200);
+})->middleware('auth:sanctum');
+
+// Diagnostic COMPLET avec capture d'erreur
+Route::post('/payments/monetbil/cart-diagnostic', function (Illuminate\Http\Request $request) {
+    $diagnostics = [];
+    $errors = [];
+    
+    try {
+        // Test 1: Authentification
+        $diagnostics['auth'] = [
+            'authenticated' => auth()->check(),
+            'user_id' => auth()->id(),
+            'guard' => config('auth.defaults.guard')
+        ];
+        
+        // Test 2: Configuration
+        $diagnostics['config'] = [
+            'monetbil_key_exists' => !empty(config('services.monetbil.service_key')),
+            'monetbil_key_preview' => substr(config('services.monetbil.service_key', ''), 0, 10) . '...',
+            'app_debug' => config('app.debug'),
+            'app_env' => config('app.env')
+        ];
+        
+        // Test 3: Base de données
+        try {
+            $diagnostics['database'] = [
+                'users_count' => \App\Models\User::count(),
+                'payments_count' => \App\Models\Payment::count(),
+                'connection_ok' => true
+            ];
+        } catch (\Exception $e) {
+            $errors['database'] = $e->getMessage();
+            $diagnostics['database'] = ['connection_ok' => false];
+        }
+        
+        // Test 4: Service Monetbil
+        try {
+            $monetbilService = new \App\Services\MonetbilService();
+            $testRef = $monetbilService->generatePaymentReference();
+            $diagnostics['monetbil_service'] = [
+                'instantiated' => true,
+                'test_reference' => $testRef,
+                'phone_cleaning' => $monetbilService->cleanPhoneNumber('0699123456')
+            ];
+        } catch (\Exception $e) {
+            $errors['monetbil_service'] = [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ];
+            $diagnostics['monetbil_service'] = ['instantiated' => false];
+        }
+        
+        // Test 5: Validation des données
+        if ($request->has('user_id')) {
+            try {
+                $validated = $request->validate([
+                    'user_id' => 'required|exists:users,id',
+                    'items' => 'required|array|min:1'
+                ]);
+                $diagnostics['validation'] = ['passed' => true];
+            } catch (\Exception $e) {
+                $errors['validation'] = $e->getMessage();
+                $diagnostics['validation'] = ['passed' => false];
+            }
+        }
+        
+        // Test 6: Classes existantes
+        $diagnostics['classes'] = [
+            'User' => class_exists('\App\Models\User'),
+            'Payment' => class_exists('\App\Models\Payment'),
+            'MonetbilService' => class_exists('\App\Services\MonetbilService'),
+            'PaymentController' => class_exists('\App\Http\Controllers\PaymentController')
+        ];
+        
+        // Test 7: Autoloader
+        $diagnostics['autoloader'] = [
+            'vendor_autoload' => file_exists(base_path('vendor/autoload.php')),
+            'composer_lock' => file_exists(base_path('composer.lock')),
+            'laravel_app' => class_exists('\Illuminate\Foundation\Application')
+        ];
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Diagnostic complet terminé',
+            'diagnostics' => $diagnostics,
+            'errors' => $errors,
+            'request_data' => $request->all(),
+            'timestamp' => now()->toISOString()
+        ], 200);
+        
+    } catch (\Throwable $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur fatale lors du diagnostic',
+            'error' => [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => explode("\n", $e->getTraceAsString())
+            ],
+            'diagnostics' => $diagnostics ?? [],
+            'errors' => $errors ?? []
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
 // Routes callbacks Monetbil (publiques car appelées par Monetbil)
 Route::post('/payments/monetbil/notify', [PaymentController::class, 'handleMonetbilNotification'])->name('api.monetbil.notify');
 Route::get('/payments/monetbil/success', [PaymentController::class, 'handleMonetbilSuccess'])->name('api.monetbil.success');
