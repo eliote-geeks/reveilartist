@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Background -->
+  <circle cx="8" cy="8" r="7.5" fill="#6366f1" stroke="#fff" stroke-width="0.5"/>
+  
+  <!-- Musical note -->
+  <g fill="#fff">
+    <!-- Note stem -->
+    <rect x="10" y="4" width="1" height="7" rx="0.5"/>
+    
+    <!-- Note head -->
+    <ellipse cx="8" cy="10" rx="1.5" ry="1" transform="rotate(-20 8 10)"/>
+    
+    <!-- Flag -->
+    <path d="M11 4 Q13 3 14 5 Q13 6 11 7 Z"/>
+  </g>
+  
+  <!-- Sound waves -->
+  <g stroke="#fff" stroke-width="0.8" fill="none" opacity="0.7">
+    <path d="M4 6 Q5 8 4 10"/>
+    <path d="M12 6 Q13 8 12 10"/>
+  </g>
+</svg>
