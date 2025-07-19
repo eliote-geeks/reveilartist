@@ -9,10 +9,34 @@ Route::get('/', function () {
 });
 
 
-// Route de retour de paiement Monetbil (publique)
+// Routes de retour de paiement Monetbil (publiques)
 Route::get('/payment/return/{payment}', function (App\Models\Payment $payment) {
     return view('payment-return', compact('payment'));
 })->name('payment.return');
+
+Route::get('/payment/success', function (Illuminate\Http\Request $request) {
+    $ref = $request->get('ref');
+    $payment = App\Models\Payment::where('payment_reference', $ref)->first();
+    
+    if ($payment) {
+        $payment->markAsCompleted();
+        return redirect('/?payment=success&ref=' . $ref);
+    }
+    
+    return redirect('/?payment=error');
+})->name('payment.success');
+
+Route::get('/payment/cancel', function (Illuminate\Http\Request $request) {
+    $ref = $request->get('ref');
+    $payment = App\Models\Payment::where('payment_reference', $ref)->first();
+    
+    if ($payment) {
+        $payment->markAsFailed('Paiement annulé par l\'utilisateur');
+        return redirect('/?payment=cancelled&ref=' . $ref);
+    }
+    
+    return redirect('/?payment=error');
+})->name('payment.cancel');
 
 Route::middleware([
     'auth:sanctum',

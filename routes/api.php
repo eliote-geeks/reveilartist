@@ -310,9 +310,9 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Routes callbacks Monetbil (publiques car appelées par Monetbil)
-Route::post('/monetbil/notify', [PaymentController::class, 'handleMonetbilNotification'])->name('api.monetbil.notify');
-Route::get('/monetbil/success', [PaymentController::class, 'handleMonetbilSuccess'])->name('api.monetbil.success');
-Route::get('/monetbil/failed', [PaymentController::class, 'handleMonetbilFailed'])->name('api.monetbil.failed');
+Route::post('/payments/monetbil/notify', [PaymentController::class, 'handleMonetbilNotification'])->name('api.monetbil.notify');
+Route::get('/payments/monetbil/success', [PaymentController::class, 'handleMonetbilSuccess'])->name('api.monetbil.success');
+Route::get('/payments/monetbil/failed', [PaymentController::class, 'handleMonetbilFailed'])->name('api.monetbil.failed');
 
 // Route de test pour l'authentification
 Route::middleware('auth:sanctum')->get('/test-auth', function (Request $request) {

@@ -112,7 +112,7 @@ class MonetbilService
         $baseUrl = "https://www.monetbil.com/widget/{$this->widgetVersion}/";
         
         $params = [
-            'amount' => $payment->amount,
+            'amount' => (int)$payment->amount,
             'phone' => $payment->phone,
             'locale' => $this->lang,
             'country' => $this->country,
@@ -120,14 +120,14 @@ class MonetbilService
             'item_ref' => $payment->payment_reference,
             'payment_ref' => $payment->payment_reference,
             'user' => $payment->user->id,
-            'first_name' => $payment->user->first_name ?? $payment->user->name,
-            'last_name' => $payment->user->last_name ?? '',
+            'first_name' => $payment->user->first_name ?? explode(' ', $payment->user->name)[0],
+            'last_name' => $payment->user->last_name ?? (count(explode(' ', $payment->user->name)) > 1 ? explode(' ', $payment->user->name)[1] : ''),
             'email' => $payment->user->email,
             'service_key' => $this->serviceKey,
-            'service_secret' => $this->serviceSecret,
-            'notify_url' => route('api.monetbil.notify'),
-            'return_url' => route('payment.return', ['payment' => $payment->id]),
-            'logo' => asset('images/logo.png'),
+            'notify_url' => url('/api/payments/monetbil/notify'),
+            'return_url' => url('/payment/success?ref=' . $payment->payment_reference),
+            'cancel_url' => url('/payment/cancel?ref=' . $payment->payment_reference),
+            'logo' => url('/images/reveilart-logo.svg'),
         ];
 
         return $baseUrl . '?' . http_build_query($params);
